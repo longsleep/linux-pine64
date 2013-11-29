@@ -1157,58 +1157,29 @@ void rand_initialize_disk(struct gendisk *disk)
 static ssize_t
 random_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 {
-	ssize_t n, retval = 0, count = 0;
+	ssize_t n;
 
 	if (nbytes == 0)
 		return 0;
 
-	while (nbytes > 0) {
-		n = nbytes;
-		if (n > SEC_XFER_SIZE)
-			n = SEC_XFER_SIZE;
+	nbytes = min_t(size_t, nbytes, SEC_XFER_SIZE);
+	while (1) {
+		n = extract_entropy_user(&blocking_pool, buf, nbytes);
+		if (n < 0)
+			return n;
+		if (n > 0)
+			return n;
+		/* Pool is (near) empty.  Maybe wait and retry. */
 
-		DEBUG_ENT("reading %zu bits\n", n*8);
+		if (file->f_flags & O_NONBLOCK)
+			return -EAGAIN;
 
-		n = extract_entropy_user(&blocking_pool, buf, n);
-
-		if (n < 0) {
-			retval = n;
-			break;
-		}
-
-		DEBUG_ENT("read got %zd bits (%zd still needed)\n",
-			  n*8, (nbytes-n)*8);
-
-		if (n == 0) {
-			if (file->f_flags & O_NONBLOCK) {
-				retval = -EAGAIN;
-				break;
-			}
-
-			DEBUG_ENT("sleeping?\n");
-
-			wait_event_interruptible(random_read_wait,
-				input_pool.entropy_count >=
-						 random_read_wakeup_thresh);
-
-			DEBUG_ENT("awake\n");
-
-			if (signal_pending(current)) {
-				retval = -ERESTARTSYS;
-				break;
-			}
-
-			continue;
-		}
-
-		count += n;
-		buf += n;
-		nbytes -= n;
-		break;		/* This break makes the device work */
-				/* like a named pipe */
+		wait_event_interruptible(random_read_wait,
+			ENTROPY_BITS(&input_pool) >=
+			random_read_wakeup_thresh);
+		if (signal_pending(current))
+			return -ERESTARTSYS;
 	}
-
-	return (count ? count : retval);
 }
 
 static ssize_t
