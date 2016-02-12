@@ -48,3 +48,16 @@ int usb_stor_ucr61s2b_init(struct us_data *us);
 
 /* This places the HUAWEI E220 devices in multi-port mode */
 int usb_stor_huawei_e220_init(struct us_data *us);
+int usb_stor_huawei_init(struct us_data *us);
+
+
+int usb_stor_ZTE_AC580_init(struct us_data *us);
+int usb_stor_ZTE_AC580_init2(struct us_data *us);
+int usb_stor_ASB_init(struct us_data *us);
+int usb_stor_TechFaith_init(struct us_data *us);
+int usb_stor_Shichuangxing_init(struct us_data *us);
+int usb_stor_wangxun_init(struct us_data *us);
+int usb_stor_huawei_e303_init(struct us_data *us);
+
+int usb_stor_people_init(struct us_data *us);
+int usb_modem_init(struct us_data *us);

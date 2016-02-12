@@ -17,10 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/cpu_pm.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
+#include <linux/hardirq.h>
 
 #include <asm/fpsimd.h>
 #include <asm/cputype.h>
@@ -86,6 +88,106 @@ void fpsimd_flush_thread(void)
 }
 
 /*
+ * Save the userland FPSIMD state of 'current' to memory
+ */
+void fpsimd_preserve_current_state(void)
+{
+	preempt_disable();
+	fpsimd_save_state(&current->thread.fpsimd_state);
+	preempt_enable();
+}
+
+/*
+ * Load an updated userland FPSIMD state for 'current' from memory
+ */
+void fpsimd_update_current_state(struct fpsimd_state *state)
+{
+	preempt_disable();
+	fpsimd_load_state(state);
+	preempt_enable();
+}
+
+#ifdef CONFIG_KERNEL_MODE_NEON
+
+static DEFINE_PER_CPU(struct fpsimd_partial_state, hardirq_fpsimdstate);
+static DEFINE_PER_CPU(struct fpsimd_partial_state, softirq_fpsimdstate);
+
+/*
+ * Kernel-side NEON support functions
+ */
+void kernel_neon_begin_partial(u32 num_regs)
+{
+	if (in_interrupt()) {
+		struct fpsimd_partial_state *s = this_cpu_ptr(
+			in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
+
+		BUG_ON(num_regs > 32);
+		fpsimd_save_partial_state(s, roundup(num_regs, 2));
+	} else {
+		/*
+		 * Save the userland FPSIMD state if we have one and if we
+		 * haven't done so already. Clear fpsimd_last_state to indicate
+		 * that there is no longer userland FPSIMD state in the
+		 * registers.
+		 */
+		preempt_disable();
+		if (current->mm)
+			fpsimd_save_state(&current->thread.fpsimd_state);
+	}
+}
+EXPORT_SYMBOL(kernel_neon_begin_partial);
+
+void kernel_neon_end(void)
+{
+	if (in_interrupt()) {
+		struct fpsimd_partial_state *s = this_cpu_ptr(
+			in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
+		fpsimd_load_partial_state(s);
+	} else {
+		if (current->mm)
+			fpsimd_load_state(&current->thread.fpsimd_state);
+
+		preempt_enable();
+	}
+}
+EXPORT_SYMBOL(kernel_neon_end);
+
+#endif /* CONFIG_KERNEL_MODE_NEON */
+
+#ifdef CONFIG_CPU_PM
+static int fpsimd_cpu_pm_notifier(struct notifier_block *self,
+				  unsigned long cmd, void *v)
+{
+	switch (cmd) {
+	case CPU_PM_ENTER:
+		if (current->mm)
+			fpsimd_save_state(&current->thread.fpsimd_state);
+		break;
+	case CPU_PM_EXIT:
+		if (current->mm)
+			fpsimd_load_state(&current->thread.fpsimd_state);
+		break;
+	case CPU_PM_ENTER_FAILED:
+	default:
+		return NOTIFY_DONE;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block fpsimd_cpu_pm_notifier_block = {
+	.notifier_call = fpsimd_cpu_pm_notifier,
+};
+
+static void fpsimd_pm_init(void)
+{
+	cpu_pm_register_notifier(&fpsimd_cpu_pm_notifier_block);
+}
+
+#else
+static inline void fpsimd_pm_init(void) { }
+#endif /* CONFIG_CPU_PM */
+
+/*
  * FP/SIMD support code initialisation.
  */
 static int __init fpsimd_init(void)
@@ -102,6 +204,8 @@ static int __init fpsimd_init(void)
 		pr_notice("Advanced SIMD is not implemented\n");
 	else
 		elf_hwcap |= HWCAP_ASIMD;
+
+	fpsimd_pm_init();
 
 	return 0;
 }

@@ -790,6 +790,18 @@ static irqreturn_t ohci_irq (struct usb_hcd *hcd)
 	 */
 	ints = ohci_readl(ohci, &regs->intrstatus);
 
+{
+	if(ints & OHCI_INTR_RHSC){
+		int portstatus0 = 0;
+
+		portstatus0 = ohci_readl(ohci, &ohci->regs->roothub.portstatus[0]);
+		if((portstatus0 & RH_PS_CCS) && (portstatus0 & RH_PS_CSC)){
+			printk("ohci_irq: fullspeed or lowspeed device connect\n");
+		}else if(!(portstatus0 & RH_PS_CCS) && (portstatus0 & RH_PS_CSC)){
+			printk("ohci_irq: fullspeed or lowspeed device disconnect\n");
+		}
+	}
+}
 	/* Check for an all 1's result which is a typical consequence
 	 * of dead, unclocked, or unplugged (CardBus...) devices
 	 */
@@ -1196,23 +1208,9 @@ MODULE_LICENSE ("GPL");
 #define PLATFORM_DRIVER		ohci_platform_driver
 #endif
 
-#if	!defined(PCI_DRIVER) &&		\
-	!defined(PLATFORM_DRIVER) &&	\
-	!defined(OMAP1_PLATFORM_DRIVER) &&	\
-	!defined(OMAP3_PLATFORM_DRIVER) &&	\
-	!defined(OF_PLATFORM_DRIVER) &&	\
-	!defined(SA1111_DRIVER) &&	\
-	!defined(PS3_SYSTEM_BUS_DRIVER) && \
-	!defined(SM501_OHCI_DRIVER) && \
-	!defined(TMIO_OHCI_DRIVER) && \
-	!defined(S3C2410_PLATFORM_DRIVER) && \
-	!defined(EXYNOS_PLATFORM_DRIVER) && \
-	!defined(EP93XX_PLATFORM_DRIVER) && \
-	!defined(AT91_PLATFORM_DRIVER) && \
-	!defined(NXP_PLATFORM_DRIVER) && \
-	!defined(DAVINCI_PLATFORM_DRIVER) && \
-	!defined(SPEAR_PLATFORM_DRIVER)
-#error "missing bus glue for ohci-hcd"
+#ifdef CONFIG_USB_SUNXI_HCI
+#include "ohci_sunxi.c"
+#define	PLATFORM_DRIVER		sunxi_ohci_hcd_driver
 #endif
 
 static int __init ohci_hcd_mod_init(void)

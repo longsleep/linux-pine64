@@ -17,7 +17,6 @@ config USB_C67X00_HCD
 
 config USB_XHCI_HCD
 	tristate "xHCI HCD (USB 3.0) support"
-	depends on USB_ARCH_HAS_XHCI
 	---help---
 	  The eXtensible Host Controller Interface (xHCI) is standard for USB 3.0
 	  "SuperSpeed" host controller hardware.
@@ -43,7 +42,6 @@ endif # USB_XHCI_HCD
 
 config USB_EHCI_HCD
 	tristate "EHCI HCD (USB 2.0) support"
-	depends on USB_ARCH_HAS_EHCI
 	---help---
 	  The Enhanced Host Controller Interface (EHCI) is standard for USB 2.0
 	  "high speed" (480 Mbit/sec, 60 Mbyte/sec) host controller hardware.
@@ -176,6 +174,13 @@ config USB_EHCI_HCD_SPEAR
         ---help---
           Enables support for the on-chip EHCI controller on
           ST SPEAr chips.
+
+config USB_EHCI_HCD_SYNOPSYS
+       tristate "Support for Synopsys Host-AHB USB 2.0 controller"
+	depends on USB_EHCI_HCD
+	---help---
+	  Enable support for onchip USB controllers based on DesignWare USB 2.0
+	  Host-AHB Controller IP from Synopsys.
 
 config USB_EHCI_HCD_AT91
         tristate  "Support for Atmel on-chip EHCI USB controller"
@@ -347,7 +352,6 @@ config USB_ISP1362_HCD
 
 config USB_OHCI_HCD
 	tristate "OHCI HCD support"
-	depends on USB_ARCH_HAS_OHCI
 	select ISP1301_OMAP if MACH_OMAP_H2 || MACH_OMAP_H3
 	depends on USB_ISP1301 || !ARCH_LPC32XX
 	---help---
@@ -702,3 +706,45 @@ config USB_HCD_SSB
 	  for ehci and ohci.
 
 	  If unsure, say N.
+
+#-----------------------------------------------------
+#
+# SUNXI USB Host Controller Drivers
+#
+#-----------------------------------------------------
+config USB_SUNXI_HCD
+    tristate "SoftWinner SUNXI USB Host Controller support"
+	depends on USB
+	help
+	    SoftWinner SUNXI USB2.0 Host Controller support.
+
+config USB_SUNXI_HCI
+    tristate "SoftWinner SUNXI USB HCI"
+	depends on USB_SUNXI_HCD
+	help
+	    SoftWinner SUNXI USB HCI.
+
+config USB_SUNXI_EHCI0
+    tristate "SoftWinner SUNXI USB EHCI0"
+	depends on USB_SUNXI_HCI
+	help
+	    SoftWinner SUNXI USB EHCI0.
+
+config USB_SUNXI_EHCI1
+    tristate "SoftWinner SUNXI USB EHCI1"
+	depends on USB_SUNXI_HCI
+	help
+	    SoftWinner SUNXI USB EHCI1.
+
+config USB_SUNXI_OHCI0
+    tristate "SoftWinner SUNXI USB OHCI0"
+	depends on USB_SUNXI_HCI
+	help
+	    SoftWinner SUNXI USB OHCI0.
+
+config USB_SUNXI_OHCI1
+    tristate "SoftWinner SUNXI USB OHCI1"
+	depends on USB_SUNXI_HCI
+	help
+	    SoftWinner SUNXI USB OHCI1.
+

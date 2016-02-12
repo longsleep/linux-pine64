@@ -95,12 +95,172 @@ int usb_stor_ucr61s2b_init(struct us_data *us)
 /* This places the HUAWEI E220 devices in multi-port mode */
 int usb_stor_huawei_e220_init(struct us_data *us)
 {
+#if 0
 	int result;
-
 	result = usb_stor_control_msg(us, us->send_ctrl_pipe,
 				      USB_REQ_SET_FEATURE,
 				      USB_TYPE_STANDARD | USB_RECIP_DEVICE,
 				      0x01, 0x0, NULL, 0x0, 1000);
 	usb_stor_dbg(us, "Huawei mode set result is %d\n", result);
 	return 0;
+#else
+	printk("====usb_stor_huawei_e220_init===>\n");
+	return -ENODEV;
+#endif
+
+}
+
+/* This places the HUAWEI E303 devices in multi-port mode */
+int usb_stor_huawei_e303_init(struct us_data *us)
+{
+	printk("====usb_stor_huawei_e303_init===>\n");
+	return -ENODEV;
+}
+
+/*for huawei ril.  */
+#define IS_HUAWEI_DONGLES 1
+#define NOT_HUAWEI_DONGLES 0
+
+static int usb_stor_huawei_dongles_pid(struct us_data *us)
+{
+    int ret = NOT_HUAWEI_DONGLES;
+    struct usb_interface_descriptor *idesc = NULL;
+
+    idesc = &us->pusb_intf->cur_altsetting->desc;
+    if(NULL != idesc) {
+        if(0x0000 == idesc->bInterfaceNumber) {
+            if ((0x1401 <= us->pusb_dev->descriptor.idProduct && 0x1600 >= us->pusb_dev->descriptor.idProduct)
+                || (0x1c02 <= us->pusb_dev->descriptor.idProduct && 0x2202 >= us->pusb_dev->descriptor.idProduct)
+                || (0x1001 == us->pusb_dev->descriptor.idProduct)
+                || (0x1003 == us->pusb_dev->descriptor.idProduct)
+                || (0x1004 == us->pusb_dev->descriptor.idProduct)) {
+                if ((0x1501 <= us->pusb_dev->descriptor.idProduct) && (0x1504 >= us->pusb_dev->descriptor.idProduct)) {
+                    ret = NOT_HUAWEI_DONGLES;
+                } else {
+                    ret = IS_HUAWEI_DONGLES;
+                }
+
+            }
+
+        }
+
+    }
+
+    return ret;    
+}
+
+int usb_stor_huawei_scsi_init(struct us_data *us)
+{
+    int result = 0;
+    int act_len = 0;
+
+    unsigned char cmd[32] = {0x55, 0x53, 0x42, 0x43, 0x00, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11,
+                             0x06, 0x30, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+/*  E1731
+    unsigned char cmd[32] = {0x55, 0x53, 0x42, 0x43, 0x00, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11,
+                             0x06, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+*/                             
+
+    printk("====usb_stor_huawei_scsi_init===>\n"); // 
+    
+    result = usb_stor_bulk_transfer_buf(us, us->send_bulk_pipe, cmd, 31, &act_len);
+    usb_stor_dbg(us,"usb_stor_bulk_transfer_buf performing result is %d, transfer the actual length=%d", result, act_len);
+
+    return result;
+}
+
+int usb_stor_huawei_init(struct us_data *us)
+{
+    int result = 0;
+
+    printk("====usb_stor_huawei_init===>\n"); // 
+    
+    if (usb_stor_huawei_dongles_pid(us)) {
+        if ((0x1446 <= us->pusb_dev->descriptor.idProduct)) {
+            result = usb_stor_huawei_scsi_init(us);
+        } else {
+            result = usb_stor_huawei_e220_init(us);
+        }
+    }
+
+    return result;
+}
+
+//AC560--ZTE--	0x19d20026->0x19d20094	before convert to modem,don't report disk dev
+int usb_stor_ZTE_AC580_init(struct us_data *us) // PID = 0x0026
+{
+#if 0	
+	int result = 0;
+	int act_len = 0;
+
+	result = usb_stor_control_msg(us, us->send_ctrl_pipe,USB_REQ_CLEAR_FEATURE,
+		USB_TYPE_STANDARD | USB_RECIP_ENDPOINT,0x0, 0x89, NULL, 0x0, 1000);
+
+	US_DEBUGP("usb_stor_control_msg performing result is %d\n", result);
+	printk("====AC580/AC560===>usb_stor_control_msg performing result is %d\n", result);
+
+	result = usb_stor_control_msg(us, us->send_ctrl_pipe,USB_REQ_CLEAR_FEATURE,
+		USB_TYPE_STANDARD | USB_RECIP_ENDPOINT,0x0, 0x9, NULL, 0x0, 1000);
+
+	US_DEBUGP("usb_stor_control_msg performing result is %d\n", result);
+	printk("====AC580/AC560===>usb_stor_control_msg performing result is %d\n", result);
+	return (result ? 0 : -ENODEV);
+#else
+	printk("====%s===>\n",__FUNCTION__);
+	return -ENODEV;
+#endif
+}
+
+//AC560--ZTE--	0x19d20026->0x19d20094	before convert to modem,don't report disk dev
+int usb_stor_ZTE_AC580_init2(struct us_data *us) // PID = 0x0026
+{
+	printk("====%s===>\n",__FUNCTION__);
+	return -ENODEV;
+}
+
+int usb_stor_ASB_init(struct us_data *us)
+{
+	printk("====%s===>\n",__FUNCTION__);
+	return -ENODEV;
+}
+
+int usb_stor_TechFaith_init(struct us_data *us)
+{
+	printk("====%s===>\n",__FUNCTION__);
+	usb_stor_port_reset(us);
+	return -ENODEV;
+}
+
+int usb_stor_Shichuangxing_init(struct us_data *us)
+{
+	printk("====usb_stor_Shichuangxing_init===>\n");
+	return -ENODEV;
+}
+
+int usb_stor_wangxun_init(struct us_data *us)
+{
+	
+	printk("====usb_stor_wangxun_init===>\n");
+	usb_stor_port_reset(us);	
+	return -ENODEV;
+	
+}
+int usb_stor_people_init(struct us_data *us)
+{
+	printk("====people_init===>\n");
+    usb_stor_control_msg(us, us->send_ctrl_pipe, USB_REQ_CLEAR_FEATURE,
+		USB_TYPE_STANDARD | USB_RECIP_ENDPOINT,0x0, 0x83, NULL, 0x0, 1000);
+    return -ENODEV;
+}
+
+int usb_modem_init(struct us_data *us)
+{
+	printk("====modem_init===>\n");
+    usb_stor_control_msg(us, us->send_ctrl_pipe, USB_REQ_CLEAR_FEATURE,
+		USB_TYPE_STANDARD | USB_RECIP_ENDPOINT,0x0, 0x85, NULL, 0x0, 1000);
+    return -ENODEV;
 }

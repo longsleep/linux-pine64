@@ -663,7 +663,9 @@ void wiphy_rfkill_start_polling(struct wiphy *wiphy)
 	if (!rdev->ops->rfkill_poll)
 		return;
 	rdev->rfkill_ops.poll = cfg80211_rfkill_poll;
+#ifdef CONFIG_RFKILL_PM
 	rfkill_resume_polling(rdev->rfkill);
+#endif
 }
 EXPORT_SYMBOL(wiphy_rfkill_start_polling);
 

@@ -27,6 +27,10 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/slot-gpio.h>
 
+#ifdef CONFIG_ARCH_SUNXI
+#include <linux/sys_config.h>
+#endif
+
 #include "core.h"
 #include "host.h"
 
@@ -311,7 +315,11 @@ void mmc_of_parse(struct mmc_host *host)
 	struct device_node *np;
 	u32 bus_width;
 	bool explicit_inv_wp, gpio_inv_wp = false;
+#ifndef CONFIG_ARCH_SUNXI
 	enum of_gpio_flags flags;
+#else
+	struct gpio_config flags;
+#endif
 	int len, ret, gpio;
 
 	if (!host->parent || !host->parent->of_node)
@@ -358,7 +366,9 @@ void mmc_of_parse(struct mmc_host *host)
 	/* Parse Card Detection */
 	if (of_find_property(np, "non-removable", &len)) {
 		host->caps |= MMC_CAP_NONREMOVABLE;
-	} else {
+	} else if(of_find_property(np, "data3-detect", &len)){
+		host->sunxi_caps3|= MMC_SUNXI_CAP3_DAT3_DET;
+	}else{
 		bool explicit_inv_cd, gpio_inv_cd = false;
 
 		explicit_inv_cd = of_property_read_bool(np, "cd-inverted");
@@ -366,11 +376,16 @@ void mmc_of_parse(struct mmc_host *host)
 		if (of_find_property(np, "broken-cd", &len))
 			host->caps |= MMC_CAP_NEEDS_POLL;
 
+#ifndef CONFIG_ARCH_SUNXI
 		gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, &flags);
+#else
+		gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, (enum of_gpio_flags *)&flags);
+#endif
 		if (gpio_is_valid(gpio)) {
+#ifndef CONFIG_ARCH_SUNXI
 			if (!(flags & OF_GPIO_ACTIVE_LOW))
 				gpio_inv_cd = true;
-
+#endif
 			ret = mmc_gpio_request_cd(host, gpio);
 			if (ret < 0)
 				dev_err(host->parent,
@@ -388,10 +403,16 @@ void mmc_of_parse(struct mmc_host *host)
 	/* Parse Write Protection */
 	explicit_inv_wp = of_property_read_bool(np, "wp-inverted");
 
+#ifndef CONFIG_ARCH_SUNXI
 	gpio = of_get_named_gpio_flags(np, "wp-gpios", 0, &flags);
+#else
+	gpio = of_get_named_gpio_flags(np, "wp-gpios", 0, (enum of_gpio_flags *)&flags);
+#endif
 	if (gpio_is_valid(gpio)) {
-		if (!(flags & OF_GPIO_ACTIVE_LOW))
+#ifndef CONFIG_ARCH_SUNXI
+	if (!(flags & OF_GPIO_ACTIVE_LOW))
 			gpio_inv_wp = true;
+#endif
 
 		ret = mmc_gpio_request_ro(host, gpio);
 		if (ret < 0)
@@ -405,14 +426,39 @@ void mmc_of_parse(struct mmc_host *host)
 		host->caps |= MMC_CAP_SD_HIGHSPEED;
 	if (of_find_property(np, "cap-mmc-highspeed", &len))
 		host->caps |= MMC_CAP_MMC_HIGHSPEED;
+	if (of_find_property(np, "sd-uhs-sdr12", &len))
+		host->caps |= MMC_CAP_UHS_SDR12;
+	if (of_find_property(np, "sd-uhs-sdr25", &len))
+		host->caps |= MMC_CAP_UHS_SDR25;
+	if (of_find_property(np, "sd-uhs-sdr50", &len))
+		host->caps |= MMC_CAP_UHS_SDR50;
+	if (of_find_property(np, "sd-uhs-sdr104", &len))
+		host->caps |= MMC_CAP_UHS_SDR104;
+	if (of_find_property(np, "sd-uhs-ddr50", &len))
+		host->caps |= MMC_CAP_UHS_DDR50;
 	if (of_find_property(np, "cap-power-off-card", &len))
 		host->caps |= MMC_CAP_POWER_OFF_CARD;
 	if (of_find_property(np, "cap-sdio-irq", &len))
 		host->caps |= MMC_CAP_SDIO_IRQ;
+
 	if (of_find_property(np, "keep-power-in-suspend", &len))
 		host->pm_caps |= MMC_PM_KEEP_POWER;
 	if (of_find_property(np, "enable-sdio-wakeup", &len))
 		host->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
+	if (of_find_property(np, "ignore-pm-notify", &len))
+		host->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;	
+	if (of_find_property(np, "mmc-ddr-1_8v", &len))
+		host->caps |= MMC_CAP_1_8V_DDR;
+	if (of_find_property(np, "mmc-ddr-1_2v", &len))
+		host->caps |= MMC_CAP_1_2V_DDR;
+	if (of_find_property(np, "mmc-hs200-1_8v", &len))
+		host->caps2 |= MMC_CAP2_HS200_1_8V_SDR;
+	if (of_find_property(np, "mmc-hs200-1_2v", &len))
+		host->caps2 |= MMC_CAP2_HS200_1_2V_SDR;
+	if (of_find_property(np, "mmc-hs400-1_8v", &len))
+		host->caps2 |= MMC_CAP2_HS400_1_8V | MMC_CAP2_HS200_1_8V_SDR;
+	if (of_find_property(np, "mmc-hs400-1_2v", &len))
+		host->caps2 |= MMC_CAP2_HS400_1_2V | MMC_CAP2_HS200_1_2V_SDR;
 }
 
 EXPORT_SYMBOL(mmc_of_parse);
@@ -459,6 +505,8 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 
 	spin_lock_init(&host->lock);
 	init_waitqueue_head(&host->wq);
+	wake_lock_init(&host->detect_wake_lock, WAKE_LOCK_SUSPEND,
+		kasprintf(GFP_KERNEL, "%s_detect", mmc_hostname(host)));
 	INIT_DELAYED_WORK(&host->detect, mmc_rescan);
 #ifdef CONFIG_PM
 	host->pm_notify.notifier_call = mmc_pm_notify;
@@ -511,7 +559,8 @@ int mmc_add_host(struct mmc_host *host)
 	mmc_host_clk_sysfs_init(host);
 
 	mmc_start_host(host);
-	register_pm_notifier(&host->pm_notify);
+	if (!(host->pm_flags & MMC_PM_IGNORE_PM_NOTIFY))
+		register_pm_notifier(&host->pm_notify);
 
 	return 0;
 }
@@ -528,7 +577,9 @@ EXPORT_SYMBOL(mmc_add_host);
  */
 void mmc_remove_host(struct mmc_host *host)
 {
-	unregister_pm_notifier(&host->pm_notify);
+	if (!(host->pm_flags & MMC_PM_IGNORE_PM_NOTIFY))
+		unregister_pm_notifier(&host->pm_notify);
+
 	mmc_stop_host(host);
 
 #ifdef CONFIG_DEBUG_FS
@@ -555,6 +606,7 @@ void mmc_free_host(struct mmc_host *host)
 	spin_lock(&mmc_host_lock);
 	idr_remove(&mmc_host_idr, host->index);
 	spin_unlock(&mmc_host_lock);
+	wake_lock_destroy(&host->detect_wake_lock);
 
 	put_device(&host->class_dev);
 }

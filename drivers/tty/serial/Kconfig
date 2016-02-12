@@ -7,6 +7,13 @@ if TTY
 menu "Serial drivers"
 	depends on HAS_IOMEM && GENERIC_HARDIRQS
 
+config SERIAL_EARLYCON
+	bool
+	help
+	  Support for early consoles with the earlycon parameter. This enables
+	  the console before standard serial driver is probed. The console is
+	  enabled when early_param is processed.
+
 source "drivers/tty/serial/8250/Kconfig"
 
 comment "Non-8250 serial port support"
@@ -1437,6 +1444,24 @@ config SERIAL_EFM32_UART_CONSOLE
 	depends on SERIAL_EFM32_UART=y
 	select SERIAL_CORE_CONSOLE
 
+config SERIAL_SUNXI
+	tristate "SUNXI UART Controller"
+	depends on SERIAL_8250=n
+	depends on OF
+	select SERIAL_CORE
+	default y
+	help
+	  If you have an Allwinner SOC based board and want to use the
+	  built-in UART of the SoC, say Y to this option.
+
+config SERIAL_SUNXI_CONSOLE
+	bool "Console on SUNXI UART port"
+	depends on SERIAL_SUNXI=y
+	select SERIAL_CORE_CONSOLE
+	default SERIAL_SUNXI
+	help
+	  Enable a built-in UART port of the Allinner SOC to be the system console.
+
 config SERIAL_ARC
 	tristate "ARC UART driver support"
 	select SERIAL_CORE
@@ -1483,6 +1508,13 @@ config SERIAL_RP2_NR_UARTS
 	help
 	  If multiple cards are present, the default limit of 32 ports may
 	  need to be increased.
+
+config SERIAL_DEBUG
+	boolean "Debug support for serial drivers"
+	depends on DEBUG_KERNEL
+	help
+	  Say "yes" to enable debug messaging (like dev_dbg and pr_debug),
+	  sysfs, and debugfs support in serial core and serial drivers.
 
 endmenu
 

@@ -179,6 +179,10 @@ config CRYPTO_ABLK_HELPER_X86
 	depends on X86
 	select CRYPTO_CRYPTD
 
+config CRYPTO_ABLK_HELPER
+	tristate
+	select CRYPTO_CRYPTD
+
 config CRYPTO_GLUE_HELPER_X86
 	tristate
 	depends on X86
@@ -1394,6 +1398,14 @@ config CRYPTO_USER_API_SKCIPHER
 	help
 	  This option enables the user-spaces interface for symmetric
 	  key cipher algorithms.
+
+config CRYPTO_USER_API_RNG
+	tristate "User-space interface for rng algorithms"
+	depends on NET
+	select CRYPTO_RNG
+	select CRYPTO_USER_API
+	help
+	  This option enables the user-spaces interface for P/TRNG algorithms.
 
 source "drivers/crypto/Kconfig"
 source crypto/asymmetric_keys/Kconfig

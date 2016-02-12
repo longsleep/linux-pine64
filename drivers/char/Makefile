@@ -62,3 +62,10 @@ obj-$(CONFIG_JS_RTC)		+= js-rtc.o
 js-rtc-y = rtc.o
 
 obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
+obj-$(CONFIG_SUNXI_DMA_TEST)	+= dma_test/
+obj-y				+= sunxi-scr/
+obj-y				+= sunxi-di/
+obj-$(CONFIG_DUMP_REG) += dump_reg/
+obj-$(CONFIG_SUNXI_TRANSFORM)   += sunxi_tr/
+obj-y    += sunxi_sys_info/
+obj-$(CONFIG_SUNXI_TIMER_TEST)	+= timer_test/

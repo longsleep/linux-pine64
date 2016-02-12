@@ -174,6 +174,33 @@ config INPUT_APMPOWER
 	  To compile this driver as a module, choose M here: the
 	  module will be called apm-power.
 
+config INPUT_KEYRESET
+	tristate "Reset key"
+	depends on INPUT
+	select INPUT_KEYCOMBO
+	---help---
+	  Say Y here if you want to reboot when some keys are pressed;
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called keyreset.
+
+config INPUT_KEYCOMBO
+	tristate "Key combo"
+	depends on INPUT
+	---help---
+	  Say Y here if you want to take action when some keys are pressed;
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called keycombo.
+
+config  INPUT_SW_DEVICE
+       tristate  "i2c device detect support"
+       depends on INPUT && I2C
+       default m
+       help
+        Sensors and CTPS of i2c bus to use the equipment inspection
+        If you say yes here you get support for Sensors and CTPS Detection.
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"
@@ -187,6 +214,8 @@ source "drivers/input/tablet/Kconfig"
 source "drivers/input/touchscreen/Kconfig"
 
 source "drivers/input/misc/Kconfig"
+
+source "drivers/input/sensor/Kconfig"
 
 endif
 

@@ -62,6 +62,12 @@ config RTC_DEBUG
 	  Say yes here to enable debugging support in the RTC framework
 	  and individual RTC drivers.
 
+config RTC_SHUTDOWN_ALARM
+	bool "RTC shutdown alarm support"
+	help
+	  Say yes here to enable shutdown alarm support in the RTC framework
+	  and individual RTC drivers.
+
 comment "RTC interfaces"
 
 config RTC_INTF_SYSFS
@@ -1066,6 +1072,13 @@ config RTC_DRV_SUN4V
 	help
 	  If you say Y here you will get support for the Hypervisor
 	  based RTC on SUN4V systems.
+
+config RTC_DRV_SUNXI
+	tristate "Allwinner sun4i/sun7i/sun50i RTC"
+	depends on ARCH_SUNXI
+	help
+	  If you say Y here you will get support for the RTC found on
+	  Allwinner A10/A20/A64.
 
 config RTC_DRV_STARFIRE
 	bool "Starfire RTC"

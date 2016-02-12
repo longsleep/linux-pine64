@@ -9,6 +9,7 @@ obj-$(CONFIG_USB_RTL8150)	+= rtl8150.o
 obj-$(CONFIG_USB_RTL8152)	+= r8152.o
 obj-$(CONFIG_USB_HSO)		+= hso.o
 obj-$(CONFIG_USB_NET_AX8817X)	+= asix.o
+obj-$(CONFIG_USB_NET_QF9700)   += qf9700.o
 asix-y := asix_devices.o asix_common.o ax88172a.o
 obj-$(CONFIG_USB_NET_AX88179_178A)      += ax88179_178a.o
 obj-$(CONFIG_USB_NET_CDCETHER)	+= cdc_ether.o

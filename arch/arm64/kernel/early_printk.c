@@ -26,6 +26,8 @@
 #include <linux/amba/serial.h>
 #include <linux/serial_reg.h>
 
+#include <asm/fixmap.h>
+
 static void __iomem *early_base;
 static void (*printch)(char ch);
 
@@ -72,6 +74,16 @@ static void uart8250_32bit_printch(char ch)
 	writel_relaxed(ch, early_base + (UART_TX << 2));
 }
 
+/*
+ * sunxi-uart single character TX.
+ */
+static void sunxi_uart_printch(char ch)
+{
+	while (!(readl_relaxed(early_base + (UART_USR << 2)) & UART_USR_NF))
+		;
+	writel_relaxed(ch, early_base + (UART_TX << 2));
+}
+
 struct earlycon_match {
 	const char *name;
 	void (*printch)(char ch);
@@ -82,6 +94,7 @@ static const struct earlycon_match earlycon_match[] __initconst = {
 	{ .name = "smh", .printch = smh_printch, },
 	{ .name = "uart8250-8bit", .printch = uart8250_8bit_printch, },
 	{ .name = "uart8250-32bit", .printch = uart8250_32bit_printch, },
+	{ .name = "sunxi-uart", .printch = sunxi_uart_printch, },
 	{}
 };
 
@@ -141,8 +154,10 @@ static int __init setup_early_printk(char *buf)
 	}
 	/* no options parsing yet */
 
-	if (paddr)
-		early_base = early_io_map(paddr, EARLYCON_IOBASE);
+	if (paddr) {
+		set_fixmap_io(FIX_EARLYCON_MEM_BASE, paddr);
+		early_base = (void __iomem *)fix_to_virt(FIX_EARLYCON_MEM_BASE);
+	}
 
 	printch = match->printch;
 	early_console = &early_console_dev;

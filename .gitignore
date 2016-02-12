@@ -22,7 +22,10 @@
 *.lst
 *.symtypes
 *.order
+*.map
 modules.builtin
+Module.symvers
+Module.markers
 *.elf
 *.bin
 *.gz
@@ -32,6 +35,15 @@ modules.builtin
 *.lzo
 *.patch
 *.gcno
+standby.code
+resume1.code
+
+#
+# Gcov files
+#
+*.gcda
+*.gcno
+*.gcov
 
 #
 # Top-level generic files
@@ -60,6 +72,7 @@ modules.builtin
 # Generated include files
 #
 include/config
+include/linux/version.h
 include/generated
 arch/*/include/generated
 
@@ -91,3 +104,12 @@ extra_certificates
 signing_key.priv
 signing_key.x509
 x509.genkey
+
+# lichee ingnore files
+skel/
+output/
+bImage
+*.swp
+rootfs.cpio.gz
+drivers/arisc/binary/arisc
+modules/eurasia_km/eurasiacon/binary2_sunxi_android_release/

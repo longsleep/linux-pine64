@@ -678,6 +678,7 @@ struct clk *__clk_lookup(const char *name)
 
 	return NULL;
 }
+EXPORT_SYMBOL(__clk_lookup);
 
 /***        clk api        ***/
 
@@ -2084,6 +2085,12 @@ struct clk *of_clk_get_from_provider(struct of_phandle_args *clkspec)
 	return clk;
 }
 
+int of_clk_get_parent_count(struct device_node *np)
+{
+	return of_count_phandle_with_args(np, "clocks", "#clock-cells");
+}
+EXPORT_SYMBOL_GPL(of_clk_get_parent_count);
+
 const char *of_clk_get_parent_name(struct device_node *np, int index)
 {
 	struct of_phandle_args clkspec;
@@ -2121,10 +2128,11 @@ void __init of_clk_init(const struct of_device_id *matches)
 
 	if (!matches)
 		matches = __clk_of_table;
-
+	pr_debug("[%s][%d]match-name:%s\n", __func__, __LINE__, matches->name);
 	for_each_matching_node(np, matches) {
 		const struct of_device_id *match = of_match_node(matches, np);
 		of_clk_init_cb_t clk_init_cb = match->data;
+		pr_debug("[%s][%d]match-name:%s\n", __func__, __LINE__, matches->name);
 		clk_init_cb(np);
 	}
 }
