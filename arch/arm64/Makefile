@@ -11,7 +11,7 @@
 # Copyright (C) 1995-2001 by Russell King
 
 # Ensure linker flags are correct
-LDFLAGS		:= --fix-cortex-a53-843419
+LDFLAGS		:=
 
 LDFLAGS_vmlinux	:=-p --no-undefined -X
 CPPFLAGS_vmlinux.lds = -DTEXT_OFFSET=$(TEXT_OFFSET)
