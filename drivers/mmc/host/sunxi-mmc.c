@@ -1286,6 +1286,9 @@ static void sunxi_mmc_do_shutdown_com(struct platform_device * pdev)
          goto out;
     }
 
+	// XXX(longsleep): mmc_send_status below triggers BUG, do nothing and pray!
+	goto out;
+
 	//claim host to not allow androd read/write during shutdown
 	dev_dbg(mmc_dev(mmc),"%s: claim host\n", __FUNCTION__);
 	mmc_claim_host(mmc);
