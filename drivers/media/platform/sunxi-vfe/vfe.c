@@ -613,6 +613,8 @@ int clk_index[][CLK_NUM] = {			//index of clk in device tree
 	{0,0,0,0,0},
 	{0,0,0,0,0},
 	{0,1,2,NOCLK,NOCLK}, 		
+	{0,1,2,NOCLK,NOCLK},
+	{0,1,NOCLK,NOCLK,NOCLK},
 };
 
 int clk_src_index[][CLK_SRC_NUM] = {	//index of clk source in device tree
@@ -620,6 +622,8 @@ int clk_src_index[][CLK_SRC_NUM] = {	//index of clk source in device tree
 	{0,0,0,0,0},
 	{0,0,0,0,0},
 	{3,4,5,NOCLK,NOCLK}, 
+	{3,4,5,NOCLK,NOCLK},
+	{2,3,NOCLK,NOCLK,NOCLK},
 };
 
 static int vfe_clk_get(struct vfe_dev *dev)
@@ -858,54 +862,7 @@ static inline void vfe_set_addr(struct vfe_dev *dev,struct vfe_buffer *buffer)
 	} else {
 		bsp_csi_set_addr(dev->vip_sel, addr_org);
 	}
-	vfe_dbg(3,"csi_buf_addr_orginal=%llx\n", addr_org);
-}
-
-static void vfe_dump_csi_regs(struct vfe_dev *dev)
-{
-	int i = 0;
-	if(vfe_dump & DUMP_CSI)
-	{
-		if(5 == frame_cnt % 10)
-		{
-			printk("Vfe dump CSI regs :\n");
-			for(i = 0; i < 0xb0; i = i + 4)
-			{
-				if(i % 0x10 == 0)	
-					printk("0x%08x:    ", i);
-				printk("0x%08x, ", vfe_reg_readl(dev->regs.csi_regs + i));
-				if(i % 0x10 == 0xc)	
-					printk("\n");
-			}
-		}
-	}
-}
-static void vfe_dump_isp_regs(struct vfe_dev *dev)
-{
-	int i = 0;
-	if(vfe_dump & DUMP_ISP)
-	{
-		if(9 == (frame_cnt % 10))
-		{
-			printk("Vfe dump ISP regs :\n");
-			for(i = 0; i < 0x40; i = i + 4)
-			{
-				if(i % 0x10 == 0)	
-					printk("0x%08x:  ", i);
-				printk("0x%08x, ", vfe_reg_readl(dev->regs.isp_regs + i));
-				if(i % 0x10 == 0xc)	
-					printk("\n");
-			}
-			for(i = 0x40; i < 0x240; i = i + 4)
-			{
-				if(i % 0x10 == 0)	
-					printk("0x%08x:  ", i);
-				printk("0x%08x, ", vfe_reg_readl(dev->regs.isp_load_regs + i));
-				if(i % 0x10 == 0xc)	
-					printk("\n");
-			}
-		}
-	}
+	vfe_dbg(3,"csi_buf_addr_orginal=%pa\n", &addr_org);//=>vfe_dbg(3,"csi_buf_addr_orginal=0x%016llx\n", addr_org);
 }
 
 static void vfe_init_isp_log(struct vfe_dev *dev)
@@ -974,7 +931,13 @@ static void isp_isr_bh_handle(struct work_struct *work)
 	struct vfe_dev *dev = container_of(work,struct vfe_dev,isp_isr_bh_task);
 	
 	FUNCTION_LOG;
-	vfe_dump_isp_regs(dev);
+	if(vfe_dump & DUMP_ISP)
+	{
+		if(9 == (frame_cnt % 10))
+		{
+			sunxi_isp_dump_regs(dev->isp_sd);
+		}
+	}
 	if(dev->is_bayer_raw) {
 		mutex_lock(&dev->isp_3a_result_mutex);
 		if(1 == isp_reparse_flag)
@@ -1251,6 +1214,33 @@ static void vfe_isp_stat_parse(struct isp_gen_settings * isp_gen)
 	isp_gen->stat.awb_win_buf = (void*) (buffer_addr + ISP_STAT_AWB_WIN_MEM_OFS);
 }
 
+void vfe_csi_isp_reset(unsigned long data)
+{
+	struct vfe_dev *dev = (struct vfe_dev *)data;
+	mod_timer(&dev->timer_for_reset, jiffies + HZ);
+
+	bsp_csi_enable(dev->vip_sel);
+	bsp_csi_disable(dev->vip_sel);
+	bsp_csi_enable(dev->vip_sel);
+	if(dev->is_isp_used)
+	{
+		bsp_isp_enable();
+		bsp_isp_disable();
+		bsp_isp_enable();
+	}
+	vfe_print("cs/isp reset after csi/isp interrupt timeout!\n");
+}
+
+static int vfe_timer_init(struct vfe_dev *dev)
+{
+	init_timer(&dev->timer_for_reset);
+	dev->timer_for_reset.data = (unsigned long)dev;
+	dev->timer_for_reset.expires = jiffies + 2*HZ;
+	dev->timer_for_reset.function = vfe_csi_isp_reset;
+	add_timer(&dev->timer_for_reset);
+	return 0;
+}
+
 /*
  *  the interrupt routine
  */
@@ -1297,8 +1287,16 @@ static irqreturn_t vfe_isr(int irq, void *priv)
 			return IRQ_HANDLED;
 		}
 	} 
-	vfe_dump_csi_regs(dev);
+	
+	if(vfe_dump & DUMP_CSI)
+	{
+		if(5 == frame_cnt % 10)
+		{
+			sunxi_csi_dump_regs(dev->csi_sd);
+		}
+	}
 	frame_cnt++;
+	mod_timer(&dev->timer_for_reset, jiffies + HZ );
 
 	FUNCTION_LOG;
 	spin_lock_irqsave(&dev->slock, flags);
@@ -2127,7 +2125,7 @@ static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 		bsp_mipi_csi_protocol_enable(dev->mipi_sel);
 #endif
 	vfe_start_generating(dev);
-
+	vfe_timer_init(dev);
 streamon_unlock:
 	mutex_unlock(&dev->stream_lock);
 
@@ -2147,6 +2145,7 @@ static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 		goto streamoff_unlock;
 	}
 	isp_streamoff_torch_and_flash_close(dev);
+	del_timer(&dev->timer_for_reset);
 	vfe_stop_generating(dev);
 	/* Resets frame counters */
 	dev->ms = 0;
@@ -3005,6 +3004,7 @@ static int vfe_close(struct file *file)
 	int ret;
 	vfe_print("vfe_close\n");
 	//device
+	del_timer(&dev->timer_for_reset);
 	vfe_stop_generating(dev);
 	if(dev->vfe_s_input_flag == 1)
 	{
@@ -3572,7 +3572,7 @@ static int vfe_pin_config(struct vfe_dev *dev, int enable)
 	writel(0x03333333,(gpio_base+0x98));
 #else //Direct write for pin of IC 	
 	writel(0x22222222,(gpio_base+0x90));
-	writel(0x22222222,(gpio_base+0x94));
+	writel(0x10222222,(gpio_base+0x94));
 	writel(0x11111111,(gpio_base+0x98));
 #endif
 #endif
@@ -3981,7 +3981,6 @@ static int vfe_actuator_subdev_register(struct vfe_dev *dev, struct ccm_config  
 	}
 
 	ccm_cfg->sd_act = NULL;
-	//vfe_print("registered act sub device, slave=0x%x~~~\n",ccm_cfg->act_slave);
 	act_i2c_board->addr = (unsigned short)(ccm_cfg->act_slave>>1);
 	strcpy(act_i2c_board->type,ccm_cfg->act_name);
 	ccm_cfg->sd_act = v4l2_i2c_new_subdev_board(v4l2_dev,i2c_adap_act,act_i2c_board,NULL);
@@ -3993,7 +3992,6 @@ static int vfe_actuator_subdev_register(struct vfe_dev *dev, struct ccm_config  
 		vfe_print("registered actuator device succeed!\n");
 	}
 	ccm_cfg->act_ctrl = (struct actuator_ctrl_t *)container_of(ccm_cfg->sd_act,struct actuator_ctrl_t, sdev);
-	//printk("ccm_cfg->act_ctrl=%x\n",(unsigned int )ccm_cfg->act_ctrl);
 	return 0;
 }
 #endif
@@ -4317,8 +4315,8 @@ static int vfe_init_controls(struct v4l2_ctrl_handler *hdl)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;	
 	v4l2_ctrl_new_std_menu(hdl, &vfe_ctrl_ops,V4L2_CID_AUTO_FOCUS_RANGE,
 		V4L2_AUTO_FOCUS_RANGE_INFINITY, 0, V4L2_AUTO_FOCUS_RANGE_AUTO);
-	v4l2_ctrl_new_std_menu(hdl, &vfe_ctrl_ops,V4L2_CID_AUTO_FOCUS_RANGE,
-		V4L2_AUTO_FOCUS_RANGE_INFINITY, 0, V4L2_AUTO_FOCUS_RANGE_AUTO);
+	v4l2_ctrl_new_std_menu(hdl, &vfe_ctrl_ops,V4L2_CID_FLASH_LED_MODE,
+		V4L2_FLASH_LED_MODE_RED_EYE, 0, V4L2_FLASH_LED_MODE_NONE);
 
 	for (i = 0; i < ARRAY_SIZE(custom_ctrls); i ++)
 		v4l2_ctrl_new_custom(hdl, &custom_ctrls[i], NULL);
@@ -4335,9 +4333,9 @@ static void probe_work_handle(struct work_struct *work)
 	struct vfe_dev *dev= container_of(work, struct vfe_dev, probe_work.work);
 	int ret = 0;
 	int input_num;
+	int device_valid_count = 0;
 	struct video_device *vfd;
 	struct vb2_queue *q;
-    
 	mutex_lock(&probe_hdl_lock);
 	vfe_print("probe_work_handle start!\n");
 	vfe_dbg(0,"v4l2_device_register\n");
@@ -4345,7 +4343,7 @@ static void probe_work_handle(struct work_struct *work)
 	ret = v4l2_device_register(&dev->pdev->dev, &dev->v4l2_dev); 
 	if (ret) {
 		vfe_err("Error registering v4l2 device\n");
-		goto probe_hdl_free_dev;
+		goto probe_hdl_end;
 	}
 
 	ret = vfe_init_controls(&dev->ctrl_handler);    
@@ -4420,6 +4418,7 @@ static void probe_work_handle(struct work_struct *work)
 			//goto snesor_register_end;
 		}else{
 			dev->device_valid_flag[input_num] = 1;
+			device_valid_count ++;
 		}
 		if(dev->ccm_cfg[input_num]->is_isp_used && dev->ccm_cfg[input_num]->is_bayer_raw)
 		{
@@ -4453,16 +4452,18 @@ snesor_register_end:
 	}
 	*vfd = vfe_template[dev->id];
 	vfd->v4l2_dev = &dev->v4l2_dev;
-	ret = video_register_device(vfd, VFL_TYPE_GRABBER, dev->id);
-	if (ret < 0)
+	if(0 != device_valid_count)
 	{
-		vfe_err("Error video_register_device!!\n");		
-		goto probe_hdl_rel_vdev;
+		ret = video_register_device(vfd, VFL_TYPE_GRABBER, dev->id);
+		if (ret < 0)
+		{
+			vfe_err("Error video_register_device!!\n"); 	
+			goto probe_hdl_rel_vdev;
+		} 
 	} 
 	//Provide a mutex to v4l2 core. It will be used to protect all fops and v4l2 ioctls.
 	//vfd->lock = &dev->buf_lock;
 	video_set_drvdata(vfd, dev);
-	/*add device list*/
 	/* Now that everything is fine, let's add it to device list */
 	list_add_tail(&dev->devlist, &devlist);
 
@@ -4492,7 +4493,7 @@ snesor_register_end:
 		goto probe_hdl_rel_vdev;	
 	}
 
-	sysfs_create_group(&dev->pdev->dev.kobj, &vfe_attribute_group);
+	ret = sysfs_create_group(&dev->pdev->dev.kobj, &vfe_attribute_group);
 	vfe_suspend_trip(dev);
 	vfe_print("probe_work_handle end!\n");
 	mutex_unlock(&probe_hdl_lock);
@@ -4505,9 +4506,7 @@ close_clk_pin_power:
 probe_hdl_unreg_dev:
 	vfe_print("v4l2_device_unregister @ probe_hdl!\n");
 	v4l2_device_unregister(&dev->v4l2_dev); 
-probe_hdl_free_dev: 
-	vfe_print("vfe_resource_release @ probe_hdl!\n");
-	vfe_resource_release(dev);
+probe_hdl_end: 
 	vfe_err("Failed to install at probe handle\n");
 	mutex_unlock(&probe_hdl_lock);
 	return ;
@@ -4600,7 +4599,6 @@ static int vfe_probe(struct platform_device *pdev)
 	//=======================================
 	/* init video dma queues */
 	INIT_LIST_HEAD(&dev->vidq.active);
-	//init_waitqueue_head(&dev->vidq.wq);
 	INIT_DELAYED_WORK(&dev->probe_work, probe_work_handle);
 	mutex_init(&dev->stream_lock);
 	mutex_init(&dev->opened_lock);
@@ -4675,12 +4673,10 @@ static int vfe_remove(struct platform_device *pdev)
 	}
 	vfe_resource_release(dev);
 	v4l2_info(&dev->v4l2_dev, "unregistering %s\n", video_device_node_name(dev->vfd));
-	//video_device_release(dev->vfd);
 	video_unregister_device(dev->vfd);  
 	v4l2_device_unregister(&dev->v4l2_dev);
 	v4l2_ctrl_handler_free(&dev->ctrl_handler);
 	vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
-	//kfree(dev);
 	vfe_print("vfe_remove ok!\n");
 	return 0;
 }

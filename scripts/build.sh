@@ -7,7 +7,8 @@ if [ -n "`echo ${LICHEE_CHIP} | grep "sun5[0-9]i"`" ]; then
     export ARCH=arm64
 fi
 export CROSS_COMPILE=${ARCH}-linux-gnueabi-
-if [ -d  ${LICHEE_TOOLCHAIN_PATH} ]; then
+if [ -n "${LICHEE_TOOLCHAIN_PATH}" \
+	-a -d "${LICHEE_TOOLCHAIN_PATH}" ]; then
     GCC=$(find ${LICHEE_TOOLCHAIN_PATH} -perm /a+x -a -regex '.*-gcc');
     export CROSS_COMPILE="${GCC%-*}-";
 elif [ -n "${LICHEE_CROSS_COMPILER}" ]; then
@@ -121,7 +122,13 @@ build_kernel()
     mkdir -p ${LICHEE_MOD_DIR}
 
     # We need to copy rootfs files to compile kernel for linux image
-    cp -f rootfs.cpio.gz output/
+	echo "lichee_chip = $LICHEE_CHIP"
+	if [ "${LICHEE_CHIP}" = "sun8iw10p1" ] || [ "${LICHEE_CHIP}" = "sun8iw11p1" ]; then
+		echo "cp rootfs_32bit.cpio.gz"
+		cp -f rootfs_32bit.cpio.gz output/rootfs.cpio.gz
+	else
+		cp -f rootfs.cpio.gz output/
+	fi
 
     if [ ! -f .config ] ; then
         printf "\n\033[0;31;1mUsing default config ${LICHEE_KERN_DEFCONF} ...\033[0m\n\n"
@@ -194,7 +201,12 @@ build_modules()
        make -C modules/aw_schw LICHEE_MOD_DIR=${LICHEE_MOD_DIR} LICHEE_KDIR=${LICHEE_KDIR} \
                CONFIG_CHIP_ID=${CONFIG_CHIP_ID} install
 	
-	build_gpu
+	echo "lichee_chip = $LICHEE_CHIP"
+	if [ "${LICHEE_CHIP}" = "sun8iw10p1" ] || [ "${LICHEE_CHIP}" = "sun8iw11p1" ]; then
+		echo "no gpu modules."	
+	else
+		build_gpu
+	fi
 }
 
 regen_rootfs_cpio()

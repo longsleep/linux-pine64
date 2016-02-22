@@ -8,6 +8,7 @@
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
 #include <linux/clk.h>
+#include <linux/interrupt.h>
 #include <linux/rfkill.h>
 #include <linux/regulator/consumer.h>
 #include <linux/platform_device.h>
@@ -86,7 +87,7 @@ int sunxi_wlan_get_oob_irq_flags(void)
 	if(!wlan_data)
 		return 0;
 
-	oob_irq_flags = (IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE);
+	oob_irq_flags = (IRQF_TRIGGER_HIGH | IRQF_SHARED | IRQF_NO_SUSPEND);
 
 	return oob_irq_flags;
 }

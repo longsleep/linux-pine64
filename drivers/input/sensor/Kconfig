@@ -36,4 +36,31 @@ config SENSORS_MMA7660
         help
           If you say yes here you get support for the Freescale 3-Axis
           Orientation/Motion Detection Sensor.
+          
+config SENSORS_MXC622X
+        tristate "MXC622X 2-Axis Orientation/Motion Detection Sensor Support"
+        select I2C
+        depends on INPUT_SENSOR
+        default m
+        help
+          If you say yes here you get support for the MXC622X 2-Axis
+          Orientation/Motion Detection Sensor.
+
+config SENSORS_MMA8452
+        tristate "MMA8452 3-Axis Orientation/Motion Detection Sensor Support"
+        select I2C
+        depends on INPUT_SENSOR
+        default m
+        help
+          If you say yes here you get support for the Freescale 3-Axis
+          Orientation/Motion Detection Sensor.
+
+config SENSORS_MMA865X
+        tristate "MMA865X 3-Axis Orientation/Motion Detection Sensor Support"
+        select I2C
+        depends on INPUT_SENSOR
+        default m
+        help
+          If you say yes here you get support for the Freescale 3-Axis
+          Orientation/Motion Detection Sensor.			  
 endif

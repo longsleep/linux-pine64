@@ -49,6 +49,9 @@
 #include "sunxi-mmc-sun50iw1p1-2.h"
 #include "sunxi-mmc-sun50iw1p1-0.h"
 #include "sunxi-mmc-sun50iw1p1-1.h"
+#include "sunxi-mmc-sun8iw10p1-3.h"
+#include "sunxi-mmc-sun8iw10p1-0.h"
+#include "sunxi-mmc-sun8iw10p1-1.h"
 #include "sunxi-mmc-debug.h"
 #include "sunxi-mmc-export.h"
 
@@ -1080,89 +1083,6 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 
 
-extern int mmc_go_idle(struct mmc_host *host);
-extern int mmc_send_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr);
-extern int mmc_send_status(struct mmc_card *card, u32 *status);
-extern void mmc_set_clock(struct mmc_host *host, unsigned int hz);
-extern void mmc_set_timing(struct mmc_host *host, unsigned int timing);
-extern void mmc_set_bus_width(struct mmc_host *host, unsigned int width);
-void sunxi_mmc_do_shutdown(struct platform_device * pdev)
-{
-	u32 ocr = 0;
-	u32 err = 0;
-	struct mmc_host *mmc = NULL;
-	struct sunxi_mmc_host *host = NULL;
-	u32 status = 0;
-
-	mmc = platform_get_drvdata(pdev);
-	if (mmc == NULL) {
-		dev_err(&pdev->dev,"%s: mmc is NULL\n", __FUNCTION__);
-		goto out;
-	}
-
-	host = mmc_priv(mmc);
-	if (host == NULL) {
-		dev_err(&pdev->dev,"%s: host is NULL\n", __FUNCTION__);
-		goto out;
-	}
-
-	dev_info(mmc_dev(mmc),"try to disable cache\n");
-	mmc_claim_host(mmc);
-    err = mmc_cache_ctrl(mmc, 0);
-	mmc_release_host(mmc);
-    if (err){
-		dev_err(mmc_dev(mmc),"disable cache failed\n");
-		mmc_claim_host(mmc);//not release host to not allow android to read/write after shutdown
-         goto out;
-    }
-
-	//claim host to not allow androd read/write during shutdown
-	dev_dbg(mmc_dev(mmc),"%s: claim host\n", __FUNCTION__);
-	mmc_claim_host(mmc);
-
-	do {
-		if (mmc_send_status(mmc->card, &status) != 0) {
-			dev_err(mmc_dev(mmc),"%s: send status failed\n", __FUNCTION__);
-			goto out; //err_out; //not release host to not allow android to read/write after shutdown
-		}
-	} while(status != 0x00000900);
-
-	//mmc_card_set_ddr_mode(card);
-	mmc_set_timing(mmc, MMC_TIMING_LEGACY);
-	mmc_set_bus_width(mmc, MMC_BUS_WIDTH_1);
-	mmc_set_clock(mmc, 400000);
-	err = mmc_go_idle(mmc);
-	if (err) {
-		dev_err(mmc_dev(mmc),"%s: mmc_go_idle err\n", __FUNCTION__);
-		goto out; //err_out; //not release host to not allow android to read/write after shutdown
-	}
-
-	if (mmc->card->type != MMC_TYPE_MMC) {//sd can support cmd1,so not send cmd1
-		goto out;//not release host to not allow android to read/write after shutdown
-	}
-
-	err = mmc_send_op_cond(mmc, 0, &ocr);
-	if (err) {
-		dev_err(mmc_dev(mmc),"%s: first mmc_send_op_cond err\n", __FUNCTION__);
-		goto out; //err_out; //not release host to not allow android to read/write after shutdown
-	}
-
-	err = mmc_send_op_cond(mmc, ocr | (1 << 30), &ocr);
-	if (err) {
-		dev_err(mmc_dev(mmc),"%s: mmc_send_op_cond err\n", __FUNCTION__);
-		goto out; //err_out; //not release host to not allow android to read/write after shutdown
-	}
-
-	//do not release host to not allow android to read/write after shutdown
-	goto out;
-
-out:
-	dev_info(mmc_dev(mmc),"%s: mmc shutdown exit..ok\n", __FUNCTION__);
-
-	return ;
-}
-
-
 /*we use our own mmc_regulator_get_supply because our platform regulator not support supply name,*/
 /*only support regulator ID,but linux mmc' own mmc_regulator_get_supply use supply name*/
 static int sunxi_mmc_regulator_get_supply(struct mmc_host *mmc)
@@ -1253,6 +1173,9 @@ static void sunxi_mmc_regulator_release_supply(struct mmc_host *mmc)
 static const struct of_device_id sunxi_mmc_of_match[] = {
 	{ .compatible = "allwinner,sun4i-a10-mmc", },
 	{ .compatible = "allwinner,sun5i-a13-mmc", },
+	{ .compatible = "allwinner,sun8iw10p1-sdmmc3", },
+	{ .compatible = "allwinner,sun8iw10p1-sdmmc1", },
+	{ .compatible = "allwinner,sun8iw10p1-sdmmc0", },	
 	{ .compatible = "allwinner,sun50i-sdmmc2", },
 	{ .compatible = "allwinner,sun50i-sdmmc1", },
 	{ .compatible = "allwinner,sun50i-sdmmc0", },
@@ -1271,7 +1194,26 @@ static struct mmc_host_ops sunxi_mmc_ops = {
 	.card_busy = sunxi_mmc_card_busy,
 };
 
+#if defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)
+void disable_card2_dat_det(void)
+{
+	void __iomem *card2_int_sg_en=  ioremap(0x1c0f000+0x1000*2+0x38, 0x100);
+	writel(0,card2_int_sg_en);	
+	iounmap(card2_int_sg_en);
+}
 
+void enable_card3(void)
+{
+	void __iomem *card3_en =  ioremap(0x1c20800 + 0xB4, 0x100);
+	//void __iomem *card3_en =  ioremap(0x1c20800 + 0x48, 0x100);//
+	writel(0x55555555,card3_en);
+	writel(0x55555555,card3_en+4);
+	writel(0x55555555,card3_en+8);
+	writel(0x55555555,card3_en+12);
+	iounmap(card3_en);
+}
+
+#endif
 
 static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 				      struct platform_device *pdev)
@@ -1279,54 +1221,81 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 	struct device_node *np = pdev->dev.of_node;
 	int ret;
 
-	if (of_device_is_compatible(np, "allwinner,sun4i-a10-mmc")\
-		||of_device_is_compatible(np, "allwinner,sun50i-sdmmc2")\
-		)
-		host->idma_des_size_bits = 12;
-	else
-		host->idma_des_size_bits = 15;
+
+#ifdef SUNXI_SDMMC3
+	if(of_device_is_compatible(np, "allwinner,sun8iw10p1-sdmmc3")){
+ 		host->sunxi_mmc_clk_set_rate = sunxi_mmc_clk_set_rate_for_sdmmc3;
+		//host->dma_tl = (0x3<<28)|(15<<16)|240;
+		host->dma_tl = SUNXI_DMA_TL_SDMMC3;
+		//host->idma_des_size_bits = 12;
+		host->idma_des_size_bits = SUNXI_DES_SIZE_SDMMC3;
+		host->sunxi_mmc_thld_ctl = sunxi_mmc_thld_ctl_for_sdmmc3;
+		host->sunxi_mmc_save_spec_reg = sunxi_mmc_save_spec_reg3;
+		host->sunxi_mmc_restore_spec_reg = sunxi_mmc_restore_spec_reg3;
+		host->sunxi_mmc_dump_dly_table  = sunxi_mmc_dump_dly3;
+		sunxi_mmc_reg_ex_res_inter(host,3);
+		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
+		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown3;
+		host->phy_index = 3;//2;
+ 	}
+	#if defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)	
+	enable_card3();	//
+	#endif 	/*defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)*/
+
+#endif
 
 
+#ifdef SUNXI_SDMMC2
 	if(of_device_is_compatible(np, "allwinner,sun50i-sdmmc2")){
  		host->sunxi_mmc_clk_set_rate = sunxi_mmc_clk_set_rate_for_sdmmc2;
-		host->dma_tl = (0x3<<28)|(15<<16)|240;
+		//host->dma_tl = (0x3<<28)|(15<<16)|240;
+		host->dma_tl = SUNXI_DMA_TL_SDMMC2;
+		//host->idma_des_size_bits = 12;
+		host->idma_des_size_bits = SUNXI_DES_SIZE_SDMMC2;
 		host->sunxi_mmc_thld_ctl = sunxi_mmc_thld_ctl_for_sdmmc2;
 		host->sunxi_mmc_save_spec_reg = sunxi_mmc_save_spec_reg2;
 		host->sunxi_mmc_restore_spec_reg = sunxi_mmc_restore_spec_reg2;
 		host->sunxi_mmc_dump_dly_table  = sunxi_mmc_dump_dly2;
 		sunxi_mmc_reg_ex_res_inter(host,2);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
-		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown;
+		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown2;
 		host->phy_index = 2;
- 	}else if(of_device_is_compatible(np, "allwinner,sun50i-sdmmc0")){
+ 	}
+#endif
+
+#ifdef SUNXI_SDMMC0
+	if(of_device_is_compatible(np, "allwinner,sun50i-sdmmc0")
+		||of_device_is_compatible(np, "allwinner,sun8iw10p1-sdmmc0")){
   		host->sunxi_mmc_clk_set_rate = sunxi_mmc_clk_set_rate_for_sdmmc0;
-		//host->dma_tl = (0x2<<28)|(15<<16)|240;
-		host->dma_tl = (0x2<<28)|(7<<16)|248;
+		//host->dma_tl = (0x2<<28)|(7<<16)|248;
+		host->dma_tl = SUNXI_DMA_TL_SDMMC0;
+		//host->idma_des_size_bits = 15;
+		host->idma_des_size_bits = SUNXI_DES_SIZE_SDMMC0;
 		host->sunxi_mmc_thld_ctl = sunxi_mmc_thld_ctl_for_sdmmc0;
 		host->sunxi_mmc_save_spec_reg = sunxi_mmc_save_spec_reg0;
 		host->sunxi_mmc_restore_spec_reg = sunxi_mmc_restore_spec_reg0;
 		sunxi_mmc_reg_ex_res_inter(host,0);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
 		host->phy_index = 0;
- 	}else if(of_device_is_compatible(np, "allwinner,sun50i-sdmmc1")){
+ 	}
+#endif
+
+#ifdef SUNXI_SDMMC1
+	if(of_device_is_compatible(np, "allwinner,sun50i-sdmmc1")
+		||of_device_is_compatible(np, "allwinner,sun8iw10p1-sdmmc1")){
  		host->sunxi_mmc_clk_set_rate = sunxi_mmc_clk_set_rate_for_sdmmc1;
-		host->dma_tl = (0x3<<28)|(15<<16)|240;
+		//host->dma_tl = (0x3<<28)|(15<<16)|240;
+		host->dma_tl = SUNXI_DMA_TL_SDMMC1;
+		//host->idma_des_size_bits = 15;
+		host->idma_des_size_bits = SUNXI_DES_SIZE_SDMMC1;
 		host->sunxi_mmc_thld_ctl = sunxi_mmc_thld_ctl_for_sdmmc1;
 		host->sunxi_mmc_save_spec_reg = sunxi_mmc_save_spec_reg1;
 		host->sunxi_mmc_restore_spec_reg = sunxi_mmc_restore_spec_reg1;
 		sunxi_mmc_reg_ex_res_inter(host,1);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
 		host->phy_index = 1;
- 	}else{
- 		host->sunxi_mmc_clk_set_rate = NULL;
-		host->dma_tl = 0;
-		host->sunxi_mmc_thld_ctl = NULL;
-		host->sunxi_mmc_save_spec_reg = NULL;
-		host->sunxi_mmc_restore_spec_reg = NULL;
-		host->sunxi_mmc_set_acmda = NULL;
-		host->phy_index = 0;
  	}
-
+#endif
 
 	//ret = mmc_regulator_get_supply(host->mmc);
 	ret = sunxi_mmc_regulator_get_supply(host->mmc);
@@ -1431,6 +1400,9 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		goto error_disable_clk_ahb;
 	}
 
+#if defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)
+	disable_card2_dat_det();
+#endif
 	/*
 	 * Sometimes the controller asserts the irq on boot for some reason,
 	 * make sure the controller is in a sane state before enabling irqs.
@@ -1531,7 +1503,6 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	mmc->caps	       |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED | MMC_CAP_ERASE \
 						| MMC_CAP_WAIT_WHILE_BUSY;
 	//mmc->caps2	  |= MMC_CAP2_HS400_1_8V;
-
 
 #ifndef CONFIG_REGULATOR
 	//Because fpga has no regulator,so we add it manully

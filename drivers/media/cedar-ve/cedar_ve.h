@@ -33,6 +33,7 @@ enum IOCTL_CMD {
 #if ((defined CONFIG_ARCH_SUN8IW8P1) || (defined CONFIG_ARCH_SUN50I))
 	IOCTL_WAIT_JPEG_DEC = 0x500,
 #endif
+	IOCTL_GET_REFCOUNT,
 };
 
 struct cedarv_env_infomation{

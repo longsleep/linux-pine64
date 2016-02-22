@@ -159,6 +159,14 @@ int gpu_thermal_cool(int freq /* MHz */)
 		}
 		freq_data.max_freq = freq;
 	}
+	else
+	{
+		if(get_current_freq() != freq_data.normal_freq)
+                {
+                        set_gpu_freq(freq_data.normal_freq);
+                }
+                freq_data.max_freq = freq_data.extreme_freq;
+	}
 
 	return 0;
 }

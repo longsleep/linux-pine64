@@ -38,7 +38,7 @@
 
 
 
-static int debug = 1;
+static int debug = 0;
 module_param(debug, int,0);
 MODULE_PARM_DESC(schw_debug, "schw Enable debug");
 
@@ -82,7 +82,7 @@ MODULE_PARM_DESC(schw_debug, "schw Enable debug");
 #define    SCHW_SECURE_CLEAR         _IOW(SCHW_IOCTL_OPRA, 4, unsigned char)
 
 struct map_slot {
-       struct list_head slist;;
+       struct list_head slist;
        unsigned char fname[50];
        int slot_id;
 };

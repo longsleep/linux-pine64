@@ -563,9 +563,9 @@
 
 		usbc0:usbc0@0 {
 			device_type         = "usbc0";
-			compatible          = "allwinner,sun50i-otg-manager";
-			usb_port_type       = <1>;
-			usb_detect_type     = <0>;
+			compatible          = "allwinner,sunxi-otg-manager";
+			usb_port_type       = <2>;
+			usb_detect_type     = <1>;
 			usb_id_gpio         = <&pio PH 9 0 1 1 1>;
 			usb_det_vbus_gpio   = "axp_ctrl";
 			usb_drv_vbus_gpio   = <&axp_pio PP 3 1 1 1 1>;
@@ -580,7 +580,7 @@
 		};
 
 		udc:udc-controller@0x01c19000 {
-			compatible          = "allwinner,sun50i-udc";
+			compatible          = "allwinner,sunxi-udc";
 			reg                 = <0x0 0x01c19000 0x0 0x1000>, /*udc base*/
 			                      <0x0 0x01c00000 0x0 0x100>; /*sram base*/
 			interrupts          = <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
@@ -589,7 +589,7 @@
 		};
 
 		ehci0:ehci0-controller@0x01c1a000 {
-			compatible          = "allwinner,sun50i-ehci0";
+			compatible          = "allwinner,sunxi-ehci0";
 			reg                 = <0x0 0x01c1a000 0x0 0xFFF>, /*hci0 base*/
 			                      <0x0 0x01c00000 0x0 0x100>, /*sram base*/
 			                      <0x0 0x01c19000 0x0 0x1000>; /*otg base*/
@@ -600,7 +600,7 @@
 		};
 
 		ohci0:ohci0-controller@0x01c1a400 {
-			compatible          = "allwinner,sun50i-ohci0";
+			compatible          = "allwinner,sunxi-ohci0";
 			reg                 = <0x0 0x01c1a000 0x0 0xFFF>, /*hci0 base*/
 			                      <0x0 0x01c00000 0x0 0x100>, /*sram base*/
 			                      <0x0 0x01c19000 0x0 0x1000>; /*otg base*/
@@ -613,8 +613,6 @@
 		usbc1:usbc1@0 {
 			device_type         = "usbc1";
 			usb_drv_vbus_gpio   = <&pio PB 6 1 1 1 1>;
-			usb_port_type       = <1>;
-			usb_detect_type     = <0>;
 			usb_host_init_state = <1>;
 			usb_regulator_io    = "nocare";
 			usb_wakeup_suspend  = <0>;
@@ -633,7 +631,7 @@
 		};
 
 		ehci1:ehci1-controller@0x01c1b000 {
-			compatible          = "allwinner,sun50i-ehci1";
+			compatible          = "allwinner,sunxi-ehci1";
 			reg                 = <0x0 0x01c1b000 0x0 0xFFF>,/*hci1 base*/
 			                      <0x0 0x01c00000 0x0 0x100>, /*sram base*/
 			                      <0x0 0x01c19000 0x0 0x1000>; /*otg base*/
@@ -644,7 +642,7 @@
 		};
 
 		ohci1:ohci1-controller@0x01c1b400 {
-			compatible          = "allwinner,sun50i-ohci1";
+			compatible          = "allwinner,sunxi-ohci1";
 			reg                 = <0x0 0x01c1b000 0x0 0xFFF>, /*hci1 base*/
 			                      <0x0 0x01c00000 0x0 0x100>, /*sram base*/
 			                      <0x0 0x01c19000 0x0 0x1000>; /*otg base*/
@@ -683,6 +681,7 @@
 			aif2config = <0x0>;
 			aif3config = <0x0>;
 			pa_sleep_time = <0x15e>;
+			dac_digital_vol = <0xa0a0>;
 			status = "okay";
 		};
 

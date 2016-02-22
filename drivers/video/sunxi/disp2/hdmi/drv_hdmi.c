@@ -3,6 +3,7 @@
 #include "../disp/disp_sys_intf.h"
 #include <linux/regulator/consumer.h>
 #include <linux/clk-private.h>
+#include <linux/sunxi-clk-prepare.h>
 
 #define HDMI_IO_NUM 5
 static bool hdmi_io_used[HDMI_IO_NUM]={0};
@@ -10,7 +11,9 @@ static disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
 static u32 io_enable_count = 0;
 
 static struct semaphore *run_sem = NULL;
-static struct task_struct * HDMI_task;
+static struct task_struct * HDMI_task = NULL;
+static struct task_struct * cec_task = NULL;
+static bool hdmi_cec_support = false;
 static char hdmi_power[25];
 static bool hdmi_power_used;
 static bool hdmi_used;
@@ -146,6 +149,36 @@ static int hdmi_clk_enable(void){}
 static int hdmi_clk_disable(void){}
 static int hdmi_clk_config(u32 vic){}
 #endif
+
+/* hdmi_clk_enable_prepare - prepare for hdmi enable
+ * if there is some other clk will affect hdmi module,
+ * should enable these clk before enable hdmi
+ */
+int hdmi_clk_enable_prepare(void)
+{
+	int ret = 0;
+
+	pr_warn("%s()L%d\n", __func__, __LINE__);
+	if (hdmi_clk)
+		ret = sunxi_clk_enable_prepare(hdmi_clk);
+	if (0 != ret)
+		return ret;
+
+	return ret;
+}
+
+/* hdmi_clk_disable_prepare - prepare for hdmi disable
+ * if there is some other clk will affect hdmi module,
+ * should disable these clk after disable hdmi
+ */
+int hdmi_clk_disable_prepare(void)
+{
+	pr_warn("%s()L%d\n", __func__, __LINE__);
+	if (hdmi_clk)
+		sunxi_clk_disable_prepare(hdmi_clk);
+
+	return 0;
+}
 
 #ifdef CONFIG_AW_AXP
 static int hdmi_power_enable(char *name)
@@ -407,6 +440,45 @@ static int hdmi_run_thread(void *parg)
 
 	return 0;
 }
+
+void cec_msg_sent(char *buf)
+{
+	char *envp[2];
+
+	envp[0] = buf;
+	envp[1] = NULL;
+	kobject_uevent_env(&ghdmi.dev->kobj, KOBJ_CHANGE, envp);
+}
+
+#define CEC_BUF_SIZE 32
+static int cec_thread(void *parg)
+{
+	int ret = 0;
+	char buf[CEC_BUF_SIZE];
+	unsigned char msg;
+
+	while (1) {
+		if (kthread_should_stop()) {
+			break;
+		}
+
+		mutex_lock(&mlock);
+		ret = -1;
+		if (false == b_hdmi_suspend) {
+			ret = hdmi_core_cec_get_simple_msg(&msg);
+		}
+		mutex_unlock(&mlock);
+		if (0 == ret) {
+			memset(buf, 0, CEC_BUF_SIZE);
+			snprintf(buf, sizeof(buf), "CEC_MSG=0x%x", msg);
+			cec_msg_sent(buf);
+		}
+		hdmi_delay_ms(10);
+	}
+
+	return 0;
+}
+
 #if defined(CONFIG_SWITCH) || defined(CONFIG_ANDROID_SWITCH)
 static struct switch_dev hdmi_switch_dev = {
 	.name = "hdmi",
@@ -470,6 +542,10 @@ static s32 hdmi_suspend(void)
 			kthread_stop(HDMI_task);
 			HDMI_task = NULL;
 		}
+		if (hdmi_cec_support && cec_task) {
+			kthread_stop(cec_task);
+			cec_task = NULL;
+		}
 		mutex_lock(&mlock);
 		b_hdmi_suspend = true;
 		hdmi_core_enter_lp();
@@ -528,6 +604,17 @@ static s32 hdmi_resume(void)
 		} else
 			wake_up_process(HDMI_task);
 
+		if (hdmi_cec_support) {
+			cec_task = kthread_create(cec_thread, (void*)0, "cec proc");
+			if (IS_ERR(cec_task)) {
+				s32 err = 0;
+				pr_warn("Unable to start kernel thread %s.\n\n", "cec proc");
+				err = PTR_ERR(cec_task);
+				cec_task = NULL;
+			} else
+				wake_up_process(cec_task);
+		}
+
 		pr_info("[HDMI]hdmi resume\n");
 	}
 
@@ -556,7 +643,7 @@ s32 hdmi_init(struct platform_device *pdev)
 #endif
 	unsigned int value, output_type0, output_mode0, output_type1, output_mode1;
 	struct disp_device_func disp_func;
-	int ret;
+	int ret = 0;
 	uintptr_t reg_base;
 
 	hdmi_used = 0;
@@ -656,6 +743,12 @@ s32 hdmi_init(struct platform_device *pdev)
 		hdmi_hpd_mask = value;
 	}
 
+	ret = disp_sys_script_get_item("hdmi", "hdmi_cec_support", &value, 1);
+	if ((1 == ret) && (1 == value)) {
+		hdmi_cec_support = true;
+	}
+	printk("[HDMI] cec support = %d\n", hdmi_cec_support);
+
 	hdmi_core_initial(boot_hdmi);
 
 	run_sem = kmalloc(sizeof(struct semaphore),GFP_KERNEL | __GFP_ZERO);
@@ -674,6 +767,18 @@ s32 hdmi_init(struct platform_device *pdev)
 		goto err_thread;
 	}
 	wake_up_process(HDMI_task);
+
+	if (hdmi_cec_support) {
+		cec_task = kthread_create(cec_thread, (void*)0, "cec proc");
+		if (IS_ERR(cec_task)) {
+			s32 err = 0;
+			dev_err(&pdev->dev, "Unable to start kernel thread %s.\n\n", "cec proc");
+			err = PTR_ERR(cec_task);
+			cec_task = NULL;
+			goto err_thread;
+		}
+		wake_up_process(cec_task);
+	}
 
 #if defined(CONFIG_SND_SUNXI_SOC_HDMIAUDIO)
 	audio_func.hdmi_audio_enable = hdmi_audio_enable;
@@ -725,6 +830,11 @@ s32 hdmi_exit(void)
 		if (HDMI_task) {
 			kthread_stop(HDMI_task);
 			HDMI_task = NULL;
+		}
+
+		if (hdmi_cec_support && cec_task) {
+			kthread_stop(cec_task);
+			cec_task = NULL;
 		}
 
 		if ((1 == hdmi_power_used) && (0 != power_enable_count)) {
@@ -886,6 +996,31 @@ static ssize_t hdmi_edid_store(struct device *dev,
 
 static DEVICE_ATTR(edid, S_IRUGO|S_IWUSR|S_IWGRP,hdmi_edid_show, hdmi_edid_store);
 
+static ssize_t hdmi_hdcp_enable_show(struct device *dev,struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", hdmi_core_get_hdcp_enable());
+}
+
+static ssize_t hdmi_hdcp_enable_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	if (count < 1)
+		return -EINVAL;
+
+	if (strnicmp(buf, "1", 1) == 0) {
+		if (1 != hdmi_core_get_hdcp_enable())
+			hdmi_core_set_hdcp_enable(1);
+	} else {
+		if (0 != hdmi_core_get_hdcp_enable())
+			hdmi_core_set_hdcp_enable(0);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(hdcp_enable, S_IRUGO|S_IWUSR|S_IWGRP,hdmi_hdcp_enable_show, hdmi_hdcp_enable_store);
+
 static int __init hdmi_probe(struct platform_device *pdev)
 {
 	__inf("hdmi_probe call\n");
@@ -965,6 +1100,7 @@ static struct attribute *hdmi_attributes[] =
 	&dev_attr_rgb_only.attr,
 	&dev_attr_hpd_mask.attr,
 	&dev_attr_edid.attr,
+	&dev_attr_hdcp_enable.attr,
 	NULL
 };
 

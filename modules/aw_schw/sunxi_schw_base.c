@@ -137,7 +137,7 @@ err_out:
        fcr->bpt_len = 0;
        fcr->cp_src = SCHW_NONE;
        mutex_unlock(&fcr->mutex);
-       dprintk("exit ret %d!\n",ret);
+       dprintk("exit err ret %d!\n",ret);
        return ret;
 }
 
