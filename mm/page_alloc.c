@@ -782,6 +782,58 @@ void __meminit __free_pages_bootmem(struct page *page, unsigned int order)
 }
 
 #ifdef CONFIG_CMA
+void adjust_managed_cma_page_count(struct zone *zone, long count, int adjust)
+{
+	unsigned long flags;
+	long total, cma, movable;
+
+	spin_lock_irqsave(&zone->lock, flags);
+	if (adjust == 1)
+		zone->managed_cma_pages += count;
+	else
+		zone->managed_cma_pages -= count;
+
+	total = zone->managed_pages;
+	cma = zone->managed_cma_pages;
+	movable = total - cma - high_wmark_pages(zone);
+
+	/* No cma pages, so do only movable allocation */
+	if (cma <= 0) {
+		zone->max_try_movable = pageblock_nr_pages;
+		zone->max_try_cma = 0;
+		goto out;
+	}
+
+	/*
+	 * We want to consume cma pages with well balanced ratio so that
+	 * we have consumed enough cma pages before the reclaim. For this
+	 * purpose, we can use the ratio, movable : cma. And we doesn't
+	 * want to switch too frequently, because it prevent allocated pages
+	 * from beging successive and it is bad for some sorts of devices.
+	 * I choose pageblock_nr_pages for the minimum amount of successive
+	 * allocation because it is the size of a huge page and fragmentation
+	 * avoidance is implemented based on this size.
+	 *
+	 * To meet above criteria, I derive following equation.
+	 *
+	 * if (movable > cma) then; movable : cma = X : pageblock_nr_pages
+	 * else (movable <= cma) then; movable : cma = pageblock_nr_pages : X
+	 */
+	if (movable > cma) {
+		zone->max_try_movable =			(movable * pageblock_nr_pages) / cma;
+		zone->max_try_cma = pageblock_nr_pages;
+	} else {
+		zone->max_try_movable = pageblock_nr_pages;
+		zone->max_try_cma = cma * pageblock_nr_pages / movable;
+	}
+
+out:
+	zone->nr_try_movable = zone->max_try_movable;
+	zone->nr_try_cma = zone->max_try_cma;
+
+	spin_unlock_irqrestore(&zone->lock, flags);
+}
+
 /* Free whole pageblock and set it's migration type to MIGRATE_CMA. */
 void __init init_cma_reserved_pageblock(struct page *page)
 {
@@ -1104,6 +1156,34 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 
 	return NULL;
 }
+#ifdef CONFIG_CMA
+static struct page *__rmqueue_cma(struct zone *zone, unsigned int order)
+{
+	struct page *page;
+
+	if (zone->nr_try_cma > 0) {
+		/* Okay. Now, we can try to allocate the page from cma region */
+		zone->nr_try_cma -= 1 << order;
+		page = __rmqueue_smallest(zone, order, MIGRATE_CMA);
+
+		/* CMA pages can vanish through CMA allocation */
+		if (unlikely(!page && order == 0))
+			zone->nr_try_cma = 0;
+
+		return page;
+	}
+	if (zone->nr_try_movable > 0)
+		goto alloc_movable;
+
+	/* Reset counter */
+	zone->nr_try_movable = zone->max_try_movable;
+	zone->nr_try_cma = zone->max_try_cma;
+
+alloc_movable:
+	zone->nr_try_movable -= 1 << order;
+	return NULL;
+}
+#endif
 
 /*
  * Do the hard work of removing an element from the buddy allocator.
@@ -1112,10 +1192,15 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 static struct page *__rmqueue(struct zone *zone, unsigned int order,
 						int migratetype)
 {
-	struct page *page;
+	struct page *page = NULL;
+
+	if (IS_ENABLED(CONFIG_CMA) &&
+		migratetype == MIGRATE_MOVABLE && zone->managed_cma_pages)
+		page = __rmqueue_cma(zone, order);
 
 retry_reserve:
-	page = __rmqueue_smallest(zone, order, migratetype);
+	if (!page)
+		page = __rmqueue_smallest(zone, order, migratetype);
 
 	if (unlikely(!page) && migratetype != MIGRATE_RESERVE) {
 		page = __rmqueue_fallback(zone, order, migratetype);
@@ -1643,20 +1728,22 @@ static bool __zone_watermark_ok(struct zone *z, int order, unsigned long mark,
 	long min = mark;
 	long lowmem_reserve = z->lowmem_reserve[classzone_idx];
 	int o;
-	long free_cma = 0;
 
 	free_pages -= (1 << order) - 1;
 	if (alloc_flags & ALLOC_HIGH)
 		min -= min / 2;
 	if (alloc_flags & ALLOC_HARDER)
 		min -= min / 4;
-#ifdef CONFIG_CMA
-	/* If allocation can't use CMA areas don't use free CMA pages */
-	if (!(alloc_flags & ALLOC_CMA))
-		free_cma = zone_page_state(z, NR_FREE_CMA_PAGES);
-#endif
+	/*
+	 * We don't want to regard the pages on CMA region as free
+	 * on watermark checking, since they cannot be used for
+	 * unmovable/reclaimable allocation and they can suddenly
+	 * vanish through CMA allocation
+	 */
+	if (IS_ENABLED(CONFIG_CMA) && z->managed_cma_pages)
+		free_pages -= zone_page_state(z, NR_FREE_CMA_PAGES);
 
-	if (free_pages - free_cma <= min + lowmem_reserve)
+	if (free_pages <= min + lowmem_reserve)
 		return false;
 	for (o = 0; o < order; o++) {
 		/* At the next order, this order's pages become unavailable */
@@ -1837,10 +1924,6 @@ static int zlc_zone_worth_trying(struct zonelist *zonelist, struct zoneref *z,
 }
 
 static void zlc_mark_zone_full(struct zonelist *zonelist, struct zoneref *z)
-{
-}
-
-static void zlc_clear_zones_full(struct zonelist *zonelist)
 {
 }
 
@@ -2298,8 +2381,6 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		return NULL;
 
 	/* After successful reclaim, reconsider all zones for allocation */
-	if (IS_ENABLED(CONFIG_NUMA))
-		zlc_clear_zones_full(zonelist);
 
 retry:
 	page = get_page_from_freelist(gfp_mask, nodemask, order,
@@ -2398,10 +2479,6 @@ gfp_to_alloc_flags(gfp_t gfp_mask)
 				 unlikely(test_thread_flag(TIF_MEMDIE))))
 			alloc_flags |= ALLOC_NO_WATERMARKS;
 	}
-#ifdef CONFIG_CMA
-	if (allocflags_to_migratetype(gfp_mask) == MIGRATE_MOVABLE)
-		alloc_flags |= ALLOC_CMA;
-#endif
 	return alloc_flags;
 }
 
@@ -2665,10 +2742,6 @@ retry_cpuset:
 	if (!preferred_zone)
 		goto out;
 
-#ifdef CONFIG_CMA
-	if (allocflags_to_migratetype(gfp_mask) == MIGRATE_MOVABLE)
-		alloc_flags |= ALLOC_CMA;
-#endif
 	/* First allocation attempt */
 	page = get_page_from_freelist(gfp_mask|__GFP_HARDWALL, nodemask, order,
 			zonelist, high_zoneidx, alloc_flags,
@@ -4690,6 +4763,8 @@ static void __paginginit free_area_init_core(struct pglist_data *pgdat,
 		zone->zone_pgdat = pgdat;
 
 		zone_pcp_init(zone);
+		if (IS_ENABLED(CONFIG_CMA))
+			zone->managed_cma_pages = 0;		
 		lruvec_init(&zone->lruvec);
 		if (!size)
 			continue;
@@ -5895,7 +5970,6 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 	/* This function is based on compact_zone() from compaction.c. */
 	unsigned long nr_reclaimed;
 	unsigned long pfn = start;
-	unsigned int tries = 0;
 	int ret = 0;
 
 	migrate_prep();
@@ -5914,10 +5988,6 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 				ret = -EINTR;
 				break;
 			}
-			tries = 0;
-		} else if (++tries == 5) {
-			ret = ret < 0 ? ret : -EBUSY;
-			break;
 		}
 
 		nr_reclaimed = reclaim_clean_pages_from_list(cc->zone,
@@ -5926,6 +5996,10 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 
 		ret = migrate_pages(&cc->migratepages, alloc_migrate_target,
 				    0, MIGRATE_SYNC, MR_CMA);
+		if (ret) {
+			ret = ret < 0 ? ret : -EBUSY;
+			break;
+		}
 	}
 	if (ret < 0) {
 		putback_movable_pages(&cc->migratepages);

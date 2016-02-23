@@ -22,6 +22,10 @@
 
 #include <linux/dmaengine.h>
 
+#ifdef CONFIG_ARCH_SUN8IW10
+#include "sunxi/dma-sun8iw10.h"
+#else
+
 #define DRQSRC_SRAM		0
 #define DRQSRC_SDRAM		0
 
@@ -128,7 +132,7 @@
 #if !defined(CONFIG_ARCH_SUN8IW5) \
 	&& !defined(CONFIG_ARCH_SUN8IW5) \
 	&& !defined(CONFIG_ARCH_SUN8IW8)
-#define DRQDST_SPDIFRX		2
+#define DRQDST_SPDIFTX		2
 #endif
 
 #if !defined(CONFIG_ARCH_SUN8IW9)
@@ -224,6 +228,8 @@
 #elif defined(CONFIG_ARCH_SUN50I)
 #define DRQDST_DAUDIO_2_TX	27
 #endif
+
+#endif /* CONFIG_ARCH_SUN8IW10 */
 
 #define sunxi_slave_id(d, s) (((d)<<16) | (s))
 #define GET_SRC_DRQ(x)	((x) & 0x000000ff)

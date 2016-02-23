@@ -83,6 +83,7 @@ extern s32 hdmi_core_enter_lp(void);
 extern s32 hdmi_core_exit_lp(void);
 extern u32 hdmi_core_get_csc_type(void);
 extern s32 hdmi_core_update_detect_time(u32 time_val);
+extern int hdmi_core_cec_get_simple_msg(unsigned char *msg);
 
 s32 hdmi_core_get_list_num(void);
 
@@ -93,6 +94,8 @@ extern u32 is_exp;
 
 extern void hdmi_delay_ms(unsigned long ms);
 extern void hdmi_delay_us(unsigned long us);
+extern int hdmi_clk_enable_prepare(void);
+extern int hdmi_clk_disable_prepare(void);
 extern unsigned int hdmi_get_soc_version(void);
 
 #endif

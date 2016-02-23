@@ -674,11 +674,18 @@ static int __init mma7660_init(void)
 	if (input_fetch_sysconfig_para(&(gsensor_info.input_type))) {
 		printk("%s: err.\n", __func__);
 		return -1;
-	} else
+	} else{
+		ret = input_init_platform_resource(&(gsensor_info.input_type));
+		if (0 != ret){
+			printk("%s:ctp_ops.init_platform_resource err. \n", __func__);
+		}
+	}
 		twi_id = gsensor_info.twi_id;
 
 	dprintk(DEBUG_INIT, "%s i2c twi is %d \n", __func__, twi_id);
-
+	
+	input_set_power_enable(&(gsensor_info.input_type),1);
+	
 	ret = i2c_add_driver(&mma7660_driver);
 	if (ret < 0) {
 		printk(KERN_INFO "add mma7660 i2c driver failed\n");
@@ -695,6 +702,7 @@ static void __exit mma7660_exit(void)
 {
 	printk(KERN_INFO "remove mma7660 i2c driver.\n");
 	i2c_del_driver(&mma7660_driver);
+	input_set_power_enable(&(gsensor_info.input_type),0);
 }
 
 MODULE_AUTHOR("Chen Gang <gang.chen@freescale.com>");

@@ -1441,12 +1441,12 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
        GTP_DEBUG("CTP name : %s\n",config_info.name);
         if (!strcmp(config_info.name,"gt9271_1024_600")){
             index = 0;
-            GTP_INFO("gt9xx:index = %d\n",index);
+            GTP_DEBUG("gt9xx:index = %d\n",index);
 			
 			}
         if (!strcmp(config_info.name,"gt9271_D116")){
             index = 1;
-            GTP_INFO("gt9xx:index = %d\n",index);
+            GTP_DEBUG("gt9xx:index = %d\n",index);
 			
 			}
         if (!strcmp(config_info.name,"gt911_DB")){
@@ -1455,7 +1455,6 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
 			
 			}
 		}
-
 #endif
 
 	sensor_id = index;

@@ -74,6 +74,8 @@
 #include "gslX680_jinghong.h"
 #include "gsl1680e_t1.h"
 #include "gsl1680e_t1_v2.h"
+#include "gsl1680e_a86.h"
+#include "A86_GSL3676B_8001280_OGS_DZ_80A22.h"
 
 
 struct gslX680_fw_array {
@@ -94,6 +96,8 @@ struct gslX680_fw_array {
 	{"gsl_jinghong"  ,  ARRAY_SIZE(GSLX680_FW_JINGHONG),GSLX680_FW_JINGHONG},
 	{"gsl_t1"  ,  ARRAY_SIZE(GSL1680E_FW_T1),GSL1680E_FW_T1},
 	{"gsl_t1_v2"  ,  ARRAY_SIZE(GSL1680E_FW_T1_V2),GSL1680E_FW_T1_V2},
+	{"gsl_a86"  ,  ARRAY_SIZE(GSL1680E_FW_A86),GSL1680E_FW_A86},
+	{"gsl_a86_ogs"  ,  ARRAY_SIZE(A86_GSL3676B_8001280_OGS_DZ_80A22),A86_GSL3676B_8001280_OGS_DZ_80A22},
 };
 
 unsigned int *gslX680_config_data[16] = {
@@ -110,12 +114,14 @@ unsigned int *gslX680_config_data[16] = {
     gsl_config_data_id_jinghong,
     gsl_config_data_id_t1,
     gsl_config_data_id_t1_v2,
+    gsl_config_data_id_a86,
+    gsl_config_data_id_A86_GSL3676B_8001280_OGS_DZ_80A22,
 };
 
 #define FOR_TSLIB_TEST
 //#define TPD_PROC_DEBUG 1
 
-//#define HAVE_TOUCH_KEY
+#define HAVE_TOUCH_KEY
 #ifdef TPD_PROC_DEBUG
 #include <linux/proc_fs.h>
 #include <asm/uaccess.h>
@@ -167,6 +173,8 @@ struct key_data {
 	u16 y_max;
 };
 
+#define KEY_HOME	172
+
 const u16 key_array[]={
       KEY_BACK,
       KEY_HOME,
@@ -177,7 +185,7 @@ const u16 key_array[]={
 
 struct key_data gsl_key_data[MAX_KEY_NUM] = {
 	{KEY_BACK,  816, 836,115, 125},
-	{KEY_HOME,  816, 836,259 ,269},	
+	{KEY_HOME,  64278, 64298,64758 ,64778},	
 	{KEY_MENU,  816, 836,398, 410},
 	{KEY_SEARCH, 2048, 2048, 2048, 2048},
 };
@@ -226,10 +234,10 @@ struct gsl_ts {
 	bool is_runtime_suspend;
 	bool try_to_runtime_suspend;
 	bool try_to_runtime_resume;
-	bool irq_is_disable;
 	struct mutex sus_lock;
 	int irq;
-
+	int irq_is_disable;
+	spinlock_t irq_lock;
 #ifdef GSL_TIMER
 	struct timer_list gsl_timer;
 #endif
@@ -259,6 +267,7 @@ static u16 y_new = 0;
 #define SCREEN_MAX_Y		        (screen_max_y)
 
 static const char* fwname;
+static bool offpower;
 static int fw_index = -1;
 
 
@@ -317,6 +326,8 @@ static DECLARE_WORK(glsX680_init_work, glsX680_init_events);
 static DECLARE_WORK(glsX680_resume_work, glsX680_resume_events);
 struct i2c_client *glsX680_i2c;
 struct gsl_ts *ts_init;
+static int gsl_irq_disable(struct gsl_ts *ts);
+static int gsl_irq_enable(struct gsl_ts *ts);
 
 
 int ctp_i2c_write_bytes(struct i2c_client *client, uint8_t *data, uint16_t len)
@@ -428,6 +439,51 @@ int ctp_wakeup(int status,int ms)
 
 	return 0;
 }
+
+/**
+Function:
+   Disable irq function
+Input:
+    ts: gsl i2c_client private data
+Output:
+    None.
+**/
+static int gsl_irq_disable(struct gsl_ts *ts)
+{
+      unsigned long irqflags;
+       int ret = 0;
+       spin_lock_irqsave(&ts->irq_lock, irqflags);
+        if (!ts->irq_is_disable) {
+               ts->irq_is_disable = 1;
+               ret = input_set_int_enable(&(config_info.input_type), 0);
+               dprintk(DEBUG_INT_INFO, "%s ---gsl_irq_disable success !---\n", __func__);
+                }
+       spin_unlock_irqrestore(&ts->irq_lock, irqflags);
+       return ret;
+}
+
+/**
+Function:
+   Enable irq function
+Input:
+    ts: gsl i2c_client private data
+Output:
+    None.
+**/
+static int gsl_irq_enable(struct gsl_ts *ts)
+{
+      unsigned long irqflags;
+       int ret = 0;
+       spin_lock_irqsave(&ts->irq_lock, irqflags);
+        if (ts->irq_is_disable) {
+               ts->irq_is_disable = 0;
+               ret = input_set_int_enable(&(config_info.input_type), 1);
+               dprintk(DEBUG_INT_INFO, "%s ---gsl_irq_enable success !---\n", __func__);
+                      }
+       spin_unlock_irqrestore(&ts->irq_lock, irqflags);
+       return ret;
+}
+
 
 static int gslX680_chip_init(void)
 {
@@ -1219,7 +1275,7 @@ static void process_gslX680_data(struct gsl_ts *ts)
 
 static void gsl_ts_xy_worker(struct work_struct *work)
 {
-	int rc;
+	int ret;
 	u8 read_buf[4] = {0};
 	struct gsl_ts *ts = container_of(work, struct gsl_ts,work);
 
@@ -1230,9 +1286,9 @@ static void gsl_ts_xy_worker(struct work_struct *work)
 	}
 #endif
 	/* read data from DATA_REG */
-	rc = gsl_ts_read(ts->client, 0x80, ts->touch_data, ts->dd->data_size);
+	ret = gsl_ts_read(ts->client, 0x80, ts->touch_data, ts->dd->data_size);
 	dprintk(DEBUG_X_Y_INFO,"---touches: %d ---\n",ts->touch_data[0]);
-	if (rc < 0) {
+	if (ret < 0) {
 		dev_err(&ts->client->dev, "read failed\n");
 		goto schedule;
 	}
@@ -1241,8 +1297,8 @@ static void gsl_ts_xy_worker(struct work_struct *work)
 		goto schedule;
 	}
 
-	rc = gsl_ts_read( ts->client, 0xbc, read_buf, sizeof(read_buf));
-	if (rc < 0) {
+	ret = gsl_ts_read( ts->client, 0xbc, read_buf, sizeof(read_buf));
+	if (ret < 0) {
 		dev_err(&ts->client->dev, "read 0xbc failed\n");
 		goto schedule;
 	}
@@ -1258,12 +1314,9 @@ static void gsl_ts_xy_worker(struct work_struct *work)
 	
 schedule:
 #ifndef GSL_TIMER
-	if(ts->irq_is_disable){
-		ts->irq_is_disable = 0;
-	    rc = input_set_int_enable(&(config_info.input_type), 1);
-		if (rc < 0)
+	    ret = gsl_irq_enable(ts);
+		if (ret < 0)
 			dprintk(DEBUG_SUSPEND,"%s irq enable failed\n", __func__);
-	}
 #endif
 }
 
@@ -1297,13 +1350,13 @@ static void gsl_monitor_worker(struct work_struct *work)
 
 irqreturn_t gsl_ts_irq(int irq, void *dev_id)
 {
+	int ret;
 	struct gsl_ts *ts = (struct gsl_ts *)dev_id;
 	dprintk(DEBUG_INT_INFO,"==========GSLX680 Interrupt============\n");
 #ifndef GSL_TIMER
-	if(!ts->irq_is_disable){
-		ts->irq_is_disable = 1;
-		input_set_int_enable(&(config_info.input_type), 0);
-	}
+	    ret = gsl_irq_disable(ts);
+		if (ret < 0)
+			dprintk(DEBUG_SUSPEND,"%s irq disable failed\n", __func__);
 #endif
 	queue_work(ts->wq, &ts->work);
 #ifdef GSL_TIMER
@@ -1321,9 +1374,9 @@ static void gsl_timer_handle(unsigned long data)
 #ifdef GSL_DEBUG	
 	printk("----------------gsl_timer_handle-----------------\n");	
 #endif
-    ret = input_set_int_enable(&(config_info.input_type), 1);
-	if (ret < 0)
-		dprintk(DEBUG_SUSPEND,"%s irq disable failed\n", __func__);
+	    ret = gsl_irq_enable(ts);
+		if (ret < 0)
+			dprintk(DEBUG_SUSPEND,"%s irq enable failed\n", __func__);	
 	check_mem_data(ts->client);
 	ts->gsl_timer.expires = jiffies + 3 * HZ;
 	add_timer(&ts->gsl_timer);
@@ -1426,31 +1479,32 @@ static void glsX680_resume_events (struct work_struct *work)
 #ifndef GSL_TIMER
 	int ret;
 	struct gsl_ts *ts = i2c_get_clientdata(glsX680_i2c);
-#endif	
-
+#endif
+	
+	dprintk(DEBUG_SUSPEND, "@@@@@@@@gsl_ts_resume_event start @@@@@@@@@@@@@\n");
 	gslX680_shutdown_high();
 	msleep(10);
 	reset_chip(glsX680_i2c);
 	startup_chip(glsX680_i2c);
 	check_mem_data(glsX680_i2c);
+	
 #ifndef GSL_TIMER
-	if(ts->irq_is_disable){
-		ts->irq_is_disable = 0;
-		ret = input_set_int_enable(&(config_info.input_type), 1);
+	    ret = gsl_irq_enable(ts);
 		if (ret < 0)
-			dprintk(DEBUG_SUSPEND,"%s irq disable failed\n", __func__);
-	}
+			dprintk(DEBUG_SUSPEND,"%s irq enable failed\n", __func__);
 #endif
+	dprintk(DEBUG_SUSPEND, "@@@@@@@@gsl_ts_resume_event end @@@@@@@@@@@@@\n");
 }
 
 #ifdef CONFIG_PM
 static int gsl_ts_suspend(struct device *dev)
 {
+	dprintk(DEBUG_SUSPEND, "@@@@@@@@gsl_ts_suspend start @@@@@@@@@@@@@\n");
 #ifndef GSL_TIMER
 	int ret;
 #endif
         struct gsl_ts *ts = dev_get_drvdata(dev);
-        dprintk(DEBUG_SUSPEND,"%s,start\n",__func__);
+        
         cancel_work_sync(&glsX680_resume_work);
         flush_workqueue(gslX680_resume_wq);
 
@@ -1466,14 +1520,7 @@ static int gsl_ts_suspend(struct device *dev)
 	del_timer(&ts->gsl_timer);
 #endif
 
-#ifndef GSL_TIMER
-	if(!ts->irq_is_disable){
-		ts->irq_is_disable = 1;
-		ret = input_set_int_enable(&(config_info.input_type), 0);
-		if (ret < 0)
-			dprintk(DEBUG_SUSPEND,"%s irq disable failed\n", __func__);
-	}
-#endif
+
         flush_workqueue(gslX680_resume_wq);
         cancel_work_sync(&ts->work);
         flush_workqueue(ts->wq);
@@ -1487,10 +1534,18 @@ static int gsl_ts_suspend(struct device *dev)
 			dprintk(DEBUG_SUSPEND,"do suspend\n");
 			ts->is_suspended = true;
 		}
-		//on three times,so do off
-		input_set_power_enable(&(config_info.input_type), 0);
-		input_set_power_enable(&(config_info.input_type), 0);
-		input_set_power_enable(&(config_info.input_type), 0);
+		
+#ifndef GSL_TIMER
+	    ret = gsl_irq_disable(ts);
+		if (ret < 0)
+			dprintk(DEBUG_SUSPEND,"%s irq disable failed\n", __func__);
+#endif
+		
+		if(offpower) {
+			input_set_power_enable(&(config_info.input_type), 0);
+		}
+		
+		dprintk(DEBUG_SUSPEND, "@@@@@@@@gsl_ts_suspend end @@@@@@@@@@@@@\n");
         
         return 0;
 
@@ -1498,9 +1553,10 @@ static int gsl_ts_suspend(struct device *dev)
 
 static int gsl_ts_resume(struct device *dev)
 {
-	
 	struct gsl_ts *ts = dev_get_drvdata(dev);
-	input_set_power_enable(&(config_info.input_type), 1);
+	if(offpower) {
+		input_set_power_enable(&(config_info.input_type), 1);
+	}
 
 	if(ts->is_runtime_suspend && ts->is_suspended){
 		dprintk(DEBUG_SUSPEND,"do resume\n");
@@ -1530,6 +1586,7 @@ static int gsl_ts_resume(struct device *dev)
 	ts->gsl_timer.data = (unsigned long)ts;
 	add_timer(&ts->gsl_timer);
 #endif
+	
 	return 0;
 
 
@@ -1617,7 +1674,6 @@ static int  gsl_ts_probe(struct i2c_client *client,
 	int rc = 0;
 	int ret=0;
 
-	input_set_power_enable(&(config_info.input_type), 1);
 	printk("GSLX680 Enter %s\n", __func__);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "I2C functionality not supported\n");
@@ -1701,9 +1757,6 @@ static int  gsl_ts_probe(struct i2c_client *client,
 	gsl_monitor_workqueue = create_singlethread_workqueue("gsl_monitor_workqueue");
 	queue_delayed_work(gsl_monitor_workqueue, &gsl_monitor_work, 1000);
 #endif
-
-
-	input_set_power_enable(&(config_info.input_type), 1);
 	
 	dprintk(DEBUG_INIT,"[GSLX680] End %s\n", __func__);
 	return 0;
@@ -1783,6 +1836,12 @@ static int ctp_get_system_config(void)
     ctp_print_info(config_info,DEBUG_INIT);
 
 	fwname = config_info.name;
+	if (!strcmp(fwname, "gsl_a86_ogs")) {
+		offpower = 0;
+	}
+	else {
+		offpower = 1;
+	}
 	dprintk(DEBUG_INIT,"%s:fwname:%s\n",__func__,fwname);
 	fw_index = gsl_find_fw_idx(fwname);
 	if (fw_index == -1) {
@@ -1791,25 +1850,26 @@ static int ctp_get_system_config(void)
 	}
 
 	dprintk(DEBUG_INIT,"fw_index = %d\n",fw_index);
-    twi_id = config_info.twi_id;
-    screen_max_x = config_info.screen_max_x;
-    screen_max_y = config_info.screen_max_y;
-    revert_x_flag = config_info.revert_x_flag;
-    revert_y_flag = config_info.revert_y_flag;
-    exchange_x_y_flag = config_info.exchange_x_y_flag;
+    	twi_id = config_info.twi_id;
+    	screen_max_x = config_info.screen_max_x;
+    	screen_max_y = config_info.screen_max_y;
+    	revert_x_flag = config_info.revert_x_flag;
+    	revert_y_flag = config_info.revert_y_flag;
+    	exchange_x_y_flag = config_info.exchange_x_y_flag;
+    	
 	if((screen_max_x == 0) || (screen_max_y == 0)){
            printk("%s:read config error!\n",__func__);
            return 0;
     }
     return 1;
 }
+
 static int __init gsl_ts_init(void)
 {
 
 	int ret = -1;
-        
-	//input_set_power_enable(&(config_info.input_type), 1);
-	dprintk(DEBUG_INIT,"****************************************************************\n");
+
+	dprintk(DEBUG_INIT,"**************************start gsl_CTP _init**************************************\n");
 	if (input_fetch_sysconfig_para(&(config_info.input_type))) {
 		printk("%s: ctp_fetch_sysconfig_para err.\n", __func__);
 		return 0;
@@ -1819,29 +1879,33 @@ static int __init gsl_ts_init(void)
 			printk("%s:ctp_ops.init_platform_resource err. \n", __func__);    
 		}
 	}
+	
 	if (config_info.ctp_used == 0) {
 		printk("*** ctp_used set to 0 !\n");
 		printk("*** if use ctp,please put the sys_config.fex ctp_used set to 1. \n");
 		return 0;
 	}
+	
 	if (!ctp_get_system_config()) {
 		printk("%s:read config fail!\n",__func__);
 		return ret;
 	}
+	
 	input_set_power_enable(&(config_info.input_type), 1);
-    msleep(20);
+     msleep(20);
 	ctp_wakeup(1,0);
 
 	ret = i2c_add_driver(&gsl_ts_driver);
-	printk("****************************************************************\n");
+	dprintk(DEBUG_INIT,"*************************end gsl_CTP _init***************************************\n");
 	return ret;
 }
 
 static void __exit gsl_ts_exit(void)
 {
-	printk("==gsl_ts_exit==\n");
 	i2c_del_driver(&gsl_ts_driver);
 	input_free_platform_resource(&(config_info.input_type));
+	input_set_power_enable(&(config_info.input_type), 0);
+	dprintk(DEBUG_INIT,"============gsl_CTP _exit==============\n");
 	return;
 }
 
@@ -1850,6 +1914,6 @@ module_exit(gsl_ts_exit);
 module_param_named(debug_mask,debug_mask,int,S_IRUGO | S_IWUSR | S_IWGRP);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("GSLX680 touchscreen controller driver");
-MODULE_AUTHOR("Guan Yuwei, guanyuwei@basewin.com");
+MODULE_AUTHOR("Given He, heguangneng@allwinnertech.com");
 MODULE_ALIAS("platform:gsl_ts");
 

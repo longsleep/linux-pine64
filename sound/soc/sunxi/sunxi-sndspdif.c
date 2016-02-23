@@ -107,7 +107,12 @@ static __mclk_set_inf  MCLK_INF[] =
     /*192k bitrate   12.288  Mbit/s  4/4 = 1*/
     {192000, 128,  1, 0},
     /*44.1k bitrate  2.8224  Mbit/s   16/4 = 4*/
+    #ifdef CONFIG_AW_ASIC_EVB_PLATFORM
     { 44100, 128,  4, 1}, { 44100, 256,  4, 1}, { 44100, 512,  4, 1},
+    #else
+    /*fpga*/
+    { 44100, 128,  4, 1}, { 44100, 256,  16, 1}, { 44100, 512,  4, 1},
+    #endif
      /*176.4k bitrate  11.2896  Mbit/s 4/4 = 1*/
     {176400, 128, 1, 1},
 
@@ -156,12 +161,9 @@ static int sunxi_sndspdif_hw_params(struct snd_pcm_substream *substream,
 
 	if (ret < 0)
 		return ret;
-#ifdef CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW
+
 	/*fmt:1:pcm; >1:rawdata*/
-	fmt = params_raw(params);
-#else
 	fmt = spdif_format;
-#endif
 	if(fmt > 1){
 		fmt = 1;
 	}else{
@@ -232,9 +234,7 @@ static struct snd_soc_dai_link sunxi_sndspdif_dai_link = {
 	.name 			= "SPDIF",
 	.stream_name 	= "SUNXI-SPDIF",
 	.cpu_dai_name 	= "sunxi-spdif",
-	//.codec_dai_name = "snd-soc-dummy-dai",
 	.platform_name 	= "sunxi-spdif",
-	//.codec_name 	= "snd-soc-dummy",
 	.init 			= sunxi_spdif_init,
 	.ops 			= &sunxi_sndspdif_ops,
 };

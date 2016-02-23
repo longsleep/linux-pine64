@@ -31,6 +31,7 @@
 #include <linux/gpio.h>
 #include "sunxi_dma.h"
 #include "sunxi_tdm_utils.h"
+static bool  daudio0_loop_en 		= false;
 
 int txctrl_tdm(int on,int hub_en,struct sunxi_tdm_info *sunxi_tdm)
 {
@@ -73,13 +74,10 @@ int txctrl_tdm(int on,int hub_en,struct sunxi_tdm_info *sunxi_tdm)
 		writel(reg_val, tdm->regs + SUNXI_DAUDIOFCTL);
 	}
 
-#if 0
-	for(reg_val = 0; reg_val < 0x5c; reg_val=reg_val+4)
-		pr_debug("%s,line:%d,0x%x:%x\n",__func__,__LINE__,reg_val,readl(tdm->regs + reg_val));
-#endif
 	return 0;
 }
 EXPORT_SYMBOL(txctrl_tdm);
+
 int  rxctrl_tdm(int on,struct sunxi_tdm_info *sunxi_tdm)
 {
 	u32 reg_val;
@@ -88,12 +86,6 @@ int  rxctrl_tdm(int on,struct sunxi_tdm_info *sunxi_tdm)
 		tdm = sunxi_tdm;
 	else
 		return -1;
-	/*flush RX FIFO*/
-	reg_val = readl(tdm->regs + SUNXI_DAUDIOFCTL);
-	reg_val |= SUNXI_DAUDIOFCTL_FRX;
-	writel(reg_val, tdm->regs + SUNXI_DAUDIOFCTL);
-	/*clear RX counter*/
-	writel(0, tdm->regs + SUNXI_DAUDIORXCNT);
 
 	if (on) {
 		/* enable DMA DRQ mode for record */
@@ -101,27 +93,46 @@ int  rxctrl_tdm(int on,struct sunxi_tdm_info *sunxi_tdm)
 		reg_val |= SUNXI_DAUDIOINT_RXDRQEN;
 		writel(reg_val, tdm->regs + SUNXI_DAUDIOINT);
 	} else {
-		/* DISBALE dma DRQ mode */
-		reg_val = readl(tdm->regs + SUNXI_DAUDIOINT);
-		reg_val &= ~SUNXI_DAUDIOINT_RXDRQEN;
-		writel(reg_val, tdm->regs + SUNXI_DAUDIOINT);
 		/*DISABLE DAUDIO RX */
 		reg_val = readl(tdm->regs + SUNXI_DAUDIOCTL);
 		reg_val &= ~SUNXI_DAUDIOCTL_RXEN;
 		writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
+		/* DISBALE dma DRQ mode */
+		reg_val = readl(tdm->regs + SUNXI_DAUDIOINT);
+		reg_val &= ~SUNXI_DAUDIOINT_RXDRQEN;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIOINT);
+
+		/*flush RX FIFO*/
+		reg_val = readl(tdm->regs + SUNXI_DAUDIOFCTL);
+		reg_val |= SUNXI_DAUDIOFCTL_FRX;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIOFCTL);
+		/*clear RX counter*/
+		writel(0, tdm->regs + SUNXI_DAUDIORXCNT);
+		#ifdef CONFIG_ARCH_SUN50I
+		/*
+		*	while flush RX FIFO, must read RXFIFO DATA three times.
+		*	or it wouldn't flush RX FIFO clean; and it will let record data channel reverse!
+		*/
+		{
+			int i = 0;
+			for (i = 0; i < 9;i++) {
+				reg_val = readl(tdm->regs + SUNXI_DAUDIORXFIFO);
+			}
+		}
+		#endif
 	}
-#if 0
-	for(reg_val = 0; reg_val < 0x58; reg_val=reg_val+4)
-		pr_debug("%s,line:%d,0x%x:%x\n",__func__,__LINE__,reg_val,readl(tdm->regs + reg_val));
-#endif
+
 	return 0;
 }
 EXPORT_SYMBOL(rxctrl_tdm);
+
 int tdm_set_fmt(unsigned int fmt,struct sunxi_tdm_info *sunxi_tdm)
 {
 	u32 reg_val = 0;
 	u32 reg_val1 = 0;
+	u32 reg_val2 = 0;
 	struct sunxi_tdm_info *tdm = NULL;
+
 	if (sunxi_tdm != NULL)
 		tdm = sunxi_tdm;
 	else
@@ -145,33 +156,36 @@ int tdm_set_fmt(unsigned int fmt,struct sunxi_tdm_info *sunxi_tdm)
 	/* pcm or tdm mode selection */
 	reg_val = readl(tdm->regs + SUNXI_DAUDIOCTL);
 	reg_val1 = readl(tdm->regs + SUNXI_DAUDIOTX0CHSEL);
+	reg_val2 = readl(tdm->regs + SUNXI_DAUDIORXCHSEL);
 	reg_val &= ~SUNXI_DAUDIOCTL_MODESEL;
-	reg_val1 &= ~SUNXI_DAUDIOTXn_OFFSET;
+	reg_val1 &= ~(SUNXI_DAUDIOTXn_OFFSET(3));
+	reg_val2 &= ~(SUNXI_DAUDIORXCHSEL_RXOFFSET(3));
 	switch(fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 		case SND_SOC_DAIFMT_I2S:        /* i2s mode */
 			reg_val  |= (1<<4);
-			reg_val1 |= (1<<12);
+			reg_val1 |= SUNXI_DAUDIOTXn_OFFSET(1);
+			reg_val2 |= SUNXI_DAUDIORXCHSEL_RXOFFSET(1);
 			break;
 		case SND_SOC_DAIFMT_RIGHT_J:    /* Right Justified mode */
 			reg_val  |= (2<<4);
 			break;
 		case SND_SOC_DAIFMT_LEFT_J:     /* Left Justified mode */
 			reg_val  |= (1<<4);
-			reg_val1  |= (0<<12);
+			reg_val1 |= SUNXI_DAUDIOTXn_OFFSET(0);
+			reg_val2 |= SUNXI_DAUDIORXCHSEL_RXOFFSET(0);
 			break;
 		case SND_SOC_DAIFMT_DSP_A:      /* L data msb after FRM LRC */
 			reg_val  |= (0<<4);
-			reg_val1  |= (1<<12);
 			break;
 		case SND_SOC_DAIFMT_DSP_B:      /* L data msb during FRM LRC */
 			reg_val  |= (0<<4);
-			reg_val1  |= (0<<12);
 			break;
 		default:
 			return -EINVAL;
 	}
 	writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
 	writel(reg_val1, tdm->regs + SUNXI_DAUDIOTX0CHSEL);
+	writel(reg_val2, tdm->regs + SUNXI_DAUDIORXCHSEL);
 	/* DAI signal inversions */
 	reg_val1 = readl(tdm->regs + SUNXI_DAUDIOFAT0);
 	switch(fmt & SND_SOC_DAIFMT_INV_MASK){
@@ -193,6 +207,7 @@ int tdm_set_fmt(unsigned int fmt,struct sunxi_tdm_info *sunxi_tdm)
 			break;
 	}
 	writel(reg_val1, tdm->regs + SUNXI_DAUDIOFAT0);
+
 	return 0;
 }
 EXPORT_SYMBOL(tdm_set_fmt);
@@ -246,14 +261,18 @@ int tdm_hw_params(struct snd_pcm_hw_params *params,struct sunxi_tdm_info *sunxi_
 	return 0;
 }
 EXPORT_SYMBOL(tdm_hw_params);
+
 int tdm_trigger(struct snd_pcm_substream *substream,int cmd, struct sunxi_tdm_info *sunxi_tdm)
 {
 	s32 ret = 0;
+	u32 reg_val = 0;
 	struct sunxi_tdm_info *tdm = NULL;
+
 	if (sunxi_tdm != NULL)
 		tdm = sunxi_tdm;
 	else
 		return -1;
+
 	switch (cmd) {
 		case SNDRV_PCM_TRIGGER_START:
 		case SNDRV_PCM_TRIGGER_RESUME:
@@ -263,6 +282,11 @@ int tdm_trigger(struct snd_pcm_substream *substream,int cmd, struct sunxi_tdm_in
 			} else {
 				txctrl_tdm(1,0,tdm);
 			}
+		if (daudio0_loop_en) {
+			reg_val = readl(tdm->regs + SUNXI_DAUDIOCTL);
+			reg_val |= SUNXI_DAUDIOCTL_LOOP; /*for test*/
+			writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
+		}
 			break;
 		case SNDRV_PCM_TRIGGER_STOP:
 		case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -281,6 +305,8 @@ int tdm_trigger(struct snd_pcm_substream *substream,int cmd, struct sunxi_tdm_in
 	return ret;
 }
 EXPORT_SYMBOL(tdm_trigger);
+module_param_named(daudio0_loop_en, daudio0_loop_en, bool, S_IRUGO | S_IWUSR);
+
 int tdm_set_sysclk(unsigned int freq,struct sunxi_tdm_info *sunxi_tdm)
 {
 	struct sunxi_tdm_info *tdm = NULL;
@@ -301,14 +327,13 @@ int tdm_set_clkdiv(int sample_rate,struct sunxi_tdm_info *sunxi_tdm)
 	u32 mclk_div = 0;
 	u32 bclk_div = 0;
 	struct sunxi_tdm_info *tdm = NULL;
+
 	if (sunxi_tdm != NULL)
 		tdm = sunxi_tdm;
 	else
 		return -1;
-	/*enable mclk*/
-	reg_val = readl(tdm->regs + SUNXI_DAUDIOCLKD);
-	reg_val |= SUNXI_DAUDIOCLKD_MCLKOEN;
 
+	reg_val = readl(tdm->regs + SUNXI_DAUDIOCLKD);
 	/*i2s mode*/
 	if (tdm->tdm_config) {
 		switch (sample_rate) {
@@ -330,7 +355,7 @@ int tdm_set_clkdiv(int sample_rate,struct sunxi_tdm_info *sunxi_tdm)
 		}
 	} else {/*pcm mode*/
 		bclk_div = ((24576000/sample_rate)/(tdm->pcm_lrck_period));
-		mclk_div = 1;//((24576000/sample_rate)/mclk_fs);
+		mclk_div = 1;
 	}
 
 	switch(mclk_div)
@@ -425,12 +450,16 @@ int tdm_set_clkdiv(int sample_rate,struct sunxi_tdm_info *sunxi_tdm)
 	else
 		reg_val |= (7<<0);
 
-	if(tdm->frametype)/*pcm mode*/
+	/*pcm mode
+	*	(Only apply in PCM mode) LRCK width
+	*	0: LRCK = 1 BCLK width(short frame)
+	*	1: LRCK = 2 BCLK width(long frame)
+	*/
+	if(tdm->frametype)
 		reg_val |= SUNXI_DAUDIOFAT0_LRCK_WIDTH;
 	else
 		reg_val &= ~SUNXI_DAUDIOFAT0_LRCK_WIDTH;
 	writel(reg_val, tdm->regs + SUNXI_DAUDIOFAT0);
-
 
 	reg_val = readl(tdm->regs + SUNXI_DAUDIOFAT1);
 	reg_val |= tdm->pcm_lsb_first<<7;
@@ -444,6 +473,7 @@ int tdm_set_clkdiv(int sample_rate,struct sunxi_tdm_info *sunxi_tdm)
 	return 0;
 }
 EXPORT_SYMBOL(tdm_set_clkdiv);
+
 int tdm_perpare(struct snd_pcm_substream *substream,
 					struct sunxi_tdm_info *sunxi_tdm)
 {
@@ -455,63 +485,27 @@ int tdm_perpare(struct snd_pcm_substream *substream,
 		return -1;
 	/* play or record */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		reg_val = readl(tdm->regs + SUNXI_TXCHCFG);
-		if (substream->runtime->channels == 1) {
-			reg_val &= ~(0x7<<0);
-			reg_val |= (0x0)<<0;
-		} else {
-			reg_val &= ~(0x7<<0);
-			reg_val |= (0x1)<<0;
-		}
-		writel(reg_val, tdm->regs + SUNXI_TXCHCFG);
-		reg_val = readl(tdm->regs + SUNXI_DAUDIOTX0CHSEL);
-		reg_val |= (0x1<<12);
-		reg_val &= ~(0xff<<4);
-		reg_val &= ~(0x7<<0);
-		if (substream->runtime->channels == 1) {
-			reg_val |= (0x3<<4);
-			reg_val	|= (0x1<<0);
-		} else {
-			reg_val |= (0x3<<4);
-			reg_val	|= (0x1<<0);
-		}
-		writel(reg_val, tdm->regs + SUNXI_DAUDIOTX0CHSEL);
-		reg_val = readl(tdm->regs + SUNXI_DAUDIOTX0CHMAP);
-		reg_val = 0;
-		if(substream->runtime->channels == 1) {
-			reg_val = 0x0;
-		} else {
-			reg_val = 0x10;
-		}
-		writel(reg_val, tdm->regs + SUNXI_DAUDIOTX0CHMAP);
+		reg_val = readl(tdm->regs + SUNXI_CHCFG);
+		reg_val &= ~(SUNXI_TXCHCFG_TX_SLOT_NUM<<0);
+		reg_val |= (substream->runtime->channels-1)<<0;
+		writel(reg_val, tdm->regs + SUNXI_CHCFG);
 
-		reg_val = readl(tdm->regs + SUNXI_DAUDIOCTL);
-		reg_val &= ~SUNXI_DAUDIOCTL_SDO3EN;
-		reg_val &= ~SUNXI_DAUDIOCTL_SDO2EN;
-		reg_val &= ~SUNXI_DAUDIOCTL_SDO1EN;
-		reg_val &= ~SUNXI_DAUDIOCTL_SDO0EN;
-		switch (substream->runtime->channels) {
-			case 1:
-			case 2:
-				reg_val |= SUNXI_DAUDIOCTL_SDO0EN;
-				break;
-			case 3:
-			case 4:
-				reg_val |= SUNXI_DAUDIOCTL_SDO0EN | SUNXI_DAUDIOCTL_SDO1EN;
-				break;
-			case 5:
-			case 6:
-				reg_val |= SUNXI_DAUDIOCTL_SDO0EN | SUNXI_DAUDIOCTL_SDO1EN | SUNXI_DAUDIOCTL_SDO2EN;
-				break;
-			case 7:
-			case 8:
-				reg_val |= SUNXI_DAUDIOCTL_SDO0EN | SUNXI_DAUDIOCTL_SDO1EN | SUNXI_DAUDIOCTL_SDO2EN | SUNXI_DAUDIOCTL_SDO3EN;
-				break;
-			default:
-				reg_val |= SUNXI_DAUDIOCTL_SDO0EN;
-				break;
-		}
-		writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
+		reg_val = readl(tdm->regs + SUNXI_DAUDIOTX0CHSEL);
+		reg_val &= ~SUNXI_DAUDIOTXn_CHEN(CHEN_MASK);
+		reg_val &= ~SUNXI_DAUDIOTXn_CHSEL(CHSEL_MASK);
+		reg_val |= SUNXI_DAUDIOTXn_CHEN((CHEN_MASK>>(CH_MAX-substream->runtime->channels)));
+		reg_val |= SUNXI_DAUDIOTXn_CHSEL(substream->runtime->channels-1);
+		writel(reg_val, tdm->regs + SUNXI_DAUDIOTX0CHSEL);
+
+#ifdef CONFIG_ARCH_SUN8IW10
+		reg_val = SUNXI_TXCHANMAP0_DEFAULT;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIOTX0CHMAP0);
+		reg_val = SUNXI_TXCHANMAP1_DEFAULT;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIOTX0CHMAP1);
+#else
+		reg_val = SUNXI_TXCHANMAP_DEFAULT;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIOTX0CHMAP);
+#endif
 		/*clear TX counter*/
 		writel(0, tdm->regs + SUNXI_DAUDIOTXCNT);
 
@@ -520,33 +514,26 @@ int tdm_perpare(struct snd_pcm_substream *substream,
 		reg_val |= SUNXI_DAUDIOCTL_TXEN;
 		writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
 	} else {
-		reg_val = readl(tdm->regs + SUNXI_TXCHCFG);
-		if (substream->runtime->channels == 1) {
-			reg_val &= ~(0x7<<4);
-			reg_val |= (0x0)<<4;
-		} else {
-			reg_val &= ~(0x7<<4);
-			reg_val |= (0x1)<<4;
-		}
-		writel(reg_val, tdm->regs + SUNXI_TXCHCFG);
+		reg_val = readl(tdm->regs + SUNXI_CHCFG);
+		reg_val &= ~SUNXI_TXCHCFG_RX_SLOT_NUM;
+		reg_val |= (substream->runtime->channels-1)<<4;
+		writel(reg_val, tdm->regs + SUNXI_CHCFG);
 
 		reg_val = readl(tdm->regs + SUNXI_DAUDIORXCHSEL);
-		reg_val |= (0x1<<12);
-		if(substream->runtime->channels == 1) {
-			reg_val	&= ~(0x1<<0);
-		} else {
-			reg_val	|= (0x1<<0);
-		}
+		reg_val &= ~SUNXI_DAUDIORXCHSEL_RXCHSET(CHSEL_MASK);
+		reg_val |= SUNXI_DAUDIORXCHSEL_RXCHSET(substream->runtime->channels-1);
 		writel(reg_val, tdm->regs + SUNXI_DAUDIORXCHSEL);
 
-		reg_val = readl(tdm->regs + SUNXI_DAUDIORXCHMAP);
-		reg_val = 0;
-		if (substream->runtime->channels == 1) {
-			reg_val = 0x00;
-		} else {
-			reg_val = 0x10;
-		}
+#ifdef CONFIG_ARCH_SUN8IW10
+		reg_val = SUNXI_RXCHANMAP0_DEFAULT;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIORXCHMAP0);
+		reg_val = SUNXI_RXCHANMAP1_DEFAULT;
+		writel(reg_val, tdm->regs + SUNXI_DAUDIORXCHMAP1);
+#else
+		reg_val = SUNXI_RXCHANMAP_DEFAULT;
 		writel(reg_val, tdm->regs + SUNXI_DAUDIORXCHMAP);
+#endif
+
 		reg_val = readl(tdm->regs + SUNXI_DAUDIOFCTL);
 		reg_val |= SUNXI_DAUDIOFCTL_RXOM;
 		writel(reg_val, tdm->regs + SUNXI_DAUDIOFCTL);
@@ -562,21 +549,34 @@ int tdm_perpare(struct snd_pcm_substream *substream,
 	return 0;
 }
 EXPORT_SYMBOL(tdm_perpare);
+
 int tdm_global_enable(struct sunxi_tdm_info *sunxi_tdm,bool on)
 {
-	u32 reg_val;
+	u32 reg_val = 0;
+	u32 reg_val1 = 0;
 	struct sunxi_tdm_info *tdm = NULL;
-	if (sunxi_tdm != NULL)
-		tdm = sunxi_tdm;
-	else
-		return -1;
-	reg_val = readl(tdm->regs + SUNXI_DAUDIOCTL);
-	if (!on)
-		reg_val &= ~SUNXI_DAUDIOCTL_GEN;
-	else
-		reg_val |= SUNXI_DAUDIOCTL_GEN;
 
+	if (sunxi_tdm != NULL) {
+		tdm = sunxi_tdm;
+	} else {
+		return -1;
+	}
+
+	reg_val = readl(tdm->regs + SUNXI_DAUDIOCTL);
+	reg_val1 = readl(tdm->regs + SUNXI_DAUDIOCLKD);
+	if (!on) {
+		reg_val &= ~SUNXI_DAUDIOCTL_GEN;
+		reg_val &= ~SUNXI_DAUDIOCTL_SDO0EN;
+		reg_val1 &= ~SUNXI_DAUDIOCLKD_MCLKOEN;
+	} else {
+		reg_val |= SUNXI_DAUDIOCTL_GEN;
+		reg_val |= SUNXI_DAUDIOCTL_SDO0EN;
+		reg_val1 |= SUNXI_DAUDIOCLKD_MCLKOEN;
+		reg_val1 |= SUNXI_DAUDIOCLKD_MCLKDIV(1);
+	}
 	writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
+	writel(reg_val1, tdm->regs + SUNXI_DAUDIOCLKD);
+
 	return 0;
 }
 EXPORT_SYMBOL(tdm_global_enable);

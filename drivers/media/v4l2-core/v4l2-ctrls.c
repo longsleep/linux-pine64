@@ -428,6 +428,8 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		"Off",
 		"Flash",
 		"Torch",
+		"Auto",
+		"Red Eye",
 		NULL,
 	};
 	static const char * const flash_strobe_source[] = {

@@ -184,8 +184,12 @@ void axp_charger_update_state(struct axp_charger *charger)
 	u8 val[2];
 	u16 tmp;
 
+	/* wait for the stability of ACIN valid and VBUS valid */
+	msleep(2);
 	axp_reads(charger->master,AXP_CHARGE_STATUS,2,val);
 	tmp = (val[1] << 8 )+ val[0];
+    DBG_PSY_MSG(DEBUG_CHG, "Axp read again charger->ext_valid: %d\n", \
+                                                   charger->ext_valid);
 	spin_lock(&charger->charger_lock);
 	charger->is_on = (val[1] & AXP_IN_CHARGE) ? 1 : 0;
 	charger->fault = val[1];
@@ -198,7 +202,6 @@ void axp_charger_update_state(struct axp_charger *charger)
 		charger->ac_valid = (tmp & AXP_STATUS_ACVA)?1:0;
 	}
 	charger->bat_current_direction = (tmp & AXP_STATUS_BATCURDIR)?1:0;
-	charger->in_short = (tmp& AXP_STATUS_ACUSBSH)?1:0;
 	charger->batery_active = (tmp & AXP_STATUS_BATINACT)?1:0;
 	charger->int_over_temp = (tmp & AXP_STATUS_ICTEMOV)?1:0;
 	spin_unlock(&charger->charger_lock);

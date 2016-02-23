@@ -618,8 +618,8 @@ static void option_instat_callback(struct urb *urb);
 #define CHANGHONG_PRODUCT_CH690			0x7001
 /*shangshai ASB products*/
 #define ASB_VENDOR_ID			0x04cc
-#define ASB_PRODUCT_T920		0x226e
-#define ASB_PRODUCT_TU930			0x225a
+//#define ASB_PRODUCT_T920		0x226e
+//#define ASB_PRODUCT_TU930			0x225a
 
 /*TechFaith products*/
 #define TechFaith_VENDOR_ID		0x1d09
@@ -789,7 +789,7 @@ static const struct usb_device_id option_ids[] = {
 	{ USB_DEVICE(QUANTA_VENDOR_ID, QUANTA_PRODUCT_GLE) },
 	{ USB_DEVICE(QUANTA_VENDOR_ID, 0xea42),
 		.driver_info = (kernel_ulong_t)&net_intf4_blacklist },
-	{USB_DEVICE(0x12d1, 0x1d09)},
+//	{USB_DEVICE(0x12d1, 0x1d09)},
 	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, 0x1c05, USB_CLASS_COMM, 0x02, 0xff) },
 	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, 0x1c1f, USB_CLASS_COMM, 0x02, 0xff) },
 	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, 0x1c23, USB_CLASS_COMM, 0x02, 0xff) },
@@ -1957,8 +1957,8 @@ static const struct usb_device_id option_ids[] = {
 	{ USB_DEVICE_AND_INTERFACE_INFO(0x07d1, 0x3e02, 0xff, 0xff, 0xff) }, /* D-Link DWM-156/C1 */
 	{ USB_DEVICE(INOVIA_VENDOR_ID, INOVIA_SEW858) },
 	{ USB_DEVICE(VIATELECOM_VENDOR_ID, VIATELECOM_PRODUCT_CDS7) },
-	{ USB_DEVICE(ASB_VENDOR_ID, ASB_PRODUCT_T920) }, /*ASB T920 */
-	{ USB_DEVICE(ASB_VENDOR_ID, ASB_PRODUCT_TU930) }, /*ASB TU930 */
+//	{ USB_DEVICE(ASB_VENDOR_ID, ASB_PRODUCT_T920) }, /*ASB T920 */
+//	{ USB_DEVICE(ASB_VENDOR_ID, ASB_PRODUCT_TU930) }, /*ASB TU930 */
 	{ USB_DEVICE(TechFaith_VENDOR_ID, TechFaith_PRODUCT_HSDPA) },/*TechFaith WCDMA product*/
 	{ USB_DEVICE(TechFaith_VENDOR_ID, TechFaith_PRODUCT_SRTE800) },/*TechFaith WCDMA product*/
 	{ USB_DEVICE(USB_MODE_PRODUCT, USB_MODE_HSPA_USB_MODEM) },

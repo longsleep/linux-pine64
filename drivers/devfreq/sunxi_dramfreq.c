@@ -286,6 +286,7 @@ static int mdfs_dfs(unsigned int freq_jump, struct sunxi_dramfreq *dramfreq,
 	unsigned int rank_num, trefi, trfc, ctrl_freq;
 	unsigned int i, n = 4;
 	unsigned int div, source;
+	unsigned int vtf_status;
 	// unsigned int hdr_clk_status;
 	unsigned int timeout = 1000000;
 	struct dram_para_t *para = &dramfreq->dram_para;
@@ -330,6 +331,14 @@ static int mdfs_dfs(unsigned int freq_jump, struct sunxi_dramfreq *dramfreq,
 	// reg_val &= ~(0xf<<12);
 	// reg_val |= (0x5<<12);
 	// writel(reg_val, dramfreq->dramctl_base + PGCR0);
+
+	/* save vtf status,global vtf off when DFS */
+	reg_val = readl(dramfreq->dramctl_base + VTFCR);
+	vtf_status = (reg_val & (0x1<<8));
+	if (vtf_status) {
+		reg_val &= ~(0x1<<8);
+		writel(reg_val, dramfreq->dramctl_base + VTFCR);
+	}
 
 	/* set dual buffer for timing change and power save */
 	reg_val = readl(dramfreq->dramcom_base + MC_MDFSCR);
@@ -406,6 +415,13 @@ static int mdfs_dfs(unsigned int freq_jump, struct sunxi_dramfreq *dramfreq,
 
 	if (timeout == 0)
 		return -EBUSY;
+
+	/* recovery vtf status */
+	if (vtf_status) {
+		reg_val = readl(dramfreq->dramctl_base + VTFCR);
+		vtf_status |= (0x1<<8);
+		writel(reg_val, dramfreq->dramctl_base + VTFCR);
+	}
 
 	/* turn off dual buffer */
 	reg_val = readl(dramfreq->dramcom_base + MC_MDFSCR);
@@ -1011,22 +1027,22 @@ static int sunxi_dramfreq_probe(struct platform_device *pdev)
 	ret = sunxi_dramfreq_paras_init(dramfreq);
 	if (ret == -ENODEV) {
 		DRAMFREQ_ERR("Init dram para failed!\n");
-		return ret;
+		goto err;
 	} else if (ret == -EINVAL) {
 		printk("[ddrfreq] disabled!\n");
-		return ret;
+		goto err;
 	}
 
 	ret = sunxi_dramfreq_resource_init(pdev, dramfreq);
 	if (ret) {
 		DRAMFREQ_ERR("Init resource failed!\n");
-		return ret;
+		goto err;
 	}
 
 	ret = sunxi_dramfreq_opp_init(pdev, dramfreq);
 	if (ret) {
 		DRAMFREQ_ERR("Init opp failed!\n");
-		return ret;
+		goto err;
 	}
 
 	dev_set_name(&pdev->dev, "dramfreq");
@@ -1037,7 +1053,7 @@ static int sunxi_dramfreq_probe(struct platform_device *pdev)
 	if (IS_ERR(dramfreq->devfreq)) {
 		DRAMFREQ_ERR("Add devfreq device failed!\n");
 		ret = PTR_ERR(dramfreq->devfreq);
-		goto err_devfreq;
+		goto err;
 	}
 
 	dramfreq->max = sunxi_dramfreq_get_max_freq();
@@ -1061,7 +1077,9 @@ static int sunxi_dramfreq_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_devfreq:
+err:
+	kfree(dramfreq);
+	dramfreq = NULL;
 	return ret;
 }
 

@@ -481,7 +481,7 @@ static int bluesleep_start(void)
 	/* assert BT_WAKE */
 	gpio_set_value(bsi->ext_wake, bsi->ext_wake_assert);
 	retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr,
-				IRQF_DISABLED | IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING,
+				IRQF_DISABLED | IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND,
 				"bluetooth hostwake", NULL);
 	if (retval  < 0) {
 		BT_ERR("Couldn't acquire BT_HOST_WAKE IRQ");

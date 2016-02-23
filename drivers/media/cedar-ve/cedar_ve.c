@@ -141,6 +141,7 @@ struct ve_info {
 	unsigned int set_vol_flag;
 };
 
+static int ref_count = 0;
 struct cedar_dev *cedar_devp;
 struct file *ve_file;
 
@@ -326,7 +327,6 @@ int enable_cedar_hw_clk(void)
 
 	clk_status = 1;
 
-	sunxi_periph_reset_deassert(ve_moduleclk);
 	if (clk_enable(ve_moduleclk)) {
 		printk("enable ve_moduleclk failed; \n");
 		goto out;
@@ -360,7 +360,6 @@ int disable_cedar_hw_clk(void)
 		printk("ve_moduleclk is invalid, just return!\n");
 	} else {
 		clk_disable(ve_moduleclk);
-		sunxi_periph_reset_assert(ve_moduleclk);
 		res = 0;
 	}
 
@@ -565,25 +564,19 @@ static long compat_cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned 
 				printk("Warring: cedar clk enable somewhere error!\n");
 				return -EFAULT;
 			}
-			return task_ptr->is_first_task;
-#else
-			enable_cedar_hw_clk();
-			cedar_devp->ref_count++;
+			return task_ptr->is_first_task;		
+		#else
 			break;
-#endif
-		case IOCTL_ENGINE_REL:
-#ifdef USE_CEDAR_ENGINE
-			rel_taskid = (int)arg;
-
-			ret = cedardev_del_task(rel_taskid);
-#else
-			ret = disable_cedar_hw_clk();
-			if (ret < 0) {
-				printk("Warring: cedar clk disable somewhere error!\n");
-				return -EFAULT;
-			}
-			cedar_devp->ref_count--;
-#endif
+		#endif	
+    	case IOCTL_ENGINE_REL:
+    	#ifdef USE_CEDAR_ENGINE 
+			rel_taskid = (int)arg;		
+			ret = cedardev_del_task(rel_taskid);					
+		#else
+			printk("now do nothing \n");
+		
+			ret = 0;
+		#endif
 			return ret;
 		case IOCTL_ENGINE_CHECK_DELAY:
 			{
@@ -782,9 +775,10 @@ static long compat_cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned 
 			break;
 		case IOCTL_SET_REFCOUNT:
 			cedar_devp->ref_count = (int)arg;
-			break;
+			printk("ycy IOCTL_SET_REFCOUNT the ref_count is %d\n",cedar_devp->ref_count);
+        break;
 		case IOCTL_SET_VOL:
-			{
+		{
 
 #if defined CONFIG_ARCH_SUN9IW1P1
 				int ret;
@@ -806,6 +800,12 @@ static long compat_cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned 
 #endif
 				break;
 			}
+		case IOCTL_GET_REFCOUNT:
+		{
+			printk("IOCTL_GET_REFCOUNT: ref_count is %d\n",ref_count);
+			return ref_count;
+			break;
+		}
 		default:
 			return -1;
 	}
@@ -873,10 +873,7 @@ static long cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 				return -EFAULT;
 			}
 			return task_ptr->is_first_task;		
-#else
-			printk("ycy cedar_ve beign IOCTL_ENGINE_REQ\n");
-			enable_cedar_hw_clk();
-			cedar_devp->ref_count++; 
+#else 
 			break;
 #endif	
 		case IOCTL_ENGINE_REL:
@@ -885,12 +882,8 @@ static long cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 
 			ret = cedardev_del_task(rel_taskid);					
 #else
-			ret = disable_cedar_hw_clk();
-			if (ret < 0) {
-				printk("Warring: cedar clk disable somewhere error!\n");
-				return -EFAULT;
-			}
-			cedar_devp->ref_count--;
+			printk("now do nothing \n");
+			ret = 0;
 #endif
 			return ret;
 		case IOCTL_ENGINE_CHECK_DELAY:		
@@ -1114,6 +1107,12 @@ static long cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 #endif
 				break;
 			}
+		case IOCTL_GET_REFCOUNT:
+		{
+			printk("IOCTL_GET_REFCOUNT: ref_count is %d\n",ref_count);
+			return ref_count;
+			break;
+		}
 		default:
 			return -1;
 	}
@@ -1124,7 +1123,7 @@ static int cedardev_open(struct inode *inode, struct file *filp)
 {
 	//struct cedar_dev *devp;
 	struct ve_info *info;
-
+	printk("ycy begin open cedar-ve\n");
 	info = kmalloc(sizeof(struct ve_info), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
@@ -1138,12 +1137,22 @@ static int cedardev_open(struct inode *inode, struct file *filp)
 		return -ERESTARTSYS;
 	}
 
-	/* init other resource here */
-	cedar_devp->de_irq_flag = 0;
-	cedar_devp->en_irq_flag = 0;
-	cedar_devp->jpeg_irq_flag = 0;
+	if(ref_count == 0)
+	{
+		/* init other resource here */
+	    cedar_devp->de_irq_flag = 0;
+	    cedar_devp->en_irq_flag = 0;
+		cedar_devp->jpeg_irq_flag = 0;
+		
+		enable_cedar_hw_clk();
+	}
+	
+	printk("ycy open cedar-ve the ref_count is %d\n",ref_count);
 	up(&cedar_devp->sem);
-	nonseekable_open(inode, filp);	
+	nonseekable_open(inode, filp);
+
+	ref_count++;
+	printk("ycy end open cedar-ve\n");
 	return 0;
 }
 
@@ -1152,7 +1161,7 @@ static int cedardev_release(struct inode *inode, struct file *filp)
 	//struct cedar_dev *devp;
 	struct ve_info *info;
 	//int ret = 0;
-
+	printk("ycy begin release cedar-ve\n");
 	info = filp->private_data;
 
 	if (down_interruptible(&cedar_devp->sem)) {
@@ -1170,10 +1179,23 @@ static int cedardev_release(struct inode *inode, struct file *filp)
 	}
 #endif
 
-	/* release other resource here */
-	cedar_devp->de_irq_flag = 1;
-	cedar_devp->en_irq_flag = 1;
-	cedar_devp->jpeg_irq_flag = 1;
+	ref_count--;
+
+	if(ref_count == 0)
+	{
+		int ret = disable_cedar_hw_clk();
+		if (ret < 0) {
+			printk("Warring: cedar clk disable somewhere error!\n");
+			return -EFAULT;
+			}
+		
+		/* release other resource here */
+	    cedar_devp->de_irq_flag = 1;
+	   	cedar_devp->en_irq_flag = 1;
+		cedar_devp->jpeg_irq_flag = 1;
+	}
+
+	printk("ycy release cedar-ve the ref_count is %d\n",ref_count);
 	up(&cedar_devp->sem);
 
 	kfree(info);
@@ -1272,7 +1294,7 @@ static int snd_sw_cedar_resume(struct platform_device *pdev)
 	clk_prepare_enable(ve_power_gating);
 #endif
 
-	if(cedar_devp->ref_count == 0){
+	if(ref_count == 0){
 		return 0;
 	}
 

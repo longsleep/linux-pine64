@@ -1,4 +1,0 @@
-config RTL8703AS
-	tristate "Realtek 8723BS-VQ0 (8703AS) WiFi"
-	---help---
-	  Help message of RTL8723BS-VQ0 (8703AS)
