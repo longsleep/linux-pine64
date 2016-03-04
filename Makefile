@@ -1,8 +1,8 @@
 VERSION = 3
 PATCHLEVEL = 10
 SUBLEVEL = 65
-EXTRAVERSION =
-NAME = TOSSUG Baby Fish
+EXTRAVERSION = -2-pine64
+NAME = Pine64 longsleep TOSSUG Baby Fish
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
