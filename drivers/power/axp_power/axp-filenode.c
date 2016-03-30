@@ -9,8 +9,8 @@
  * published by the Free Software Foundation.
  */
 #ifdef CONFIG_AW_AXP81X
-#include "axp81x/axp81x-sply.h"
-#include "axp81x/axp81x-common.h"
+#include "axp81x-sply.h"
+#include "axp81x-common.h"
 #endif
 
 s32 axp_debug = 0x0;

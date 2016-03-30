@@ -19,7 +19,7 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-#include "../axp-cfg.h"
+#include "axp-cfg.h"
 #include "axp81x-sply.h"
 
 struct axp_charger *axp_charger;
