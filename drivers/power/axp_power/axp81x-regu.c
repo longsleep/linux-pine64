@@ -7,7 +7,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#include "../axp-regu.h"
+#include "axp-regu.h"
 #include "axp81x-regu.h"
 
 /* Reverse engineered partly from Platformx drivers */

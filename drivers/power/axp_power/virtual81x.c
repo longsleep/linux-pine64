@@ -17,7 +17,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/module.h>
-#include "../virtual.h"
+#include "virtual.h"
 
 static s32 regulator_virtual_consumer_probe(struct platform_device *pdev)
 {

@@ -7,7 +7,7 @@
 #include <linux/mfd/axp-mfd.h>
 #include <linux/module.h>
 
-#include "../axp-cfg.h"
+#include "axp-cfg.h"
 
 static struct platform_device virt[]={
 	{

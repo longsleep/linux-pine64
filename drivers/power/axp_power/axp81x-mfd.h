@@ -1,5 +1,5 @@
-#include "../axp-rw.h"
-#include "../axp-cfg.h"
+#include "axp-rw.h"
+#include "axp-cfg.h"
 
 static u8 axp_reg_addr = 0;
 

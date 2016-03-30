@@ -12,8 +12,8 @@
 #include <linux/wakelock.h>
 #include "axp-cfg.h"
 #ifdef CONFIG_AW_AXP81X
-#include "axp81x/axp81x-sply.h"
-#include "axp81x/axp81x-common.h"
+#include "axp81x-sply.h"
+#include "axp81x-common.h"
 static const struct axp_config_info *axp_config = &axp81x_config;
 static const u64 AXP_NOTIFIER_ON = AXP81X_NOTIFIER_ON;
 #endif
