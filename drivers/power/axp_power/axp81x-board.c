@@ -21,9 +21,9 @@
 #include <linux/mfd/axp-mfd.h>
 #include <linux/module.h>
 #include "axp81x-mfd.h"
-#include "../axp-regu.h"
+#include "axp-regu.h"
 #include "axp81x-regu.h"
-#include "../axp-cfg.h"
+#include "axp-cfg.h"
 
 struct axp_config_info axp81x_config;
 static struct axp_dev axp81x_dev;
