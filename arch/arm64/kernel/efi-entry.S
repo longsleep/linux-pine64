@@ -62,6 +62,8 @@ ENTRY(efi_stub_entry)
 	mov	x20, x0		// DTB address
 	ldr	x0, [sp, #16]	// relocated _text address
 	mov	x21, x0
+	/* Jump directly to stext */
+	add	x21, x21, #:lo12:stext
 
 	/*
 	 * Flush dcache covering current runtime addresses
