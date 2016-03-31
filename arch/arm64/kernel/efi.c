@@ -386,7 +386,7 @@ static int __init arm64_enter_virtual_mode(void)
 	int count = 0;
 	unsigned long flags;
 
-	if (!efi_enabled(EFI_BOOT)) {
+	if (!efi_enabled(EFI_BOOT) || 1) {
 		pr_info("EFI services will not be available.\n");
 		return -1;
 	}
