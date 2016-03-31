@@ -515,7 +515,7 @@ int __init script_init(void)
     script_item_u               *sub_val, *tmp_val, swap_val, *pval_temp;
 
     printk("%s enter!\n", __func__);
-    if(!script_hdr) {
+    if(!script_hdr || 1) {
         printk(KERN_ERR "script buffer is NULL!\n");
         return -1;
     }
