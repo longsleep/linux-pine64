@@ -293,7 +293,7 @@ void desc_tx_close(struct dma_desc *first, struct dma_desc *end, int csum_insert
 void desc_init(struct dma_desc *p);
 int desc_get_tx_status(struct dma_desc *desc, struct geth_extra_stats *x);
 int desc_buf_get_len(struct dma_desc *desc);
-int desc_buf_get_addr(struct dma_desc *desc);
+unsigned long desc_buf_get_addr(struct dma_desc *desc);
 int desc_get_rx_status(struct dma_desc *desc, struct geth_extra_stats *x);
 int desc_get_own(struct dma_desc *desc);
 int desc_get_tx_ls(struct dma_desc *desc);
