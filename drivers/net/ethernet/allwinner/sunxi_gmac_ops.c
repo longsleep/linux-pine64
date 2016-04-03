@@ -609,7 +609,7 @@ int desc_buf_get_len(struct dma_desc *desc)
 	return (desc->desc1.all & ((1 << 11) - 1));
 }
 
-int desc_buf_get_addr(struct dma_desc *desc)
+unsigned long desc_buf_get_addr(struct dma_desc *desc)
 {
 	return desc->desc2;
 }
