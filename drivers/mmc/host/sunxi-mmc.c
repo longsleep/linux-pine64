@@ -509,7 +509,7 @@ int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host, unsigned ms)
 				"Wait r1 rdy %d ms timeout\n", ms);
 		return -1;
 	} else{
-		dev_info(mmc_dev(smc_host->mmc), \
+		dev_dbg(mmc_dev(smc_host->mmc), \
 			"*All wait r1 rdy %d ms*\n", cnt);
 		return 0;
 	}
