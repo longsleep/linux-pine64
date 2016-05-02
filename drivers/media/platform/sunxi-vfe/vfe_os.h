@@ -50,20 +50,8 @@ struct vfe_gpio_cfg {
 	u32 data;
 };
 
-struct clk *os_clk_get(struct device_node *np, int index);
-extern void  os_clk_put(struct clk *clk);
-extern int os_clk_set_parent(struct clk *clk, struct clk *parent);
-extern int os_clk_set_rate(struct clk *clk, unsigned long rate);
-extern int os_clk_enable(struct clk *clk);
-extern int os_clk_prepare_enable(struct clk *clk);
-extern void os_clk_disable(struct clk *clk);
-extern void os_clk_disable_unprepare(struct clk *clk);
-extern int os_clk_reset_assert(struct clk *clk);
-extern int os_clk_reset_deassert(struct clk *clk); 
 extern int os_gpio_request(struct vfe_gpio_cfg *gpio_list, __u32 group_count_max);
 extern int os_gpio_set(struct vfe_gpio_cfg *gpio_list, __u32 group_count_max);
-
-//extern __hdle os_gpio_request_ex(char *main_name, const char *sub_name);
 extern int os_gpio_release(u32 p_handler, __s32 if_release_to_default_status); 
 extern int os_gpio_write(u32 p_handler, __u32 value_to_gpio, const char *gpio_name, int force_value_flag);
 extern int os_gpio_set_status(u32 p_handler, __u32 if_set_to_output_status, const char *gpio_name);

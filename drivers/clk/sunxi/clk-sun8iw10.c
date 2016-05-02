@@ -411,6 +411,7 @@ static const char *apb1mod_parents[] = {"apb1"};
 static const char *apb2mod_parents[] = {"apb2"};
 static const char *sdram_parents[] = {"pll_ddr0", "pll_ddr1", "pll_periph0x2",""};
 static const char *usbohci_parents[] = {"usbohci_16"};
+static const char *usbohci12m_parents[] = {"hoscx2","hosc","losc",""};
 static const char *losc_parents[] = {"losc"};
 
 struct sunxi_clk_comgate com_gates[]={
@@ -448,14 +449,15 @@ SUNXI_CLK_PERIPH(i2s0,           I2S0_CFG,        16,   3,          0,          
 SUNXI_CLK_PERIPH(i2s1,           I2S1_CFG,        16,   3,          0,                  0,      0,          0,          0,          0,          I2S1_CFG,        BUS_RST2,        BUS_GATE2,     0,         31,         13,         13,             0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(spdif,          SPDIF_CFG,       16,   3,          SPDIF_CFG,          0,      4,          0,          0,          0,          SPDIF_CFG,       BUS_RST2,        BUS_GATE2,     0,         31,         1,          1,              0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(dsd,            DSD_CFG,         16,   2,          0,                  0,      0,          0,          0,          0,          DSD_CFG,         BUS_RST2,        BUS_GATE2,     0,         31,         2,          2,              0,   &clk_lock, NULL,             0);
-SUNXI_CLK_PERIPH(dmic, 	   DMIC_CFG,	    16,   2,	      0,		  0,	  0,	      0,          0,	      0,          DMIC_CFG,        BUS_RST2,        BUS_GATE2,     0,         31,         3,          3,              0,   &clk_lock, NULL,             0);
+SUNXI_CLK_PERIPH(dmic,           DMIC_CFG,        16,   2,          0,                  0,      0,          0,          0,          0,          DMIC_CFG,        BUS_RST2,        BUS_GATE2,     0,         31,         3,          3,              0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(usbphy0,        0,               0,    0,          0,                  0,      0,          0,          0,          0,          USB_CFG,         USB_CFG,         0,             0,         8,          0,          0,              0,   &clk_lock, NULL,             0);
+SUNXI_CLK_PERIPH(usbohci012m,    USB_CFG,         20,   2,          0,                  0,      0,          0,          0,          0,          0,               0,               0,             0,         0,          0,          0,              0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(usbohci_16,     0,               0,    0,          0,                  0,      0,          0,          0,          0,          USB_CFG,         0,               0,             0,         16,         0,          0,              0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(usbohci0,       0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               BUS_RST0,        BUS_GATE0,     DRAM_GATE, 0,          29,         29,             18,  &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(usbehci0,       0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               BUS_RST0,        BUS_GATE0,     DRAM_GATE, 0,          26,         26,             17,  &clk_lock, NULL,             1);
 SUNXI_CLK_PERIPH(de,             DE_CFG,          24,   3,          DE_CFG,             0,      4,          0,          0,          0,          DE_CFG,          BUS_RST1,        BUS_GATE1,     0,         31,         12,         12,             0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(ee,             EE_CFG,          24,   3,          EE_CFG,             0,      4,          0,          0,          0,          EE_CFG,          BUS_RST1,        BUS_GATE1,     DRAM_GATE, 31,         13,         13,             3,   &clk_lock, NULL,             0);
-SUNXI_CLK_PERIPH(edma,	   EDMA_CFG,	    24,	  3,	      EDMA_CFG,		  0,	  4,	      0,	  0,	      0,	  EDMA_CFG, 	   0,               0,             DRAM_GATE, 31, 	  0,	      0, 	      4,   &clk_lock, NULL,	        0);
+SUNXI_CLK_PERIPH(edma,           EDMA_CFG,        24,   3,          EDMA_CFG,           0,      4,          0,          0,          0,          EDMA_CFG,        0,               0,             DRAM_GATE, 31,         0,          0,              4,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(tcon0,          TCON_CFG,        24,   3,          0,                  0,      0,          0,          0,          0,          TCON_CFG,        BUS_RST1,        BUS_GATE1,     0,         31,         4,          4,              0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(csi_s,          CSI_CFG,         24,   3,          CSI_CFG,            16,     4,          0,          0,          0,          CSI_CFG,         BUS_RST1,        BUS_GATE1,     DRAM_GATE, 31,         8,          8,              1,   &clk_lock, &com_gates[0],    0);
 SUNXI_CLK_PERIPH(csi_m,          CSI_CFG,         8,    3,          CSI_CFG,            0,      5,          0,          0,          0,          CSI_CFG,         BUS_RST1,        BUS_GATE1,     DRAM_GATE, 15,         8,          8,              1,   &clk_lock, &com_gates[0],    1);
@@ -500,9 +502,9 @@ struct periph_init_data sunxi_periphs_init[] = {
 	{"sdmmc2_mod",     0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),       &sunxi_clk_periph_sdmmc2_mod       },
 	{"sdmmc2_bus",     0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),       &sunxi_clk_periph_sdmmc2_bus       },
 	{"sdmmc2_rst",     0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),       &sunxi_clk_periph_sdmmc2_rst       },
-	{"sdmmc3_mod",	   0,			 periphx2_parents,	 ARRAY_SIZE(periphx2_parents),	     &sunxi_clk_periph_sdmmc3_mod	},
-	{"sdmmc3_bus",	   0,			 periphx2_parents,	 ARRAY_SIZE(periphx2_parents),	     &sunxi_clk_periph_sdmmc3_bus	},
-	{"sdmmc3_rst",	   0,			 periphx2_parents,	 ARRAY_SIZE(periphx2_parents),	     &sunxi_clk_periph_sdmmc3_rst	},
+	{"sdmmc3_mod",     0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),	     &sunxi_clk_periph_sdmmc3_mod       },
+	{"sdmmc3_bus",     0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),	     &sunxi_clk_periph_sdmmc3_bus       },
+	{"sdmmc3_rst",     0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),	     &sunxi_clk_periph_sdmmc3_rst       },
 	{"spi0",           0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),       &sunxi_clk_periph_spi0             },
 	{"spi1",           0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),       &sunxi_clk_periph_spi1             },
 	{"spi2",           0,                    periphx2_parents,       ARRAY_SIZE(periphx2_parents),       &sunxi_clk_periph_spi2             },
@@ -514,6 +516,7 @@ struct periph_init_data sunxi_periphs_init[] = {
 	{"usbphy0",        0,                    hosc_parents,           ARRAY_SIZE(hosc_parents),           &sunxi_clk_periph_usbphy0          },
 	{"usbohci_16",     0,                    ahb1mod_parents,        ARRAY_SIZE(ahb1mod_parents),        &sunxi_clk_periph_usbohci_16       },
 	{"usbohci0",       0,                    usbohci_parents,        ARRAY_SIZE(usbohci_parents),        &sunxi_clk_periph_usbohci0         },
+	{"usbohci012m",    0,                    usbohci12m_parents,     ARRAY_SIZE(usbohci12m_parents),     &sunxi_clk_periph_usbohci012m      },
 	{"de",             0,                    de_parents,             ARRAY_SIZE(de_parents),             &sunxi_clk_periph_de               },
 	{"ee",             0,                    de_parents,             ARRAY_SIZE(de_parents),             &sunxi_clk_periph_ee               },
 	{"edma",           0,                    de_parents,             ARRAY_SIZE(de_parents),             &sunxi_clk_periph_edma             },
@@ -652,9 +655,6 @@ void of_sunxi_clocks_init(struct device_node *node)
 	clk_add_alias("pll8",NULL,"pll_periph1",NULL);
 	clk_add_alias("pll9",NULL,"pll_de",NULL);
 	clk_add_alias("pll10",NULL,"pll_ddr1",NULL);
-#ifdef CONFIG_COMMON_CLK_ENABLE_SYNCBOOT_EARLY
-	clk_syncboot();
-#endif
 }
 
 void of_sunxi_fixed_clk_setup(struct device_node *node)

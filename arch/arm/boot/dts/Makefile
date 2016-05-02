@@ -177,7 +177,8 @@ dtb-$(CONFIG_ARCH_SPEAR3XX)+= spear300-evb.dtb \
 	spear320-evb.dtb \
 	spear320-hmi.dtb
 dtb-$(CONFIG_ARCH_SPEAR6XX)+= spear600-evb.dtb
-dtb-$(CONFIG_ARCH_SUN8IW10P1) += sun8iw10p1-fpga.dtb
+dtb-$(CONFIG_ARCH_SUN8IW10P1) += sun8iw10p1-fpga.dtb \
+	sun8iw10p1-perf1_v1_0.dtb sun8iw10p1-soc.dtb
 dtb-$(CONFIG_ARCH_SUN8IW11P1) += sun8iw11p1-fpga.dtb
 dtb-$(CONFIG_ARCH_TEGRA) += tegra20-harmony.dtb \
 	tegra20-iris-512.dtb \

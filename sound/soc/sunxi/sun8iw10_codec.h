@@ -29,28 +29,29 @@
 
 #define AC_PR_CFG		0x400
 
-#define HP_VOL			0x00
-#define LOMIX_SRC		0x01
-#define ROMIX_SRC		0x02
-#define DAC_PA_SRC		0x03
-#define LINEIN_GCTR		0x05
-#define MIC_GCTR		0x06
-#define HP_CTRL			0x07
-#define SPKL_CTR		0x08
-#define SPKR_CTR		0x09
-#define SPK_MBIAS_CTR	0x0a
-#define BIAS_MIC_CTR	0x0b
-#define ADC_MIX_MUTE	0x0c
-#define PA_POP_CTR		0x0e
-#define ADC_A_CTR		0x0f
-#define OPADC_CTR		0x10
-#define OPMIC_CTR		0x11
-#define ZERO_CROSS_CTRL	0x12
-#define ADC_FUN_CTRL	0x13
-#define BIAS_DA16_CTR	0x14
-#define DA16_CALI_DATA	0x15
-#define BIAS_CALI_DATA	0x17
-#define BIAS_CALI_SET	0x18
+#define ANALOG_FLAG             0x8000
+#define HP_VOL			(0x00 + ANALOG_FLAG)
+#define LOMIX_SRC		(0x01 + ANALOG_FLAG)
+#define ROMIX_SRC		(0x02 + ANALOG_FLAG)
+#define DAC_PA_SRC		(0x03 + ANALOG_FLAG)
+#define LINEIN_GCTR		(0x05 + ANALOG_FLAG)
+#define MIC_GCTR		(0x06 + ANALOG_FLAG)
+#define HP_CTRL			(0x07 + ANALOG_FLAG)
+#define SPKL_CTR		(0x08 + ANALOG_FLAG)
+#define SPKR_CTR		(0x09 + ANALOG_FLAG)
+#define SPK_MBIAS_CTR	(0x0a + ANALOG_FLAG)
+#define BIAS_MIC_CTR	(0x0b + ANALOG_FLAG)
+#define ADC_MIX_MUTE	(0x0c + ANALOG_FLAG)
+#define PA_POP_CTR		(0x0e + ANALOG_FLAG)
+#define ADC_A_CTR		(0x0f + ANALOG_FLAG)
+#define OPADC_CTR		(0x10 + ANALOG_FLAG)
+#define OPMIC_CTR		(0x11 + ANALOG_FLAG)
+#define ZERO_CROSS_CTRL	(0x12 + ANALOG_FLAG)
+#define ADC_FUN_CTRL	(0x13 + ANALOG_FLAG)
+#define BIAS_DA16_CTR	(0x14 + ANALOG_FLAG)
+#define DA16_CALI_DATA	(0x15 + ANALOG_FLAG)
+#define BIAS_CALI_DATA	(0x17 + ANALOG_FLAG)
+#define BIAS_CALI_SET	(0x18 + ANALOG_FLAG)
 
 /*AC_DAC_DPC:0x00*/
 #define EN_DAC			31

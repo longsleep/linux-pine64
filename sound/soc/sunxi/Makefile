@@ -67,7 +67,7 @@ obj-$(CONFIG_SND_SOC_DSD) += sunxi-snddsd.o
 obj-$(CONFIG_SND_SUNXI_SOC_HDMIAUDIO) += sunxi-sndhdmi.o
 
 #spdif
-obj-$(CONFIG_SND_SUNXI_SOC_SPDIF) += sunxi-sndspdif.o
+obj-$(CONFIG_SND_SUNXI_SOC_SPDIF) += spdif-utils.o sunxi-sndspdif.o
 
 ##DEBUG
 ifeq ($(CONFIG_SUNXI_AUDIO_DEBUG), y)

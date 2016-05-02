@@ -52,6 +52,10 @@
 #include "sunxi-mmc-sun8iw10p1-3.h"
 #include "sunxi-mmc-sun8iw10p1-0.h"
 #include "sunxi-mmc-sun8iw10p1-1.h"
+#include "sunxi-mmc-sun8iw11p1-0.h"
+#include "sunxi-mmc-sun8iw11p1-1.h"
+#include "sunxi-mmc-sun8iw11p1-2.h"
+
 #include "sunxi-mmc-debug.h"
 #include "sunxi-mmc-export.h"
 
@@ -193,7 +197,7 @@ static void sunxi_mmc_init_idma_des(struct sunxi_mmc_host *host,
 			pdes[i].buf_size = data->sg[i].length;
 
 		pdes[i].buf_addr_ptr1 = sg_dma_address(&data->sg[i]);
-		pdes[i].buf_addr_ptr2 = (u32)(u64)&pdes_pa[i + 1];
+		pdes[i].buf_addr_ptr2 = (u32)(size_t)&pdes_pa[i + 1];//We use size_t only to avoid compile waring
 	}
 
 	pdes[0].config |= SDXC_IDMAC_DES0_FD;
@@ -365,9 +369,19 @@ static irqreturn_t sunxi_mmc_finalize_request(struct sunxi_mmc_host *host)
 
 		//To avoid that "wait busy" and "maual stop" occur at the same time,
 		//We wait busy only on not error occur.
-		if(mrq->cmd->flags & MMC_RSP_BUSY){
+		if((mrq->cmd->flags & MMC_RSP_BUSY)\
+			||((mrq->cmd->data) \
+				&& (mrq->cmd->data->flags& MMC_DATA_WRITE)\
+				&&!(host->ctl_spec_cap & NO_MANUAL_WAIT_BUSY_WRITE_END))){
 			host->mrq_busy = host->mrq;
 		}
+		/*
+		else{
+			if(mrq->cmd->data && (mrq->cmd->data->flags& MMC_DATA_WRITE)&&(host->ctl_spec_cap & NO_MANUAL_WAIT_BUSY_WRITE_END)){
+				dev_err(mmc_dev(host->mmc), "***no wait busy when write end***\n");
+			}
+		}
+		*/
 	}
 
 	if (data) {
@@ -489,31 +503,49 @@ int sunxi_check_r1_ready(struct sunxi_mmc_host *smc_host, unsigned ms)
 }
 
 
-int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host, unsigned ms)
-{
-	unsigned cnt = 0;
-	do {
-		if (!(mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)){
-			break;
-		}
-		if(cnt/1000){
-			//print to tell that we are waiting busy
-			dev_info(mmc_dev(smc_host->mmc),\
-				"*Has wait r1 rdy %d ms*\n", cnt);
-		}
-		msleep(1);
-	} while ((cnt++)<ms);
 
-	if ((mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)) {
-		dev_err(mmc_dev(smc_host->mmc), \
-				"Wait r1 rdy %d ms timeout\n", ms);
-		return -1;
-	} else{
-		dev_info(mmc_dev(smc_host->mmc), \
-			"*All wait r1 rdy %d ms*\n", cnt);
+static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
+{
+	unsigned int cnt = 0;
+	const unsigned int delay_max_cnt[]={1000,0x7fffffff};
+	int i = 0;
+	unsigned long expire = jiffies + msecs_to_jiffies(10);
+
+	/*****dead wait******/
+	do {
+		if (!(mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY))
+			break;
+	} while (time_before(jiffies, expire));
+
+	if (!(mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)) {
+		dev_dbg(mmc_dev(smc_host->mmc), \
+					"dead Wait r1 rdy ok\n");
 		return 0;
 	}
+
+
+	/*****no dead wait*****/
+	for(i=0;i<2;i++,cnt=0){
+		do {
+			if (!(mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)){
+				dev_dbg(mmc_dev(smc_host->mmc), \
+					"Wait r1 rdy ok c%d i%d \n",cnt,i);	
+				return 0;
+			}
+			if(i?cnt/5000:cnt/500000){
+				//print to tell that we are waiting busy
+				dev_info(mmc_dev(smc_host->mmc),\
+					"Has wait r1 rdy c%d i%d\n", cnt,i);
+			}
+			i?usleep_range(1000,1200):usleep_range(10,20);
+		} while ((cnt++)<delay_max_cnt[i]);
+	}
+
+	dev_err(mmc_dev(smc_host->mmc),"Wait r1 rdy timeout\n");
+	return -1;
 }
+
+
 
 
 
@@ -536,7 +568,8 @@ static irqreturn_t sunxi_mmc_handle_bottom_half(int irq, void *dev_id)
 		//Here,we don't use the timeout value in mrq_busy->busy_timeout
 		//Because this value may not right for example when useing TRIM
 		//So we use max wait time and print time value every 1 second
-		sunxi_check_r1_ready_may_sleep(host,0x7ffffff);
+		//sunxi_check_r1_ready_may_sleep(host,0x7ffffff);
+		sunxi_check_r1_ready_may_sleep(host);
     	spin_lock_irqsave(&host->lock, iflags);				
 		host->mrq_busy = NULL;
     	spin_unlock_irqrestore(&host->lock, iflags);				
@@ -1215,12 +1248,103 @@ void enable_card3(void)
 
 #endif
 
+
+
+extern int mmc_go_idle(struct mmc_host *host);
+extern int mmc_send_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr);
+extern int mmc_send_status(struct mmc_card *card, u32 *status);
+extern void mmc_set_clock(struct mmc_host *host, unsigned int hz);
+extern void mmc_set_timing(struct mmc_host *host, unsigned int timing);
+extern void mmc_set_bus_width(struct mmc_host *host, unsigned int width);
+static void sunxi_mmc_do_shutdown_com(struct platform_device * pdev)
+{
+	u32 ocr = 0;
+	u32 err = 0;
+	struct mmc_host *mmc = NULL;
+	struct sunxi_mmc_host *host = NULL;
+	u32 status = 0;
+
+	mmc = platform_get_drvdata(pdev);
+	if (mmc == NULL) {
+		dev_err(&pdev->dev,"%s: mmc is NULL\n", __FUNCTION__);
+		goto out;
+	}
+
+	host = mmc_priv(mmc);
+	if (host == NULL) {
+		dev_err(&pdev->dev,"%s: host is NULL\n", __FUNCTION__);
+		goto out;
+	}
+
+	dev_info(mmc_dev(mmc),"try to disable cache\n");
+	mmc_claim_host(mmc);
+    err = mmc_cache_ctrl(mmc, 0);
+	mmc_release_host(mmc);
+    if (err){
+		dev_err(mmc_dev(mmc),"disable cache failed\n");
+		mmc_claim_host(mmc);//not release host to not allow android to read/write after shutdown
+         goto out;
+    }
+
+	//claim host to not allow androd read/write during shutdown
+	dev_dbg(mmc_dev(mmc),"%s: claim host\n", __FUNCTION__);
+	mmc_claim_host(mmc);
+
+	do {
+		if (mmc_send_status(mmc->card, &status) != 0) {
+			dev_err(mmc_dev(mmc),"%s: send status failed\n", __FUNCTION__);
+			goto out; //err_out; //not release host to not allow android to read/write after shutdown
+		}
+	} while(status != 0x00000900);
+
+	//mmc_card_set_ddr_mode(card);
+	mmc_set_timing(mmc, MMC_TIMING_LEGACY);
+	mmc_set_bus_width(mmc, MMC_BUS_WIDTH_1);
+	mmc_set_clock(mmc, 400000);
+	err = mmc_go_idle(mmc);
+	if (err) {
+		dev_err(mmc_dev(mmc),"%s: mmc_go_idle err\n", __FUNCTION__);
+		goto out; //err_out; //not release host to not allow android to read/write after shutdown
+	}
+
+	if (mmc->card->type != MMC_TYPE_MMC) {//sd can support cmd1,so not send cmd1
+		goto out;//not release host to not allow android to read/write after shutdown
+	}
+
+	err = mmc_send_op_cond(mmc, 0, &ocr);
+	if (err) {
+		dev_err(mmc_dev(mmc),"%s: first mmc_send_op_cond err\n", __FUNCTION__);
+		goto out; //err_out; //not release host to not allow android to read/write after shutdown
+	}
+
+	err = mmc_send_op_cond(mmc, ocr | (1 << 30), &ocr);
+	if (err) {
+		dev_err(mmc_dev(mmc),"%s: mmc_send_op_cond err\n", __FUNCTION__);
+		goto out; //err_out; //not release host to not allow android to read/write after shutdown
+	}
+
+	//do not release host to not allow android to read/write after shutdown
+	goto out;
+
+out:
+	dev_info(mmc_dev(mmc),"%s: mmc shutdown exit..ok\n", __FUNCTION__);
+
+	return ;
+}
+
+
 static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 				      struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	int ret;
+	u32 caps_val = 0;
 
+	ret = of_property_read_u32(np, "ctl-spec-caps", &caps_val);
+	if(!ret){
+		host->ctl_spec_cap |= caps_val;
+		dev_info(&pdev->dev, "ctl_spec_cap %x\n",host->ctl_spec_cap);
+	}
 
 #ifdef SUNXI_SDMMC3
 	if(of_device_is_compatible(np, "allwinner,sun8iw10p1-sdmmc3")){
@@ -1258,7 +1382,12 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		host->sunxi_mmc_dump_dly_table  = sunxi_mmc_dump_dly2;
 		sunxi_mmc_reg_ex_res_inter(host,2);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
-		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown2;
+		if(host->ctl_spec_cap & NO_REINIT_SHUTDOWN){
+			host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown2;
+		}else{
+			/*only be compatible with a20*/
+			host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown_com;
+		}
 		host->phy_index = 2;
  	}
 #endif
@@ -1296,6 +1425,13 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		host->phy_index = 1;
  	}
 #endif
+
+#if !defined(SUNXI_SDMMC0)&& !defined(SUNXI_SDMMC1)&& !defined(SUNXI_SDMMC2)&& !defined(SUNXI_SDMMC3)
+	dev_info(dev, "No sdmmc define check code\n");
+	ret = -1;
+	return ret;
+#endif
+
 
 	//ret = mmc_regulator_get_supply(host->mmc);
 	ret = sunxi_mmc_regulator_get_supply(host->mmc);
@@ -1502,7 +1638,7 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	mmc->f_max		= 50000000;
 	mmc->caps	       |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED | MMC_CAP_ERASE \
 						| MMC_CAP_WAIT_WHILE_BUSY;
-	//mmc->caps2	  |= MMC_CAP2_HS400_1_8V;
+	mmc->max_busy_timeout = 0x7ffffff;//ms
 
 #ifndef CONFIG_REGULATOR
 	//Because fpga has no regulator,so we add it manully
@@ -1601,7 +1737,7 @@ void sunxi_mmc_regs_restore(struct sunxi_mmc_host* host)
 	mmc_writel(host, REG_DBGC , bak_regs->debugc  );
 	mmc_writel(host, REG_DMAC , bak_regs->idmacc  );
 	mmc_writel(host, REG_DLBA , bak_regs->dlba	);
-	mmc_writel(host, REG_IMASK , bak_regs->dlba	);
+	mmc_writel(host, REG_IMASK , bak_regs->imask);
 
 
 	if(host->sunxi_mmc_restore_spec_reg){

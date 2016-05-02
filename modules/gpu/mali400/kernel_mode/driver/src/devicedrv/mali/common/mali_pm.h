@@ -86,4 +86,6 @@ void mali_pm_get_best_power_cost_mask(int num_requested, int *dst);
 const char *mali_pm_mask_to_string(u32 mask);
 #endif
 
+u32 mali_pm_get_current_mask(void);
+u32 mali_pm_get_wanted_mask(void);
 #endif /* __MALI_PM_H__ */

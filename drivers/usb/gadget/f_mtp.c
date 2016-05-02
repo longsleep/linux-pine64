@@ -38,7 +38,7 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
-#define MTP_BULK_BUFFER_SIZE       1024
+#define MTP_BULK_BUFFER_SIZE       16384
 #define INTR_BUFFER_SIZE           28
 
 /* String IDs */

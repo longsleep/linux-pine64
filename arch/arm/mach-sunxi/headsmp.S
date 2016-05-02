@@ -17,20 +17,28 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 
-	__CPUINIT
+	.text
+	.align 4
 
 ENTRY(sunxi_secondary_startup)
-	msr	cpsr_fsxc, #0xd3
+	msr	cpsr_fsxc, #0xd3	@ switch to SVC mode, disable IRQ
+
+	mrc	p15, 0, r0, c0, c0, 5	@ get core id
+	and	r0, r0, #0x3
+
+	adr	r1, _cpus_boot_entry
+	ldmia	r1, {r2, r3}		@ address to jump to after
+	sub	lr, r1, r2		@ offset between Virt and Phy address
+	add	r3, r0, lsl #2
+	ldr	r2, [r3, lr]		@ get address of secondary function
+
 	mov	r0, #0
-	ldr	r1, =0x104d
-	mrc p15, 0, r2, c0, c0, 5	 @ get core id
-	and r2, r2, #0x3
-	adr r3, cpus_boot_entry
-	add r3, r2, lsl #2
-	ldr r3, [r3]
-	bx	r3
+	ldr	r1, =0x104d		@ Does secondary function need it?
+
+	bx	r2
 ENDPROC(sunxi_secondary_startup)
 
-	.global cpus_boot_entry	 @ boot entry for every core
-cpus_boot_entry:
-	.space	CONFIG_NR_CPUS*4
+	.align
+_cpus_boot_entry:
+	.long .
+	.long cpus_boot_entry

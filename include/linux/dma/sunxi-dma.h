@@ -22,8 +22,10 @@
 
 #include <linux/dmaengine.h>
 
-#ifdef CONFIG_ARCH_SUN8IW10
+#if defined(CONFIG_ARCH_SUN8IW10)
 #include "sunxi/dma-sun8iw10.h"
+#elif defined(CONFIG_ARCH_SUN8IW11)
+#include "sunxi/dma-sun8iw11.h"
 #else
 
 #define DRQSRC_SRAM		0

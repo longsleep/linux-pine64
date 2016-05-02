@@ -302,7 +302,8 @@ static void ir_setup(void)
 static int sunxi_ir_startup(struct platform_device *pdev)
 {
 	struct device_node *np =NULL;
-	int ret = 0;
+	int i, ret = 0;
+	char addr_name[32];
 	const char *name = NULL;
 	
 	ir_data = kzalloc(sizeof(*ir_data), GFP_KERNEL);
@@ -332,8 +333,22 @@ static int sunxi_ir_startup(struct platform_device *pdev)
 		pr_err("%s:Failed to get clk.\n", __func__);
 		ret = -EBUSY;
 	}
-	if (of_property_read_u32(np, "ir_addr_code", &ir_data->ir_addr)) {
-		pr_err("%s: get cir addr failed", __func__);
+	if (of_property_read_u32(np, "ir_addr_cnt", &ir_data->ir_addr_cnt)) {
+		pr_err("%s: get cir addr cnt failed", __func__);
+		ret =  -EBUSY;
+	}
+	if(ir_data->ir_addr_cnt > MAX_ADDR_NUM)
+		ir_data->ir_addr_cnt = MAX_ADDR_NUM;
+	for(i = 0; i < ir_data->ir_addr_cnt; i++){
+		sprintf(addr_name, "ir_addr_code%d", i);
+		if (of_property_read_u32(np, (const char *)&addr_name,
+					&ir_data->ir_addr[i])) {
+			pr_err("node %s get failed!\n", name);
+			ret = -EBUSY;
+		}
+	}
+	if (of_property_read_u32(np, "supply_vol", &ir_data->suply_vol)) {
+		pr_err("%s: get cir supply_vol failed", __func__);
 		ret =  -EBUSY;
 	}
 	if (of_property_read_string(np, "supply", &name)) {
@@ -341,7 +356,7 @@ static int sunxi_ir_startup(struct platform_device *pdev)
 		ir_data->suply = NULL;
 	}else{
 		ir_data->suply = regulator_get(NULL, name);
-		if(IS_ERR(ir_data->pclk)){
+		if(IS_ERR(ir_data->suply)){
 			pr_err("%s: cir get supply err\n", __func__);
 			ir_data->suply = NULL;
 		}
@@ -387,7 +402,7 @@ static int sunxi_ir_recv_probe(struct platform_device *pdev)
 	sunxi_rcdev->allowed_protos = (u64)RC_BIT_NEC;
 	sunxi_rcdev->map_name = RC_MAP_SUNXI;
 
-	init_rc_map_sunxi(ir_data->ir_addr);
+	init_rc_map_sunxi(ir_data->ir_addr, ir_data->ir_addr_cnt);
 	rc = rc_register_device(sunxi_rcdev);
 	if (rc < 0) {
 		dev_err(&pdev->dev, "failed to register rc device\n");
@@ -403,8 +418,10 @@ static int sunxi_ir_recv_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, sunxi_rcdev);
 	ir_data->rcdev = sunxi_rcdev;
-	if(ir_data->suply)
-		rc = regulator_enable(ir_data->suply);
+	if(ir_data->suply){
+		rc = regulator_set_voltage(ir_data->suply, ir_data->suply_vol, ir_data->suply_vol);
+		rc |= regulator_enable(ir_data->suply);
+	}
 	ir_setup();
 	
 	if (request_irq(ir_data->irq_num, sunxi_ir_recv_irq, IRQF_DISABLED, "RemoteIR_RX",

@@ -120,7 +120,7 @@ EXPORT_SYMBOL(set_memory_rw);
 
 void set_kernel_text_rw(void)
 {
-	unsigned long start = PAGE_ALIGN((unsigned long)_text);
+	unsigned long start = PAGE_ALIGN((unsigned long)_stext);
 	unsigned long size = PAGE_ALIGN((unsigned long)__end_rodata) - start;
 
 	if (!kernel_set_to_readonly)
@@ -134,7 +134,7 @@ void set_kernel_text_rw(void)
 
 void set_kernel_text_ro(void)
 {
-	unsigned long start = PAGE_ALIGN((unsigned long)_text);
+	unsigned long start = PAGE_ALIGN((unsigned long)_stext);
 	unsigned long size = PAGE_ALIGN((unsigned long)__end_rodata) - start;
 
 	if (!kernel_set_to_readonly)

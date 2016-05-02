@@ -51,4 +51,5 @@ obj-y	+= davinci/
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
 
 obj-$(CONFIG_VIDEO_SUNXI_VFE) += sunxi-vfe/
+obj-$(CONFIG_VIDEO_SUNXI_TVD) += sunxi-tvd/
 ccflags-y += -I$(srctree)/drivers/media/i2c

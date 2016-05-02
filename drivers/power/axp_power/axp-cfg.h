@@ -161,6 +161,15 @@ struct axp_config_info{
 	u32	pmu_bat_temp_para14;
 	u32	pmu_bat_temp_para15;
 	u32	pmu_bat_temp_para16;
+
+#ifdef CONFIG_AW_AXP20
+	u32 pmu_ac_vol_limit;
+	u32 pmu_ac_cur_limit;
+	u32 pmu_chg_stop_temp;
+	u32 pmu_chg_restart_temp;
+	u32 pmu_bat_det_en;
+	u32 pmu_power_noe_time;
+#endif
 };
 
 enum {
@@ -180,11 +189,25 @@ extern void enable_nmi(void);
 extern void set_nmi_trigger(u32 trigger);
 #endif
 
-#ifdef CONFIG_AW_AXP81X
-extern s32 axp_debug;
 #define DBG_PSY_MSG(level_mask, fmt, arg...)	if (unlikely(axp_debug & level_mask)) \
 	printk(KERN_DEBUG fmt , ## arg)
+
+#ifdef CONFIG_AW_AXP81X
+extern s32 axp_debug;
 extern void axp81x_power_off(void);
+
+#elif defined(CONFIG_AW_AXP20)
+#define AXP20_VOL_MAX       12 // capability buffer length
+#define AXP20_TIME_MAX      20
+#define AXP20_AVER_MAX      10
+#define AXP20_RDC_COUNT     10
+
+enum {
+	AXP20_NOT_SUSPEND = 1U << 0,
+	AXP20_AS_SUSPEND = 1U << 1,
+	AXP20_SUSPEND_WITH_IRQ = 1U << 2,
+};
+extern void axp20_power_off(void);
 #endif
 
 extern s32 axp_fetch_sysconfig_para(char * pmu_type, struct axp_config_info *axp_config);

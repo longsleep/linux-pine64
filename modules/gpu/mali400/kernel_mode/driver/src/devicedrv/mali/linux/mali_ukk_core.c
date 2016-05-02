@@ -130,3 +130,17 @@ int request_high_priority_wrapper(struct mali_session_data *session_data, _mali_
 
 	return map_errcode(err);
 }
+
+int pending_submit_wrapper(struct mali_session_data *session_data, _mali_uk_pending_submit_s __user *uargs)
+{
+	_mali_uk_pending_submit_s kargs;
+	_mali_osk_errcode_t err;
+
+	MALI_CHECK_NON_NULL(uargs, -EINVAL);
+
+	kargs.ctx = (uintptr_t)session_data;
+	err = _mali_ukk_pending_submit(&kargs);
+	if (_MALI_OSK_ERR_OK != err) return map_errcode(err);
+
+	return 0;
+}

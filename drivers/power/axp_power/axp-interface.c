@@ -4,6 +4,10 @@
 #include <linux/mfd/axp-mfd.h>
 
 #if defined(CONFIG_AW_AXP81X)
+#elif defined(CONFIG_AW_AXP20)
+u64 axp_read_power_sply(void){ return 0; };
+s32 axp_read_bat_cap(void){return 100;};
+s32 axp_read_ac_chg(void){ return 0; };
 #elif defined(CONFIG_AW_AXP)
 s32 axp_usbcur(aw_charge_type type){ return 0; };
 s32 axp_usbvol(aw_charge_type type){ return 0; };

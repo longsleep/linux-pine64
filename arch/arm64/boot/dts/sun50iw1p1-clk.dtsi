@@ -6,7 +6,7 @@ clocks {
 	#size-cells = <2>;
 	ranges;
 	reg = <0x0 0x01c20000 0x0 0x0320> ,  /*cpux space*/
-		  <0x0 0x01f01400 0x0 0x00B0> , /*cpus space*/
+		  <0x0 0x01f01400 0x0 0x01C0> , /*cpus space*/
 		  <0x0 0x01f00060 0x0 0x4>; 
 /* register fixed rate clock*/
 		clk_losc: losc {
@@ -177,6 +177,14 @@ clocks {
 			clock-div = <2>;
 			clock-output-names = "hoscd2";
 		};	
+		clk_hoscx2: hoscx2 {
+			#clock-cells = <0>;
+			compatible = "allwinner,fixed-factor-clock";
+			clocks = <&clk_hosc>;
+			clock-mult = <2>;
+			clock-div = <1>;
+			clock-output-names = "hoscx2";
+		};
 /* register allwinner,sunxi-periph-clock */
 		clk_cpu: cpu {
 			#clock-cells = <0>;
@@ -200,6 +208,7 @@ clocks {
 		};	
 		clk_ahb1: ahb1 {
 			#clock-cells = <0>;
+			assigned-clock-rates = <200000000>;
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "ahb1";
 		};	
@@ -334,6 +343,16 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "usbhsic12m";
 		};		
+		clk_usbohci112m: usbohci112m {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "usbohci112m";
+		};
+		clk_usbohci012m: usbohci012m {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "usbohci012m";
+		};
 		clk_usbohci1: usbohci1 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
@@ -575,6 +594,11 @@ clocks {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-cpus-clock";
 			clock-output-names = "losc_out";
+		};
+		clk_adda_com: adda_com {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-cpus-clock";
+			clock-output-names = "adda_com";
 		};
 	};/*clocks end*/
 };

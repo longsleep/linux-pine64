@@ -26,19 +26,21 @@ static s32 axp_device_probe(struct platform_device *pdev)
 
 	if (!of_device_is_available(node)) {
 		axp_config->pmu_used = 0;
-		printk("%s: pmu_used = 0", __func__);
+		pr_err("%s: pmu_used = 0", __func__);
 		return -EPERM;
 	} else
 		axp_config->pmu_used = 1;
 
+#ifdef CONFIG_AXP_TWI_USED
 	if (of_property_read_u32(node, "pmu_twi_id", &axp_config->pmu_twi_id))
 		axp_config->pmu_twi_id = 0;
 
 	if (of_property_read_u32(node, "pmu_twi_addr", &axp_config->pmu_twi_addr))
 		axp_config->pmu_twi_addr = 0x34;
+#endif
 
 	if (of_property_read_u32(node, "pmu_irq_id", &axp_config->pmu_irq_id))
-		axp_config->pmu_irq_id = 0;
+		axp_config->pmu_irq_id = 32;
 
 	if (of_property_read_u32(node, "pmu_battery_rdc", &axp_config->pmu_battery_rdc))
 		axp_config->pmu_battery_rdc = BATRDC;
@@ -54,19 +56,19 @@ static s32 axp_device_probe(struct platform_device *pdev)
 
 	if (of_property_read_u32(node, "pmu_runtime_chgcur", &axp_config->pmu_runtime_chgcur))
 		axp_config->pmu_runtime_chgcur = INTCHGCUR / 1000;
-		axp_config->pmu_runtime_chgcur = axp_config->pmu_runtime_chgcur * 1000;
+	axp_config->pmu_runtime_chgcur = axp_config->pmu_runtime_chgcur * 1000;
 
 	if (of_property_read_u32(node, "pmu_suspend_chgcur", &axp_config->pmu_suspend_chgcur))
 		axp_config->pmu_suspend_chgcur = 1200;
-		axp_config->pmu_suspend_chgcur = axp_config->pmu_suspend_chgcur * 1000;
+	axp_config->pmu_suspend_chgcur = axp_config->pmu_suspend_chgcur * 1000;
 
 	if (of_property_read_u32(node, "pmu_shutdown_chgcur", &axp_config->pmu_shutdown_chgcur))
 		axp_config->pmu_shutdown_chgcur = 1200;
-		axp_config->pmu_shutdown_chgcur = axp_config->pmu_shutdown_chgcur *1000;
+	axp_config->pmu_shutdown_chgcur = axp_config->pmu_shutdown_chgcur *1000;
 
 	if (of_property_read_u32(node, "pmu_init_chgvol", &axp_config->pmu_init_chgvol))
 		axp_config->pmu_init_chgvol = INTCHGVOL / 1000;
-		axp_config->pmu_init_chgvol = axp_config->pmu_init_chgvol * 1000;
+	axp_config->pmu_init_chgvol = axp_config->pmu_init_chgvol * 1000;
 
 	if (of_property_read_u32(node, "pmu_init_chgend_rate", &axp_config->pmu_init_chgend_rate))
 		axp_config->pmu_init_chgend_rate = INTCHGENDRATE;
@@ -337,8 +339,29 @@ static s32 axp_device_probe(struct platform_device *pdev)
 	if (of_property_read_u32(node, "pmu_bat_temp_para16", &axp_config->pmu_bat_temp_para16))
 		axp_config->pmu_bat_temp_para16 = 0;
 
-        return 0;
+#ifdef CONFIG_AW_AXP20
+	if (of_property_read_u32(node, "pmu_ac_vol_limit", &axp_config->pmu_ac_vol_limit))
+		axp_config->pmu_ac_vol_limit= 1;
 
+	if (of_property_read_u32(node, "pmu_ac_cur_limit", &axp_config->pmu_ac_cur_limit))
+		axp_config->pmu_ac_cur_limit= 1;
+
+	if (of_property_read_u32(node, "pmu_chg_stop_temp", &axp_config->pmu_chg_stop_temp))
+		axp_config->pmu_chg_stop_temp = 120;
+	axp_config->pmu_chg_stop_temp *= 10;
+
+	if (of_property_read_u32(node, "pmu_chg_restart_temp", &axp_config->pmu_chg_restart_temp))
+		axp_config->pmu_chg_restart_temp = 110;
+	axp_config->pmu_chg_restart_temp *= 10;
+
+	if (of_property_read_u32(node, "pmu_bat_det_en", &axp_config->pmu_bat_det_en))
+		axp_config->pmu_bat_det_en= 1;
+
+	if (of_property_read_u32(node, "pmu_power_noe_time", &axp_config->pmu_power_noe_time))
+		axp_config->pmu_power_noe_time= 2000;
+#endif
+
+	return 0;
 }
 
 static struct platform_driver axp_device_driver = {

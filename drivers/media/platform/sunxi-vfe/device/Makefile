@@ -44,4 +44,4 @@ obj-m			+= sp5409.o
 obj-m			+= s5k5e2yx.o
 obj-m			+= ov2710_mipi.o
 obj-m			+= ov2686.o
-obj-m			+= hm5065.o
+

@@ -76,6 +76,7 @@ enum disp_pixel_format
 	DISP_FORMAT_YUV420_SP_VUVU               = 0x4d,
 	DISP_FORMAT_YUV411_SP_UVUV               = 0x4e,
 	DISP_FORMAT_YUV411_SP_VUVU               = 0x4f,
+	DISP_FORMAT_8BIT_GRAY				= 0x50,
 };
 
 enum disp_3d_out_mode
@@ -329,13 +330,13 @@ struct disp_tv_func
 {
 		int (*tv_enable)(u32 sel);
 		int (*tv_disable)(u32 sel);
-		int (*tv_suspend)(void);
-		int (*tv_resume)(void);
+		int (*tv_suspend)(u32 sel);
+		int (*tv_resume)(u32 sel);
 		int (*tv_get_mode)(u32 sel);
 		int (*tv_set_mode)(u32 sel, enum disp_tv_mode tv_mod);
-		int (*tv_get_input_csc) (void);
+		int (*tv_get_input_csc) (u32 sel);
 		int (* tv_get_video_timing_info) (u32 sel, struct disp_video_timings **video_info);
-		int (*tv_mode_support) (enum disp_tv_mode mode);
+		int (*tv_mode_support) (u32 sel, enum disp_tv_mode mode);
 		int (*tv_hot_plugging_detect)(u32 state);
 		int (*tv_set_enhance_mode)(u32 sel, u32 mode);
 };
@@ -514,6 +515,10 @@ enum tag_DISP_CMD
 	DISP_MEM_REQUEST = 0x2c0,
 	DISP_MEM_RELEASE = 0x2c1,
 	DISP_MEM_GETADR = 0x2c2,
+
+	DISP_EINK_UPDATE  = 0x402,
+	DISP_EINK_SET_TEMP = 0x403,
+	DISP_EINK_GET_TEMP = 0x404,
 };
 
 #define FBIOGET_LAYER_HDL_0 0x4700

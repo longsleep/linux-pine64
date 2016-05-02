@@ -19,6 +19,8 @@
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/io.h>
+#include <linux/clk-provider.h>
+#include <linux/clk.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -129,12 +131,18 @@ void __init sunxi_map_io(void)
 
 static void __init sunxi_timer_init(void)
 {
+	of_clk_init(NULL);
+#ifdef CONFIG_COMMON_CLK_ENABLE_SYNCBOOT_EARLY
+	clk_syncboot();
+#endif
 	clocksource_of_init();
 }
 
 static void __init sunxi_dt_init(void)
 {
 	sunxi_setup_restart();
+
+	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 }
 
 static const char * const sunxi_board_dt_compat[] = {
@@ -147,6 +155,7 @@ static const char * const sunxi_board_dt_compat[] = {
 
 DT_MACHINE_START(SUNXI_DT, "Allwinner Soc (Device Tree)")
 	.init_machine	= sunxi_dt_init,
+	.smp            = smp_ops(sunxi_smp_ops),
 	.map_io		= sunxi_map_io,
 	.init_irq	= irqchip_init,
 	.init_time	= sunxi_timer_init,

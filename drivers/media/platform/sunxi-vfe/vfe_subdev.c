@@ -5,6 +5,7 @@
 #include "vfe_os.h"
 #include "vfe_subdev.h"
 #include "platform_cfg.h"
+#include "csi/sunxi_csi.h"
 
 
 /*
@@ -96,28 +97,29 @@ int vfe_set_mclk(struct v4l2_subdev *sd, enum on_off on_off)
 {
 #ifdef VFE_CLK
 	struct vfe_dev *dev=(struct vfe_dev *)dev_get_drvdata(sd->v4l2_dev->dev);
+	struct csi_dev *csi= v4l2_get_subdevdata(dev->csi_sd);
 	switch(on_off) {
 	case ON:
 		vfe_print("mclk on\n");
 		dev->gpio[MCLK_PIN].mul_sel = 2; //set mclk PIN to MCLK func.
 		os_gpio_set(&dev->gpio[MCLK_PIN], 1);
 		usleep_range(10000,12000);
-		if(dev->clock[VFE_MASTER_CLK]) {
-			if(os_clk_prepare_enable(dev->clock[VFE_MASTER_CLK])) {
-				vfe_err("vip%d master clock enable error\n",dev->vip_sel);
+		if(csi->clock[CSI_MASTER_CLK]) {
+			if(clk_prepare_enable(csi->clock[CSI_MASTER_CLK])) {
+				vfe_err("csi%d master clock enable error\n",csi->id);
 				return -1;
 			}
 		} else {
-			vfe_err("vip%d master clock is null\n",dev->vip_sel);
+			vfe_err("csi%d master clock is null\n",csi->id);
 			return -1;
 		}
 		break;
 	case OFF:
 		vfe_print("mclk off\n");
-		if(dev->clock[VFE_MASTER_CLK]) {
-			os_clk_disable_unprepare(dev->clock[VFE_MASTER_CLK]);
+		if(csi->clock[CSI_MASTER_CLK]) {
+			clk_disable_unprepare(csi->clock[CSI_MASTER_CLK]);
 		} else {
-			vfe_err("vip%d master clock is null\n",dev->vip_sel);
+			vfe_err("csi%d master clock is null\n",csi->id);
 			return -1;
 		}
 		usleep_range(10000,12000);
@@ -138,40 +140,41 @@ int vfe_set_mclk_freq(struct v4l2_subdev *sd, unsigned long freq)
 {
 #ifdef VFE_CLK
 	struct vfe_dev *dev=(struct vfe_dev *)dev_get_drvdata(sd->v4l2_dev->dev);
+	struct csi_dev *csi = v4l2_get_subdevdata(dev->csi_sd);	
 	struct clk *master_clk_src;
 	if(freq==24000000 || freq==12000000 || freq==6000000) {
-			if(dev->clock[VFE_MASTER_CLK_24M_SRC]) {
-				master_clk_src = dev->clock_src[VFE_MASTER_CLK_24M_SRC];
+			if(csi->clock[CSI_MASTER_CLK_24M_SRC]) {
+				master_clk_src = csi->clock[CSI_MASTER_CLK_24M_SRC];
 			} else {
-				vfe_err("vfe master clock 24M source is null\n");
+				vfe_err("csi master clock 24M source is null\n");
 				return -1;
 			}
 	} else {
-		if(dev->clock[VFE_MASTER_CLK_PLL_SRC]) {
-			master_clk_src = dev->clock_src[VFE_MASTER_CLK_PLL_SRC];
+		if(csi->clock[CSI_MASTER_CLK_PLL_SRC]) {
+			master_clk_src = csi->clock[CSI_MASTER_CLK_PLL_SRC];
 		} else {
-			vfe_err("vfe master clock pll source is null\n");
+			vfe_err("csi master clock pll source is null\n");
 			return -1;
 		}
 	}
   
-	if(dev->clock[VFE_MASTER_CLK]) {
-		if(os_clk_set_parent(dev->clock[VFE_MASTER_CLK], master_clk_src)) {
+	if(csi->clock[CSI_MASTER_CLK]) {
+		if(clk_set_parent(csi->clock[CSI_MASTER_CLK], master_clk_src)) {
 			vfe_err("mclk src Name = %s, set vfe master clock source failed!!! \n",master_clk_src->name);
 			return -1;
 		}
 	} else {
-		vfe_err("vfe master clock is null\n");
+		vfe_err("csi master clock is null\n");
 		return -1;
 	}
   
-	if(dev->clock[VFE_MASTER_CLK]) {
-		if(os_clk_set_rate(dev->clock[VFE_MASTER_CLK], freq)) {
-			vfe_err("set vip%d master clock error\n",dev->vip_sel);
+	if(csi->clock[CSI_MASTER_CLK]) {
+		if(clk_set_rate(csi->clock[CSI_MASTER_CLK], freq)) {
+			vfe_err("set csi%d master clock error\n",csi->id);
 			return -1;
 		}
 	} else {
-		vfe_err("vfe master clock is null\n");
+		vfe_err("csi master clock is null\n");
 		return -1;
 	}
 #endif  
@@ -188,14 +191,7 @@ int vfe_gpio_write(struct v4l2_subdev *sd, enum gpio_type gpio_type, unsigned in
 	u32 gpio = dev->gpio[gpio_type].gpio;
 	if ((gpio_type == PWDN)||(gpio_type == RESET))
 		force_value_flag = 0;
-	
-#ifdef CONFIG_ARCH_SUN8IW3P1
-	return os_gpio_write(gpio, status, NULL, 1);
-#else
 	return os_gpio_write(gpio, status, NULL, force_value_flag);
-#endif
-
-
 #else
 	return 0;
 #endif

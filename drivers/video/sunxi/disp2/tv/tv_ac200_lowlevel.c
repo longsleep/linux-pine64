@@ -1,24 +1,21 @@
 /*
  * aw1683_tve_sw.c
  *
- *  Created on: 2015��1��26��
- *      Author: A
+ *  Created on: 2015.8.14
+ *      Author: zengqi@allwinnertech.com
  */
 
 #include "tv_ac200.h"
 #include "tv_ac200_lowlevel.h"
 
-
 static s32 aw1683_wr_reg(u16 addr, u16 val)
 {
-	//return acx00_reg_write(tv_priv.acx00, addr, val); modify
-	return 0;
+	return acx00_reg_write(tv_priv.acx00, addr, val);
 }
 
 static s32 aw1683_rd_reg(u16 addr, u16* val)
 {	
-	//*val = acx00_reg_read(tv_priv.acx00, addr);  modify
-	
+	*val = acx00_reg_read(tv_priv.acx00, addr);
 	return 0;
 }
 

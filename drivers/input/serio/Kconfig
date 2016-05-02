@@ -256,4 +256,14 @@ config SERIO_APBPS2
 	  To compile this driver as a module, choose M here: the module will
 	  be called apbps2.
 
+config SERIO_SUN4I_PS2
+	tristate "Allwinner A10/A20 PS/2 controller support"
+	depends on ARCH_SUNXI
+	help
+	  This selects support for the PS/2 Host Controller on
+	  Allwinner A10/A20.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sun4i-ps2.
+
 endif

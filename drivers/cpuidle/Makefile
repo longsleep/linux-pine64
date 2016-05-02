@@ -9,6 +9,7 @@ obj-$(CONFIG_DT_IDLE_STATES)		  += dt_idle_states.o
 
 obj-$(CONFIG_CPU_IDLE_CALXEDA) += cpuidle-calxeda.o
 obj-$(CONFIG_ARCH_KIRKWOOD) += cpuidle-kirkwood.o
+obj-$(CONFIG_CPU_IDLE_SUNXI) += cpuidle-sunxi.o
 
 ###############################################################################
 # ARM64 drivers

@@ -21,13 +21,10 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/mutex.h>
-//#include <mach/clock.h>
-//#include <linux/pinctrl/pinconf-sunxi.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/gpio.h>
 #include <asm/processor.h>
-//#include <mach/irqs.h>
 #include <linux/spinlock.h>
 #include <linux/of_irq.h>
 #include <linux/interrupt.h>
@@ -56,6 +53,7 @@
 #include <linux/kmod.h>
 #include <linux/of_address.h>
 #include <linux/of.h>
+#include <linux/time.h>
 
 #if defined CONFIG_ARCH_SUN8IW1P1
 #define  SUN8IW1P1
@@ -73,22 +71,19 @@
 #error "please select a platform\n"
 #endif
 
-
 #define __FPGA_TEST__
 #define __LINUX_NAND_SUPPORT_INT__
 #define __LINUX_SUPPORT_DMA_INT__
 #define __LINUX_SUPPORT_RB_INT__
 
-
 #define BLK_ERR_MSG_ON
-#ifdef  BLK_ERR_MSG_ON
+#ifdef BLK_ERR_MSG_ON
 #define nand_dbg_err(fmt, args...) printk("[NAND]"fmt, ## args)
 #else
 #define nand_dbg_err(fmt, ...)  ({})
 #endif
 
-//#define BLK_INFO_MSG_ON
-#ifdef  BLK_INFO_MSG_ON
+#ifdef BLK_INFO_MSG_ON
 #define nand_dbg_inf(fmt, args...) printk("[NAND]"fmt, ## args)
 #else
 #define nand_dbg_inf(fmt, ...)  ({})
@@ -99,11 +94,11 @@ struct list_head;
 struct semaphore;
 struct hd_geometry;
 
-struct nand_blk_dev{
-    struct nand_blk_ops *nandr;
-    struct list_head list;
-    struct device dev;
-    struct mutex lock;
+struct nand_blk_dev {
+	struct nand_blk_ops *nandr;
+	struct list_head list;
+	struct device dev;
+	struct mutex lock;
 	struct gendisk *disk;
 	struct kref ref;
 	struct task_struct *thread;
@@ -112,76 +107,76 @@ struct nand_blk_dev{
 	void *priv;
 	struct class dev_class;
 
-    unsigned char heads;
-    unsigned char sectors;
-    unsigned short cylinders;
+	unsigned char heads;
+	unsigned char sectors;
+	unsigned short cylinders;
 
 	int open;
-    int devnum;
-    unsigned long size;
-    unsigned long off_size;
-    int readonly;
-    int writeonly;
-    int disable_access;
-    int bg_stop;
-    int rq_null;
-    //void *blkcore_priv;
-    char name[32];
+	int devnum;
+	unsigned long size;
+	unsigned long off_size;
+	int readonly;
+	int writeonly;
+	int disable_access;
+	int bg_stop;
+	int rq_null;
+	char name[32];
 };
 
+struct _nand_dev {
+	struct nand_blk_dev nbd;
+	char name[24];
+	unsigned int offset;
+	unsigned int size;
+	struct _nftl_blk *nftl_blk;
+	struct _nand_dev *nand_dev_next;
 
-struct _nand_dev{
-    struct nand_blk_dev     nbd;
-    char                    name[24];
-    unsigned int            offset;
-    unsigned int            size;
-    struct _nftl_blk*       nftl_blk;
-    struct _nand_dev*       nand_dev_next;
+	struct mutex dev_lock;
 
-//  struct timespec         ts_write_start;
-//  spinlock_t              thread_lock;
-
-    struct mutex            dev_lock;
-
-    int (*read_data)(struct _nand_dev *nand_dev, unsigned int sector, unsigned int len, unsigned char *buf);
-    int (*write_data)(struct _nand_dev *nand_dev, unsigned int sector, unsigned int len, unsigned char *buf);
-    int (*flush_write_cache)(struct _nand_dev *nand_dev,unsigned int num);
-	int (*discard)(struct _nand_dev *nand_dev,unsigned int sector, unsigned int len);
-    int (*flush_sector_write_cache)(struct _nand_dev *nand_dev,unsigned int num);
+	int (*read_data) (struct _nand_dev *nand_dev, unsigned int sector,
+			  unsigned int len, unsigned char *buf);
+	int (*write_data) (struct _nand_dev *nand_dev, unsigned int sector,
+			   unsigned int len, unsigned char *buf);
+	int (*flush_write_cache) (struct _nand_dev *nand_dev,
+				  unsigned int num);
+	int (*discard) (struct _nand_dev *nand_dev, unsigned int sector,
+			unsigned int len);
+	int (*flush_sector_write_cache) (struct _nand_dev *nand_dev,
+					 unsigned int num);
 };
 
-
-struct nand_blk_ops{
-    /* blk device ID */
-    char name[32];
-    int major;
-    int minorbits;
-    int blksize;
+struct nand_blk_ops {
+	/* blk device ID */
+	char name[32];
+	int major;
+	int minorbits;
+	int blksize;
 	int blkshift;
-    /* add/remove nandflash devparts,use gendisk */
-    int (*add_dev)(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition);
-    int (*add_dev_test)(struct nand_blk_ops *tr);
-	int (*remove_dev)(struct nand_blk_ops *tr);
+	/* add/remove nandflash devparts,use gendisk */
+	int (*add_dev) (struct nand_blk_ops *tr,
+			struct _nand_phy_partition *phy_partition);
+	int (*add_dev_test) (struct nand_blk_ops *tr);
+	int (*remove_dev) (struct nand_blk_ops *tr);
 
-    /* Block layer ioctls */
-    int (*getgeo)(struct nand_blk_dev *dev, struct hd_geometry *geo);
-    int (*flush)(struct nand_blk_dev *dev);
+	/* Block layer ioctls */
+	int (*getgeo) (struct nand_blk_dev *dev, struct hd_geometry *geo);
+	int (*flush) (struct nand_blk_dev *dev);
 
-    /* Called with mtd_table_mutex held; no race with add/remove */
-    int (*open)(struct nand_blk_dev *dev);
-    int (*release)(struct nand_blk_dev *dev);
+	/* Called with mtd_table_mutex held; no race with add/remove */
+	int (*open) (struct nand_blk_dev *dev);
+	int (*release) (struct nand_blk_dev *dev);
 
-    struct _nftl_blk nftl_blk_head;
+	struct _nftl_blk nftl_blk_head;
 	struct _nand_dev nand_dev_head;
 
-    /* synchronization variable */
-    struct completion thread_exit;
-    int quit;
-    wait_queue_head_t thread_wq;
-    struct semaphore nand_ops_mutex;
-    struct list_head devs;
-    
-    struct module *owner;
+	/* synchronization variable */
+	struct completion thread_exit;
+	int quit;
+	wait_queue_head_t thread_wq;
+	struct semaphore nand_ops_mutex;
+	struct list_head devs;
+
+	struct module *owner;
 };
 
 #endif

@@ -1,0 +1,1819 @@
+/*
+ * Copyright (C) 2015 Allwinnertech, z.q <zengqi@allwinnertech.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+*/
+
+#include <linux/module.h>
+#include <linux/errno.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/version.h>
+#include <linux/mutex.h>
+#include <linux/videodev2.h>
+#include <linux/delay.h>
+#include <linux/string.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+#include <linux/freezer.h>
+#endif
+
+#include <linux/io.h>
+#include <linux/platform_device.h>
+#include <linux/interrupt.h>
+#include <linux/i2c.h>
+#include <linux/moduleparam.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-ioctl.h>
+#include <media/v4l2-common.h>
+#include <media/v4l2-mediabus.h>
+#include <media/v4l2-subdev.h>
+#include <media/videobuf2-dma-contig.h>
+#include <media/videobuf2-core.h>
+
+#include <linux/regulator/consumer.h>
+#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
+#include <linux/sunxi_dramfreq.h>
+#endif
+
+#include "tvd.h"
+
+#define TVD_MODULE_NAME "sunxi_tvd"
+#define MIN_WIDTH  (32)
+#define MIN_HEIGHT (32)
+#define MAX_WIDTH  (4096)
+#define MAX_HEIGHT (4096)
+#define MAX_BUFFER (32*1024*1024)
+#define NUM_INPUTS 1
+#define CVBS_INTERFACE   0
+#define YPBPRI_INTERFACE 1
+#define YPBPRP_INTERFACE 2
+#define NTSC   0
+#define PAL    1
+
+#define TVD_MAJOR_VERSION 1
+#define TVD_MINOR_VERSION 0
+#define TVD_RELEASE		  0
+#define TVD_VERSION \
+  KERNEL_VERSION(TVD_MAJOR_VERSION, TVD_MINOR_VERSION, TVD_RELEASE)
+
+static unsigned int tvd_dbg_en = 0;
+static unsigned int tvd_dbg_sel = 0;
+static unsigned int tvd_dump = 0;
+static struct tvd_status tvd_status[4];
+static struct tvd_dev *tvd[4];
+
+static irqreturn_t tvd_isr(int irq, void *priv);
+
+static ssize_t tvd_dbg_en_show(struct device *dev,
+		    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", tvd_dbg_en);
+}
+
+static ssize_t tvd_dbg_en_store(struct device *dev,
+		    struct device_attribute *attr,
+		    const char *buf, size_t count)
+{
+	int err;
+	unsigned long val;
+
+	err = strict_strtoul(buf, 10, &val);
+	if (err) {
+		pr_debug("Invalid size\n");
+		return err;
+	}
+
+	if(val < 0 || val > 1) {
+		pr_debug("Invalid value, 0~1 is expected!\n");
+	} else {
+		tvd_dbg_en = val;
+
+		pr_debug("tvd_dbg_en = %ld\n", val);
+	}
+
+	return count;
+}
+
+static ssize_t tvd_dbg_lv_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", tvd_dbg_sel);
+}
+
+static ssize_t tvd_dbg_lv_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int err;
+	unsigned long val;
+
+	err = strict_strtoul(buf, 10, &val);
+	if (err) {
+		pr_debug("Invalid size\n");
+		return err;
+	}
+
+	if(val < 0 || val > 4) {
+		pr_debug("Invalid value, 0~3 is expected!\n");
+	} else {
+		tvd_dbg_sel = val;
+		pr_debug("tvd_dbg_sel = %d\n", tvd_dbg_sel);
+		tvd_isr(46, tvd[tvd_dbg_sel]);
+	}
+
+	return count;
+}
+
+static ssize_t tvd_dbg_dump_show(struct device *dev,
+		    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", tvd_dump);
+}
+
+static ssize_t tvd_dbg_dump_store(struct device *dev,
+		    struct device_attribute *attr,
+		    const char *buf, size_t count)
+{
+	int err;
+	unsigned long val;
+
+	err = strict_strtoul(buf, 10, &val);
+	if (err) {
+		pr_debug("Invalid size\n");
+		return err;
+	}
+
+	if(val < 0 || val > 3) {
+		pr_debug("Invalid value, 0~3 is expected!\n");
+	} else {
+		tvd_dump = val;
+		pr_debug("tvd_dump = %ld\n", val);
+	}
+	return count;
+}
+
+static DEVICE_ATTR(tvd_dbg_en, S_IRUGO|S_IWUSR|S_IWGRP,
+		tvd_dbg_en_show, tvd_dbg_en_store);
+
+static DEVICE_ATTR(tvd_dbg_lv, S_IRUGO|S_IWUSR|S_IWGRP,
+		tvd_dbg_lv_show, tvd_dbg_lv_store);
+static DEVICE_ATTR(tvd_dump, S_IRUGO|S_IWUSR|S_IWGRP,
+		tvd_dbg_dump_show, tvd_dbg_dump_store);
+
+static struct attribute *tvd0_attributes[] = {
+	&dev_attr_tvd_dbg_en.attr,
+	&dev_attr_tvd_dbg_lv.attr,
+	&dev_attr_tvd_dump.attr,
+	NULL
+};
+
+static struct attribute *tvd1_attributes[] = {
+	&dev_attr_tvd_dbg_en.attr,
+	&dev_attr_tvd_dbg_lv.attr,
+	&dev_attr_tvd_dump.attr,
+	NULL
+};
+
+static struct attribute *tvd2_attributes[] = {
+	&dev_attr_tvd_dbg_en.attr,
+	&dev_attr_tvd_dbg_lv.attr,
+	&dev_attr_tvd_dump.attr,
+	NULL
+};
+
+static struct attribute *tvd3_attributes[] = {
+	&dev_attr_tvd_dbg_en.attr,
+	&dev_attr_tvd_dbg_lv.attr,
+	&dev_attr_tvd_dump.attr,
+	NULL
+};
+
+static struct attribute_group tvd_attribute_group[] = {
+	{	.name = "tvd0_attr",
+		.attrs = tvd0_attributes
+	},
+	{	.name = "tvd1_attr",
+		.attrs = tvd1_attributes
+	},
+	{	.name = "tvd2_attr",
+		.attrs = tvd2_attributes
+	},
+	{	.name = "tvd3_attr",
+		.attrs = tvd3_attributes
+	},
+
+};
+
+static struct tvd_fmt formats[] = {
+	{
+		.name       = "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 480,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 960,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 1920,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 1440,
+		.height         = 480,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 2880,
+		.height         = 480,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 1440,
+		.height         = 960,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV12,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth          = 12,
+		.width          = 720,
+		.height         = 576,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 480,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 960,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 1920,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth          = 12,
+		.width          = 1440,
+		.height         = 480,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 2880,
+		.height         = 480,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 1440,
+		.height         = 960,
+	},
+	{
+		.name     	= "planar YUV420",
+		.fourcc   	= V4L2_PIX_FMT_NV21,
+		.output_fmt	= TVD_PL_YUV420,
+		.depth    	= 12,
+		.width          = 720,
+		.height         = 576,
+	},
+};
+
+static int inline tvd_is_generating(struct tvd_dev *dev)
+{
+	return test_bit(0, &dev->generating);
+}
+
+static void inline tvd_start_generating(struct tvd_dev *dev)
+{
+	set_bit(0, &dev->generating);
+	return;
+}
+
+static void inline tvd_stop_generating(struct tvd_dev *dev)
+{
+	clear_bit(0, &dev->generating);
+	return;
+}
+
+static int tvd_is_opened(struct tvd_dev *dev)
+{
+	 int ret;
+	 mutex_lock(&dev->opened_lock);
+	 ret = test_bit(0, &dev->opened);
+	 mutex_unlock(&dev->opened_lock);
+	 return ret;
+}
+
+static void tvd_start_opened(struct tvd_dev *dev)
+{
+	 mutex_lock(&dev->opened_lock);
+	 set_bit(0, &dev->opened);
+	 mutex_unlock(&dev->opened_lock);
+}
+
+static void tvd_stop_opened(struct tvd_dev *dev)
+{
+	 mutex_lock(&dev->opened_lock);
+	 clear_bit(0, &dev->opened);
+	 mutex_unlock(&dev->opened_lock);
+}
+
+static int __tvd_clk_init(struct tvd_dev *dev)
+{
+	int div = 0, ret = 0;
+	unsigned long p = 297000000;/* fix clk rate */
+	pr_debug("%s: dev->interface = %d, dev->system = %d\n",
+		__func__, dev->interface, dev->system);
+
+	dev->parent = clk_get_parent(dev->clk);
+	if (IS_ERR_OR_NULL(dev->parent)
+			|| IS_ERR_OR_NULL(dev->clk))
+	{
+		return -EINVAL;
+	}
+	/* parent is 297M */
+	ret = clk_set_rate(dev->parent, p);
+	if (ret) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (dev->interface == CVBS_INTERFACE) {
+		/* cvbs interface */
+		if (dev->system == PAL)
+			div = 11;
+		else
+			div = 9;
+	} else if (dev->interface == YPBPRI_INTERFACE) {
+		/* ypbprI interface */
+		div = 11;
+	}else if (dev->interface == YPBPRP_INTERFACE) {
+		/* ypbprP interface */
+		if (dev->system == PAL)
+			div = 6;
+		else
+			div = 5;
+	} else
+
+		return -EINVAL;
+
+	pr_debug("div = %d\n", div);
+
+	p /= div;
+	ret = clk_set_rate(dev->clk, p);
+	if (ret) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* for debug */
+	pr_debug("%s: parent = %lu, clk = %lu\n",
+				__func__,
+				clk_get_rate(dev->parent),
+				clk_get_rate(dev->clk));
+
+out:
+	return ret;
+}
+
+static int __tvd_clk_enable(struct tvd_dev *dev)
+{
+	int ret = 0;
+
+	ret = clk_prepare_enable(dev->clk_top);
+	if (ret) {
+		pr_err("%s: tvd top clk enable err!", __func__);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(dev->clk);
+	if (ret) {
+		pr_err("%s: tvd clk enable err!", __func__);
+		clk_disable(dev->clk);
+	}
+
+	return ret;
+}
+
+static int __tvd_clk_disable(struct tvd_dev *dev)
+{
+	int ret = 0;
+
+	clk_disable(dev->clk);
+	clk_disable(dev->clk_top);
+
+
+	return ret;
+}
+
+static int __tvd_init(struct tvd_dev *dev)
+{
+	tvd_top_set_reg_base((unsigned long)dev->regs_top);
+	tvd_set_reg_base(dev->sel, (unsigned long)dev->regs_tvd);
+
+	return 0;
+}
+
+static int __tvd_config(struct tvd_dev *dev)
+{
+
+	tvd_init(dev->sel, dev->interface);
+	tvd_config(dev->sel, dev->interface, dev->system);
+	tvd_set_wb_width(dev->sel, dev->width);
+	tvd_set_wb_width_jump(dev->sel, dev->width);
+	if (dev->interface == YPBPRP_INTERFACE)
+		tvd_set_wb_height(dev->sel, dev->height);	/*P,no div*/
+	else
+		tvd_set_wb_height(dev->sel, dev->height/2);
+
+	tvd_set_wb_fmt(dev->sel, dev->fmt.output_fmt);	/*pl_yuv420,mb_yuv420, pl_yuv422*/
+	/*wb addr*/
+
+	return 0;
+}
+
+/*
+ * set width,set height, set jump, set wb addr, set 3d_comb
+*/
+static inline void __tvd_set_addr(struct tvd_dev *dev,struct tvd_buffer *buffer)
+{
+	struct tvd_buffer *buf = buffer;
+	dma_addr_t addr_org;
+	struct vb2_buffer *vb_buf = &buf->vb;
+	unsigned int c_offset = 0;
+
+	if(vb_buf == NULL || vb_buf->planes[0].mem_priv == NULL) {
+		pr_err("%s: vb_buf->priv is NULL!\n", __func__);
+		return;
+	}
+
+	addr_org = vb2_dma_contig_plane_dma_addr(vb_buf, 0);
+	switch (dev->format) {
+
+	case TVD_PL_YUV422:
+	case TVD_PL_YUV420:
+		c_offset = dev->width * dev->height;
+		break;
+
+	case TVD_MB_YUV420:
+		c_offset = 0;	//fix
+		break;
+	default:
+		break;
+	}
+
+	/* set y_addr,c_addr */
+	//pr_debug("%s: format:%d, addr_org = 0x%x, addr_org + c_offset = 0x%x\n",
+		//__func__, dev->format, addr_org, addr_org + c_offset);
+	tvd_set_wb_addr(dev->sel, addr_org, addr_org + c_offset);
+}
+
+/*
+ *  the interrupt routine
+*/
+static irqreturn_t tvd_isr(int irq, void *priv)
+{
+	struct tvd_buffer *buf;
+	unsigned long flags;
+	struct tvd_dev *dev = (struct tvd_dev *)priv;
+	struct tvd_dmaqueue *dma_q = &dev->vidq;
+
+	if(tvd_is_generating(dev) == 0) {
+		tvd_irq_status_clear(dev->sel, TVD_IRQ_FRAME_END);
+		return IRQ_HANDLED;
+	}
+
+	spin_lock_irqsave(&dev->slock, flags);
+
+	if (0 == dev->first_flag) {
+		/* if is first frame, flag set 1 */
+		dev->first_flag = 1;
+		goto set_next_addr;
+	}
+	if (list_empty(&dma_q->active) || dma_q->active.next->next == (&dma_q->active)) {
+		pr_debug("No active queue to serve\n");
+		goto unlock;
+	}
+
+	buf = list_entry(dma_q->active.next, struct tvd_buffer, list);
+	/* Nobody is waiting for this buffer*/
+	if (!waitqueue_active(&buf->vb.vb2_queue->done_wq)) {
+		pr_debug("%s: Nobody is waiting on this video buffer,buf = 0x%p\n",__func__, buf);
+	}
+	list_del(&buf->list);
+
+	dev->ms += jiffies_to_msecs(jiffies - dev->jiffies);
+	dev->jiffies = jiffies;
+	vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);
+
+	if (list_empty(&dma_q->active)) {
+		pr_debug("%s: No more free frame\n", __func__);
+		goto unlock;
+	}
+
+	/* hardware need one frame? */
+	if ((&dma_q->active) == dma_q->active.next->next) {
+		pr_debug("No more free frame on next time\n");
+		goto unlock;
+	}
+
+set_next_addr:
+	buf = list_entry(dma_q->active.next->next, struct tvd_buffer, list);
+	__tvd_set_addr(dev, buf);
+
+unlock:
+	spin_unlock(&dev->slock);
+	tvd_irq_status_clear(dev->sel, TVD_IRQ_FRAME_END);
+
+	return IRQ_HANDLED;
+}
+
+/*
+ * Videobuf operations
+*/
+static int queue_setup(struct vb2_queue *vq, const struct v4l2_format *fmt,
+				unsigned int *nbuffers, unsigned int *nplanes,
+				unsigned int sizes[], void *alloc_ctxs[])
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vq);
+	unsigned int size;
+
+	switch (dev->fmt.output_fmt) {
+		case TVD_MB_YUV420:
+		case TVD_PL_YUV420:
+			size = dev->width * dev->height * 3/2;
+			break;
+		case TVD_PL_YUV422:
+		default:
+			size = dev->width * dev->height * 2;
+			break;
+	}
+
+	if (size == 0)
+		return -EINVAL;
+
+	if (*nbuffers < 3) {
+		*nbuffers = 3;
+		pr_err("buffer conunt invalid,set 3.\n");
+	} else if (*nbuffers > 5) {
+		*nbuffers = 3;
+		pr_err("buffer conunt invalid,set 5.\n");
+	}
+
+  	dev->frame_size = size;
+	sizes[0] = size;
+ 	*nplanes = 1;
+	alloc_ctxs[0] = dev->alloc_ctx;
+
+	pr_debug("%s, buffer count=%d, size=%d\n", __func__, *nbuffers, size);
+
+	return 0;
+}
+
+static int buffer_prepare(struct vb2_buffer *vb)
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vb->vb2_queue);
+	struct tvd_buffer *buf = container_of(vb, struct tvd_buffer, vb);
+	unsigned long size;
+
+	pr_debug("%s: buffer_prepare\n", __func__);
+
+	if (dev->width < MIN_WIDTH || dev->width  > MAX_WIDTH ||
+		dev->height < MIN_HEIGHT || dev->height > MAX_HEIGHT)
+	{
+		return -EINVAL;
+	}
+
+	size = dev->frame_size;
+
+	if (vb2_plane_size(vb, 0) < size) {
+		pr_err("%s data will not fit into plane (%lu < %lu)\n",
+				__func__, vb2_plane_size(vb, 0), size);
+		return -EINVAL;
+	}
+
+	vb2_set_plane_payload(&buf->vb, 0, size);
+
+	vb->v4l2_planes[0].m.mem_offset = vb2_dma_contig_plane_dma_addr(vb, 0);
+
+	return 0;
+}
+
+static void buffer_queue(struct vb2_buffer *vb)
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vb->vb2_queue);
+	struct tvd_buffer *buf = container_of(vb, struct tvd_buffer, vb);
+	struct tvd_dmaqueue *vidq = &dev->vidq;
+	unsigned long flags = 0;
+
+	pr_debug("%s: \n", __func__);
+	spin_lock_irqsave(&dev->slock, flags);
+	list_add_tail(&buf->list, &vidq->active);
+	spin_unlock_irqrestore(&dev->slock, flags);
+}
+
+static int start_streaming(struct vb2_queue *vq, unsigned int count)
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vq);
+	pr_debug("%s: \n", __func__);
+	tvd_start_generating(dev);
+	return 0;
+}
+
+/* abort streaming and wait for last buffer */
+static int stop_streaming(struct vb2_queue *vq)
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vq);
+	struct tvd_dmaqueue *dma_q = &dev->vidq;
+
+	pr_debug("%s: \n", __func__);
+	tvd_stop_generating(dev);
+
+	/* Release all active buffers */
+	while (!list_empty(&dma_q->active)) {
+		struct tvd_buffer *buf;
+		buf = list_entry(dma_q->active.next, struct tvd_buffer, list);
+		list_del(&buf->list);
+		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		pr_debug("[%p/%d] done\n", buf, buf->vb.v4l2_buf.index);
+	}
+	return 0;
+}
+
+
+static void tvd_lock(struct vb2_queue *vq)
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vq);
+	mutex_lock(&dev->buf_lock);
+}
+
+static void tvd_unlock(struct vb2_queue *vq)
+{
+	struct tvd_dev *dev = vb2_get_drv_priv(vq);
+	mutex_unlock(&dev->buf_lock);
+}
+
+static const struct vb2_ops tvd_video_qops = {
+	.queue_setup		= queue_setup,
+	.buf_prepare		= buffer_prepare,
+	.buf_queue			= buffer_queue,
+	.start_streaming	= start_streaming,
+	.stop_streaming 	= stop_streaming,
+	.wait_prepare		= tvd_unlock,
+	.wait_finish		= tvd_lock,
+};
+
+/*
+ * IOCTL vidioc handling
+ */
+static int vidioc_querycap(struct file *file, void  *priv,
+          struct v4l2_capability *cap)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	strcpy(cap->driver, "sunxi-tvd");
+	strcpy(cap->card, "sunxi-tvd");
+	strlcpy(cap->bus_info, dev->v4l2_dev.name, sizeof(cap->bus_info));
+
+	cap->version = TVD_VERSION;
+	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | \
+						V4L2_CAP_READWRITE;
+	return 0;
+}
+
+static int vidioc_enum_fmt_vid_cap(struct file *file, void  *priv,
+          struct v4l2_fmtdesc *f)
+{
+	struct tvd_fmt *fmt;
+
+	pr_debug("%s:\n", __func__);
+
+	if (f->index > ARRAY_SIZE(formats)-1) { //fix, formats is not used.
+		return -EINVAL;
+	}
+	fmt = &formats[f->index];
+
+	strlcpy(f->description, fmt->name, sizeof(f->description));
+	f->pixelformat = fmt->fourcc;
+	return 0;
+}
+
+static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
+          struct v4l2_format *f)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	u32 locked = 0, system = 0;
+	int i;
+
+	for (i = 0; i < 30; i++) {
+		tvd_get_status(dev->sel, &locked, &system);
+		if (locked)
+			break;
+	}
+
+	f->fmt.pix.width        = dev->width;
+	f->fmt.pix.height       = dev->height;
+	f->fmt.pix.field		= dev->fmt.field;
+	f->fmt.pix.pixelformat  = dev->fmt.fourcc;//fix bus_pix_code
+	f->fmt.raw_data[0] = dev->interface;
+	if (!locked) {
+		pr_err("%s: signal is not locked.\n", __func__);
+		f->fmt.raw_data[1] = 7;//fix dev->system;
+	} else {
+		dev->system = system;
+		f->fmt.raw_data[1] = dev->system;
+	}
+	f->fmt.raw_data[2] = dev->format;
+	f->fmt.raw_data[3] = locked;
+	/*bytesperline, sizeimage*/
+
+	return 0;
+}
+
+static int vidioc_try_fmt_vid_cap(struct file *file, void *priv,
+      struct v4l2_format *f)
+{
+/*
+	struct tvd_dev *dev = video_drvdata(file);
+	enum v4l2_mbus_pixelcode *bus_pix_code;
+
+	pr_debug(0,"vidioc_try_fmt_vid_cap\n");
+
+	bus_pix_code = try_fmt_internal(dev,f);
+	if(!bus_pix_code) {
+		pr_err("pixel format (0x%08x) width %d height %d invalid at %s.\n", \
+		f->fmt.pix.pixelformat,f->fmt.pix.width,f->fmt.pix.height,__func__);
+		return -EINVAL;
+	}
+*/
+	return 0;
+}
+
+static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
+          struct v4l2_format *f)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+//	struct tvd_fmt *fmt;
+	int ret = 0;
+
+	pr_debug("%s:\n", __func__);
+
+	if (tvd_is_generating(dev)) {
+		pr_err("%s device busy\n", __func__);
+		return -EBUSY;
+	}
+/*
+	fmt = kzalloc(sizeof(struct tvd_fmt), GFP_KERNEL);
+	if (!fmt) {
+		pr_err("request tvd_fmt mem failed!\n");
+		return -ENOMEM;
+	}
+
+	ret = vidioc_try_fmt_vid_cap(file, priv, f);
+	if (ret < 0) {
+		pr_err("try format failed!\n");
+		goto out;
+	}
+
+	//dev->fmt = __get_format(f);
+	if (!dev->fmt) {
+		pr_err("Fourcc format (0x%08x) invalid.\n",f->fmt.pix.pixelformat);
+		ret	= -EINVAL;
+		goto out;
+	}
+*/
+
+	dev->interface = f->fmt.raw_data[0];/*cvbs,ypbpr/ycbcr*/
+	dev->system = f->fmt.raw_data[1];	/*ntsc,pal*/
+	dev->format = f->fmt.raw_data[2];/*mb, non-mb*/
+	dev->fmt.field = V4L2_FIELD_NONE;//fix
+
+	if (dev->system == PAL) {
+		dev->width = 720;
+		dev->height = 480;
+	}else {
+		dev->width = 720;
+		dev->height = 576;
+	}
+
+	/*height is what*/
+	dev->fmt.width = dev->width;
+	dev->fmt.height = dev->height;
+	dev->fmt.output_fmt = dev->format;
+
+	pr_debug("interface=%d\n",dev->interface);
+	pr_debug("system=%d\n",dev->system);
+	pr_debug("format=%d\n",dev->format);
+	pr_debug("width=%d\n",dev->width);
+	pr_debug("height=%d\n",dev->height);
+
+	__tvd_init(dev);
+	__tvd_config(dev);
+	__tvd_clk_init(dev);
+
+	/* comb_3d config */
+	/* tvd select */
+	/* clk init in open */
+
+	return ret;
+}
+
+static int vidioc_reqbufs(struct file *file, void *priv,
+        struct v4l2_requestbuffers *p)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	pr_debug("%s: \n", __func__);
+
+	return vb2_reqbufs(&dev->vb_vidq, p);
+}
+
+static int vidioc_querybuf(struct file *file, void *priv, struct v4l2_buffer *p)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	return vb2_querybuf(&dev->vb_vidq, p);
+}
+
+static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	return vb2_qbuf(&dev->vb_vidq, p);
+}
+
+static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
+{
+	int ret = 0;
+	struct tvd_dev *dev = video_drvdata(file);
+
+	pr_debug("%s: \n", __func__);
+	ret = vb2_dqbuf(&dev->vb_vidq, p, file->f_flags & O_NONBLOCK);
+
+	return ret;
+}
+
+#ifdef CONFIG_VIDEO_V4L1_COMPAT
+static int vidiocgmbuf(struct file *file, void *priv, struct video_mbuf *mbuf)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	return videobuf_cgmbuf(&dev->vb_vidq, mbuf, 8);
+}
+#endif
+
+static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	struct tvd_dmaqueue *dma_q = &dev->vidq;
+	struct tvd_buffer *buf;
+
+	int ret = 0;
+
+	pr_debug("%s: \n", __func__);
+
+	mutex_lock(&dev->stream_lock);
+	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		ret = -EINVAL;
+		goto streamon_unlock;
+	}
+
+	if (tvd_is_generating(dev)) {
+		pr_err("stream has been already on\n");
+		ret = -1;
+		goto streamon_unlock;
+	}
+
+	/* Resets frame counters */
+	dev->ms = 0;
+	dev->jiffies = jiffies;
+
+	dma_q->frame = 0;
+	dma_q->ini_jiffies = jiffies;
+
+	ret = vb2_streamon(&dev->vb_vidq, i);
+	if (ret)
+		goto streamon_unlock;
+
+	buf = list_entry(dma_q->active.next,struct tvd_buffer, list);
+	__tvd_set_addr(dev,buf);
+
+	tvd_irq_status_clear(dev->sel, TVD_IRQ_FRAME_END);
+	tvd_irq_enable(dev->sel, TVD_IRQ_FRAME_END);
+	tvd_capture_on(dev->sel);
+	tvd_start_generating(dev);
+
+streamon_unlock:
+	mutex_unlock(&dev->stream_lock);
+
+	return ret;
+}
+
+static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	struct tvd_dmaqueue *dma_q = &dev->vidq;
+	int ret = 0;
+
+	mutex_lock(&dev->stream_lock);
+
+	pr_debug("%s: \n", __func__);
+	if (!tvd_is_generating(dev)) {
+		pr_err("%s: stream has been already off\n", __func__);
+		ret = 0;
+		goto streamoff_unlock;
+	}
+
+	tvd_stop_generating(dev);
+
+	/* Resets frame counters */
+	dev->ms = 0;
+	dev->jiffies = jiffies;
+
+	dma_q->frame = 0;
+	dma_q->ini_jiffies = jiffies;
+
+  	/* disable hardware */
+	tvd_irq_disable(dev->sel, TVD_IRQ_FRAME_END);
+	tvd_irq_status_clear(dev->sel, TVD_IRQ_FRAME_END);
+	tvd_capture_off(dev->sel);
+
+	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		ret = -EINVAL;
+		goto streamoff_unlock;
+	}
+
+	ret = vb2_streamoff(&dev->vb_vidq, i);
+	if (ret!=0) {
+		pr_err("%s: videobu_streamoff error!\n", __func__);
+		goto streamoff_unlock;
+	}
+
+streamoff_unlock:
+	mutex_unlock(&dev->stream_lock);
+
+	return ret;
+}
+
+static int vidioc_enum_input(struct file *file, void *priv,
+        struct v4l2_input *inp)
+{
+	//struct tvd_dev *dev = video_drvdata(file);//use or not
+
+	if (inp->index > NUM_INPUTS-1) {
+		pr_err("%s: input index invalid!\n", __func__);
+		return -EINVAL;
+	}
+
+	inp->type = V4L2_INPUT_TYPE_CAMERA;
+	return 0;
+}
+
+static int vidioc_g_input(struct file *file, void *priv, unsigned int *i)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	pr_debug("%s: \n", __func__);
+	*i = dev->input;
+	return 0;
+}
+
+static int vidioc_s_input(struct file *file, void *priv, unsigned int i)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	int ret;
+
+	pr_debug("%s: input_num = %d\n", __func__, i);
+	/* only one device */
+	if (i > 0) {
+		pr_err("%s: set input error!\n", __func__);
+		return -EINVAL;
+	}
+	dev->input = i;
+
+	return ret;
+}
+
+static int vidioc_g_parm(struct file *file, void *priv,
+    struct v4l2_streamparm *parms)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	int ret = 0;
+
+	pr_debug("%s\n", __func__);
+	if(parms->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		parms->parm.capture.timeperframe.numerator=dev->fps.numerator;
+		parms->parm.capture.timeperframe.denominator=dev->fps.denominator;
+	}
+
+	return ret;
+}
+
+static int vidioc_s_parm(struct file *file, void *priv,
+    struct v4l2_streamparm *parms)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	int ret = 0;
+
+	if(parms->parm.capture.capturemode != V4L2_MODE_VIDEO && \
+				parms->parm.capture.capturemode != V4L2_MODE_IMAGE && \
+				parms->parm.capture.capturemode != V4L2_MODE_PREVIEW)
+	{
+		parms->parm.capture.capturemode = V4L2_MODE_PREVIEW;
+	}
+
+	dev->capture_mode = parms->parm.capture.capturemode;
+
+	return ret;
+}
+
+static ssize_t tvd_read(struct file *file, char __user *data, size_t count, loff_t *ppos)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+
+	if(tvd_is_generating(dev)) {
+		return vb2_read(&dev->vb_vidq, data, count, ppos,
+					file->f_flags & O_NONBLOCK);
+	} else {
+		pr_err("%s: tvd is not generating!\n", __func__);
+		return -EINVAL;
+	}
+}
+
+static unsigned int tvd_poll(struct file *file, struct poll_table_struct *wait)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	struct vb2_queue *q = &dev->vb_vidq;
+
+	if(tvd_is_generating(dev)) {
+		return vb2_poll(q, file, wait);
+	} else {
+		pr_err("%s: tvd is not generating!\n", __func__);
+		return -EINVAL;
+	}
+}
+
+//static void tvd_suspend_trip(struct tvd_dev *dev);
+//static void tvd_resume_trip(struct tvd_dev *dev);
+
+static int tvd_open(struct file *file)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	int ret = -1;
+
+	pr_debug("%s: \n", __func__);
+	if (tvd_is_opened(dev)) {
+		pr_err("%s: device open busy\n", __func__);
+		return -EBUSY;
+	}
+
+	if (__tvd_clk_init(dev)) {
+		pr_err("%s: clock init fail!\n", __func__);
+	}
+	ret = __tvd_clk_enable(dev);
+	__tvd_init(dev);
+	//tvd_resume_trip(dev);
+	dev->input = 0;	/* default input null */
+	tvd_start_opened(dev);
+
+	return ret;
+}
+
+static int tvd_close(struct file *file)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	int ret = 0;
+
+	pr_debug("tvd_close\n");
+
+	tvd_stop_generating(dev);
+	__tvd_clk_disable(dev);
+
+	vb2_queue_release(&dev->vb_vidq);
+	tvd_stop_opened(dev);
+
+	//tvd_suspend_trip(dev);
+	pr_debug("tvd_close end\n");
+
+	return ret;
+}
+
+/*
+static int __get_tvd_status(struct tvd_dev *dev)
+{
+	int ret = 0;
+
+	if (!tvd_is_generating(dev)) {
+		pr_err("stream has been already off\n");
+		return -EBUSY;
+	} else {
+			ret = tvd_get_status(dev->sel, &dev->locked, &dev->system);
+			pr_debug("%s: locked %d, system %d\n", __func__,
+					 dev->locked, dev->system);
+			return ret;
+	}
+
+	return ret;
+}
+*/
+
+static int tvd_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct tvd_dev *dev = video_drvdata(file);
+	int ret;
+	pr_debug("%s: mmap called, vma=0x%08lx\n", __func__, (unsigned long)vma);
+	ret = vb2_mmap(&dev->vb_vidq, vma);
+	pr_debug("%s: vma start=0x%08lx, size=%ld, ret=%d\n",
+			__func__,
+			(unsigned long)vma->vm_start,
+			(unsigned long)vma->vm_end - (unsigned long)vma->vm_start,
+			ret);
+
+	return ret;
+}
+
+static int tvd_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{
+	int ret = 0;
+	struct tvd_dev *dev = container_of(ctrl->handler, struct tvd_dev, ctrl_handler);
+	struct v4l2_control c;
+
+	memset((void*)&c, 0, sizeof(struct v4l2_control));
+	c.id = ctrl->id;
+	switch (c.id) {
+	case V4L2_CID_BRIGHTNESS:
+		c.value = tvd_get_luma(dev->sel);
+		break;
+	case V4L2_CID_CONTRAST:
+		c.value = tvd_get_contrast(dev->sel);
+		break;
+	case V4L2_CID_SATURATION:
+		c.value = tvd_get_saturation(dev->sel);
+		break;
+	}
+	ctrl->val = c.value;
+
+	return ret;
+}
+
+static int tvd_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct tvd_dev *dev = container_of(ctrl->handler, struct tvd_dev, ctrl_handler);
+	int ret = 0;
+	struct v4l2_control c;
+
+	pr_debug("%s: %s set value: 0x%x\n", __func__, ctrl->name, ctrl->val);
+	c.id = ctrl->id;
+	c.value = ctrl->val;
+
+	switch (ctrl->id) {
+	case V4L2_CID_BRIGHTNESS:
+		pr_debug("%s: V4L2_CID_BRIGHTNESS sel=%d, val=%d,\n",__func__, dev->sel, ctrl->val);
+		tvd_set_luma(dev->sel, ctrl->val);
+		break;
+	case V4L2_CID_CONTRAST:
+		pr_debug("%s: V4L2_CID_CONTRAST sel=%d, val=%d,\n",__func__, dev->sel, ctrl->val);
+		tvd_set_contrast(dev->sel, ctrl->val);
+		break;
+	case V4L2_CID_SATURATION:
+		pr_debug("%s: V4L2_CID_SATURATION sel=%d, val=%d,\n",__func__, dev->sel, ctrl->val);
+		tvd_set_saturation(dev->sel, ctrl->val);
+		break;
+	}
+
+	return ret;
+}
+
+/* ------------------------------------------------------------------
+	File operations for the device
+   ------------------------------------------------------------------*/
+
+static const struct v4l2_ctrl_ops tvd_ctrl_ops = {
+	.g_volatile_ctrl = tvd_g_volatile_ctrl,
+	.s_ctrl = tvd_s_ctrl,
+};
+
+static const struct v4l2_file_operations tvd_fops = {
+	.owner          = THIS_MODULE,
+	.open           = tvd_open,
+	.release        = tvd_close,
+	.read           = tvd_read,
+	.poll           = tvd_poll,
+	.ioctl          = video_ioctl2,
+
+#ifdef CONFIG_COMPAT
+	//.compat_ioctl32 = tvd_compat_ioctl32,
+#endif
+	.mmap           = tvd_mmap,
+};
+
+static const struct v4l2_ioctl_ops tvd_ioctl_ops = {
+	.vidioc_querycap          = vidioc_querycap,
+	.vidioc_enum_fmt_vid_cap  = vidioc_enum_fmt_vid_cap,
+	//.vidioc_enum_framesizes   = vidioc_enum_framesizes,
+	.vidioc_g_fmt_vid_cap     = vidioc_g_fmt_vid_cap,
+	.vidioc_try_fmt_vid_cap   = vidioc_try_fmt_vid_cap,
+	.vidioc_s_fmt_vid_cap     = vidioc_s_fmt_vid_cap,
+	.vidioc_reqbufs           = vidioc_reqbufs,
+	.vidioc_querybuf          = vidioc_querybuf,
+	.vidioc_qbuf              = vidioc_qbuf,
+	.vidioc_dqbuf             = vidioc_dqbuf,
+	.vidioc_enum_input        = vidioc_enum_input,
+	.vidioc_g_input           = vidioc_g_input,
+	.vidioc_s_input           = vidioc_s_input,
+	.vidioc_streamon          = vidioc_streamon,
+	.vidioc_streamoff         = vidioc_streamoff,
+	.vidioc_g_parm            = vidioc_g_parm,
+	.vidioc_s_parm            = vidioc_s_parm,
+#ifdef CONFIG_VIDEO_V4L1_COMPAT
+	.vidiocgmbuf              = vidiocgmbuf,
+#endif
+	//.vidioc_default		 = tvd_param_handler,
+};
+
+static struct video_device tvd_template[] = {
+	[0] = {
+		.name       = "tvd_0",
+		.fops       = &tvd_fops,
+		.ioctl_ops  = &tvd_ioctl_ops,
+		.release    = video_device_release,
+	},
+    [1] = {
+        .name       = "tvd_1",
+        .fops       = &tvd_fops,
+        .ioctl_ops  = &tvd_ioctl_ops,
+        .release    = video_device_release,
+    },
+    [2] = {
+        .name       = "tvd_2",
+        .fops       = &tvd_fops,
+        .ioctl_ops  = &tvd_ioctl_ops,
+        .release    = video_device_release,
+    },
+    [3] = {
+        .name       = "tvd_3",
+        .fops       = &tvd_fops,
+        .ioctl_ops  = &tvd_ioctl_ops,
+        .release    = video_device_release,
+    },
+};
+
+static int __tvd_init_controls(struct v4l2_ctrl_handler *hdl)
+{
+
+	unsigned int ret = 0;
+
+	v4l2_ctrl_handler_init(hdl, 4);
+	v4l2_ctrl_new_std(hdl, &tvd_ctrl_ops, V4L2_CID_BRIGHTNESS, 0, 255, 1, 128);
+	v4l2_ctrl_new_std(hdl, &tvd_ctrl_ops, V4L2_CID_CONTRAST, 0, 128, 1, 0);
+	v4l2_ctrl_new_std(hdl, &tvd_ctrl_ops, V4L2_CID_SATURATION, -4, 4, 1, 0);
+
+	if (hdl->error) {
+		pr_err("%s: hdl init err!\n", __func__);
+		ret = hdl->error;
+        v4l2_ctrl_handler_free(hdl);
+	}
+	return ret;
+}
+
+static int __tvd_fetch_sysconfig(int sel, char *sub_name, int value[])
+{
+	char compat[32];
+	u32 len = 0;
+	struct device_node *node;
+	int ret = 0;
+
+	len = sprintf(compat, "allwinner,sunxi-tvd%d", sel);
+	if (len > 32)
+		pr_err("size of mian_name is out of range\n");
+
+	node = of_find_compatible_node(NULL, NULL, compat);
+	if (!node) {
+		pr_err("of_find_compatible_node %s fail\n", compat);
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32_array(node, sub_name, value, 1)) {
+		pr_err("of_property_read_u32_array %s.%s fail\n", compat, sub_name);
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static int __jude_config(struct tvd_dev *dev)
+{
+	int ret = 0;
+	int id = dev->id;
+
+	if (id > 3 || id < 0) {
+		pr_err("%s: id is wrong!\n", __func__);
+		return -ENODEV;
+	}
+
+	/* first set sel as id */
+	dev->sel = id;
+	pr_debug("%s: sel = %d.\n", __func__, dev->sel);
+
+	ret = __tvd_fetch_sysconfig(id, (char *)"tvd_used", &tvd_status[id].tvd_used);
+	if (ret) {
+		pr_err("%s: fetch tvd_used%d err!", __func__, id);
+		return -EINVAL;
+	}
+	if (!tvd_status[id].tvd_used) {
+		pr_debug("%s: tvd_status[%d].used is null.\n", __func__, id);
+		return -ENODEV;
+	}
+
+	ret = __tvd_fetch_sysconfig(id, (char *)"tvd_if", &tvd_status[id].tvd_if);
+	if (ret) {
+		pr_err("%s: fetch tvd_if%d err!", __func__, id);
+		return -EINVAL;
+	}
+
+	if (id > 0) {
+		if (tvd_status[0].tvd_used && tvd_status[0].tvd_if > 0 ) {
+		/* when tvd0 used and was configed as ypbpr,can not use tvd1,2 */
+			if (id == 1 || id == 2) {
+				return -ENODEV;
+			} else if (id == 3) {
+				/* reset id as 1, for video4 ypbpr,video5 cvbs*/
+				dev->id = 1;
+				return 0;
+			}
+		} else {
+			return 0;
+		}
+	}
+
+	return 0;
+
+}
+
+static int tvd_irq;
+static void __iomem  *tvd_top;
+struct clk* tvd_clk_top;
+
+static int __tvd_probe_init(int sel, struct platform_device *pdev)
+{
+	struct device_node *np = pdev->dev.of_node;
+	struct tvd_dev *dev;
+	int ret = 0;
+	struct video_device *vfd;
+	struct vb2_queue *q;
+
+	pr_debug("%s: \n", __func__);
+
+	/*request mem for dev*/
+	dev = kzalloc(sizeof(struct tvd_dev), GFP_KERNEL);
+	if (!dev) {
+		pr_err("request dev mem failed!\n");
+		return  -ENOMEM;
+	}
+
+	pdev->id = sel;
+	if (pdev->id < 0) {
+		pr_err("TVD failed to get alias id\n");
+		ret = -EINVAL;
+		goto freedev;
+	}
+
+	dev->id = pdev->id;
+	dev->sel = sel;
+	dev->pdev = pdev;
+	dev->generating = 0;
+	dev->opened = 0;
+
+	/* just for debug on fpga */
+	tvd[pdev->id] = dev;
+	pr_info("pdev->id = %d\n",pdev->id);
+
+	spin_lock_init(&dev->slock);
+
+	/* fetch sysconfig,and judge support */
+	ret = __jude_config(dev);
+	if (ret) {
+		pr_err("%s:tvd%d is not used by sysconfig.\n", __func__, dev->id);
+		ret = -EINVAL;
+		goto freedev;
+	}
+
+	dev->irq = irq_of_parse_and_map(np, 0);
+	if (tvd_irq <= 0) {
+		pr_err("failed to get IRQ resource\n");
+		ret = -ENXIO;
+		goto iomap_tvd_err;
+	}
+
+	dev->regs_tvd = of_iomap(pdev->dev.of_node, 0);
+	if (IS_ERR_OR_NULL(dev->regs_tvd)) {
+		dev_err(&pdev->dev, "unable to tvd registers\n");
+		ret = -EINVAL;
+		goto iomap_top_err;
+	}
+	dev->regs_top = tvd_top;
+	dev->clk_top = tvd_clk_top;
+
+	/* register irq */
+	ret = request_irq(dev->irq, tvd_isr, IRQF_DISABLED, pdev->name, dev);
+
+	/* get tvd clk ,name fix */
+	dev->clk = of_clk_get(np, 0);//fix
+	if (IS_ERR_OR_NULL(dev->clk)) {
+		pr_err("get tvd clk error!\n");
+		goto iomap_tvd_err;
+	}
+
+	/* register v4l2 device */
+	sprintf(dev->v4l2_dev.name, "tvd_v4l2_dev%d", dev->id);
+	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
+	if (ret) {
+		pr_err("Error registering v4l2 device\n");
+		goto iomap_tvd_err;
+	}
+
+	ret = __tvd_init_controls(&dev->ctrl_handler);
+	if (ret) {
+		pr_err("Error v4l2 ctrls new!!\n");
+		goto v4l2_register_err;
+	}
+	dev->v4l2_dev.ctrl_handler = &dev->ctrl_handler;
+
+	dev_set_drvdata(&dev->pdev->dev, dev);
+	pr_info("%s: v4l2 subdev register.\n", __func__);
+
+#ifdef CONFIG_PM_RUNTIME
+	pm_runtime_enable(&dev->pdev->dev);
+#endif
+
+	//tvd_resume_trip(dev);
+
+	vfd = video_device_alloc();
+	if (!vfd) {
+		pr_err("%s: Error video_device_alloc!\n", __func__);
+		goto v4l2_register_err;
+	}
+	*vfd = tvd_template[dev->id];
+	vfd->v4l2_dev = &dev->v4l2_dev;
+
+	ret = video_register_device(vfd, VFL_TYPE_GRABBER, dev->id + 4);
+	if (ret < 0) {
+		pr_err("Error video_register_device!!\n");
+		goto video_device_alloc_err;
+	}
+
+	video_set_drvdata(vfd, dev);
+
+	list_add_tail(&dev->devlist, &devlist); //use this for what?
+
+	dev->vfd = vfd;
+	pr_info("V4L2 tvd device registered as %s\n",video_device_node_name(vfd));
+
+	/* Initialize videobuf2 queue as per the buffer type */
+	dev->alloc_ctx = vb2_dma_contig_init_ctx(&dev->pdev->dev);
+	if (IS_ERR(dev->alloc_ctx)) {
+		pr_err("Failed to get the context\n");
+		goto video_device_register_err;
+	}
+
+	/* initialize queue */
+	q = &dev->vb_vidq;
+	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
+	q->drv_priv = dev;
+	q->buf_struct_size = sizeof(struct tvd_buffer);
+	q->ops = &tvd_video_qops;
+	q->mem_ops = &vb2_dma_contig_memops;
+	q->timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+	ret = vb2_queue_init(q);
+	if (ret) {
+		pr_err("vb2_queue_init failed\n");
+		vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
+		goto video_device_register_err;
+	}
+
+	INIT_LIST_HEAD(&dev->vidq.active);
+	ret = sysfs_create_group(&dev->pdev->dev.kobj, &tvd_attribute_group[dev->id]);
+	if (ret) {
+		pr_err("sysfs_create failed\n");
+		goto vb2_queue_err;
+	}
+
+	mutex_init(&dev->stream_lock);
+	mutex_init(&dev->opened_lock);
+	mutex_init(&dev->buf_lock);
+
+	//tvd_suspend_trip(dev);
+
+	return 0;
+
+vb2_queue_err:
+	vb2_queue_release(q);
+
+video_device_register_err:
+	v4l2_device_unregister(&dev->v4l2_dev);
+
+video_device_alloc_err:
+	video_device_release(vfd);
+
+v4l2_register_err:
+	v4l2_device_unregister(&dev->v4l2_dev);
+
+iomap_tvd_err:
+	iounmap((char __iomem *)dev->regs_tvd);
+
+iomap_top_err:
+	iounmap((char __iomem *)dev->regs_top);
+
+freedev:
+	kfree(dev);
+
+	return ret;
+}
+
+static int tvd_probe(struct platform_device *pdev)
+{
+	int ret = 0, i = 0;
+	unsigned int tvd_num = 0;
+	struct device_node *sub_tvd = NULL;
+	struct platform_device *sub_pdev = NULL;
+    struct device_node *np = pdev->dev.of_node;
+
+	tvd_top = of_iomap(pdev->dev.of_node, 0);
+	if (IS_ERR_OR_NULL(tvd_top)) {
+		dev_err(&pdev->dev, "unable to map tvd top registers\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	tvd_clk_top = of_clk_get(np, 0);
+	if (IS_ERR_OR_NULL(tvd_clk_top)) {
+		pr_err("get tvd clk error!\n");
+		goto iomap_tvd_err;
+	}
+
+	if (of_property_read_u32(pdev->dev.of_node, "tvd-number", &tvd_num) < 0) {
+		dev_err(&pdev->dev, "unable to get tvd-number, force to one!\n");
+		tvd_num = 1;
+	}
+
+	for (i = 0; i < tvd_num; i++) {
+		sub_tvd = of_parse_phandle(pdev->dev.of_node, "tvds", i);
+		sub_pdev = of_find_device_by_node(sub_tvd);
+		if (!sub_pdev) {
+			dev_err(&pdev->dev, "fail to find device for tvd%d!\n", i);
+			continue;
+		}
+		if (sub_pdev) {
+			ret = __tvd_probe_init(i, sub_pdev);
+			if(ret!=0) {
+				/* one tvd may init fail because of the sysconfig */
+				pr_debug("tvd%d init is failed\n", i);
+				ret = 0;
+			}
+		}
+	}
+
+iomap_tvd_err:
+
+	iounmap((char __iomem *)tvd_top);
+
+out:
+	return ret;
+}
+
+static int tvd_release(void)/*fix*/
+{
+	struct tvd_dev *dev;
+	struct list_head *list;
+
+	pr_debug("%s: \n", __func__);
+	while (!list_empty(&devlist)) {
+		list = devlist.next;
+		list_del(list);
+		dev = list_entry(list, struct tvd_dev, devlist);
+		kfree(dev);
+	}
+	pr_debug("tvd_release ok!\n");
+
+	return 0;
+}
+
+static int tvd_remove(struct platform_device *pdev)
+{
+	struct tvd_dev *dev=(struct tvd_dev *)dev_get_drvdata(&(pdev)->dev);
+
+	free_irq(dev->irq, dev);//
+	__tvd_clk_disable(dev);
+	iounmap(dev->regs_top);
+	iounmap(dev->regs_tvd);
+	mutex_destroy(&dev->stream_lock);
+	mutex_destroy(&dev->opened_lock);
+	mutex_destroy(&dev->buf_lock);
+	sysfs_remove_group(&dev->pdev->dev.kobj, &tvd_attribute_group[dev->id]);
+
+#ifdef CONFIG_PM_RUNTIME
+	pm_runtime_disable(&dev->pdev->dev);
+#endif
+
+	video_unregister_device(dev->vfd);
+	v4l2_device_unregister(&dev->v4l2_dev);
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
+	vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
+
+	return 0;
+}
+
+/*
+static void tvd_suspend_helper(struct tvd_dev *dev)
+{
+	__tvd_clk_disable(dev);
+}
+static void tvd_resume_helper(struct tvd_dev *dev)
+{
+	__tvd_clk_enable(dev);
+}
+
+static void tvd_suspend_trip(struct tvd_dev *dev)
+{
+#ifdef CONFIG_PM_RUNTIME
+	pm_runtime_put_sync(&dev->pdev->dev);//call pm_runtime suspend
+#else
+	tvd_suspend_helper(dev);
+#endif
+}
+static void tvd_resume_trip(struct tvd_dev *dev)
+{
+#ifdef CONFIG_PM_RUNTIME
+	pm_runtime_get_sync(&dev->pdev->dev);//call pm_runtime resume
+#else
+	tvd_resume_helper(dev);
+#endif
+}
+*/
+
+#ifdef CONFIG_PM_RUNTIME
+static int tvd_runtime_suspend(struct device *d)
+{
+	struct tvd_dev *dev = (struct tvd_dev *)dev_get_drvdata(d);
+
+	pr_debug("%s: \n", __func__);
+	tvd_suspend_helper(dev);
+
+	return 0;
+}
+
+static int tvd_runtime_resume(struct device *d)
+{
+	struct tvd_dev *dev = (struct tvd_dev *)dev_get_drvdata(d);
+
+	pr_debug("%s: \n", __func__);
+	tvd_resume_helper(dev);
+
+	return 0;
+}
+
+static int tvd_runtime_idle(struct device *d)
+{
+	if(d) {
+		pm_runtime_mark_last_busy(d);
+		pm_request_autosuspend(d);
+	} else {
+		pr_err("%s, tvd device is null\n", __func__);
+	}
+
+	return 0;
+}
+#endif
+
+static int tvd_suspend(struct device *d)
+{
+	struct tvd_dev *dev = (struct tvd_dev *)dev_get_drvdata(d);
+
+	pr_debug("%s: \n", __func__);
+	if(tvd_is_opened(dev)) {
+		pr_err("FIXME: dev %s, err happened when calling %s.", dev_name(&dev->pdev->dev), __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int tvd_resume(struct device *d)
+{
+	pr_debug("%s: \n", __func__);
+
+	return 0;
+}
+
+static void tvd_shutdown(struct platform_device *pdev)
+{
+
+}
+
+static const struct dev_pm_ops tvd_runtime_pm_ops =
+{
+#ifdef CONFIG_PM_RUNTIME
+	.runtime_suspend	= tvd_runtime_suspend,
+	.runtime_resume 	= tvd_runtime_resume,
+	.runtime_idle		= tvd_runtime_idle,
+#endif
+	.suspend    	= tvd_suspend,
+	.resume     	= tvd_resume,
+};
+
+static const struct of_device_id sunxi_tvd_match[] = {
+	{ .compatible = "allwinner,sunxi-tvd", },
+	{},
+};
+
+static struct platform_driver tvd_driver = {
+	.probe    = tvd_probe,
+	.remove   = tvd_remove,
+	.shutdown = tvd_shutdown,
+	.driver = {
+		.name   = TVD_MODULE_NAME,
+		.owner  = THIS_MODULE,
+        .of_match_table = sunxi_tvd_match,
+        .pm     = &tvd_runtime_pm_ops,
+	}
+};
+
+static int __init tvd_module_init(void)
+{
+	int ret;
+
+	pr_info("Welcome to tv decoder driver\n");
+
+	/*add sysconfig judge,if no use,return.*/
+	ret = platform_driver_register(&tvd_driver);
+	if (ret) {
+		pr_err("platform driver register failed\n");
+		return ret;
+	}
+	pr_info("tvd_init end\n");
+
+	return 0;
+}
+
+static void __exit tvd_module_exit(void)
+{
+	pr_info("tvd_exit\n");
+
+	tvd_release();
+	platform_driver_unregister(&tvd_driver);
+}
+
+module_init(tvd_module_init);
+module_exit(tvd_module_exit);
+
+MODULE_AUTHOR("zengqi");
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_DESCRIPTION("tvd driver for sunxi");

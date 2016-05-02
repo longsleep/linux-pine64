@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 #define   MAX_PATH               260
+#define   DICT_STORAGE_SIZE      256       /* the limit of string length of each line in sys_config */
 #define   ITEM_MAIN_NAME_MAX      32
 #define   DATA_COUNT_MAX         (4)
 #define   DATA_TYPE_SINGLE_WORD_HEX  (1)

@@ -555,6 +555,7 @@ CONFIG_OF_DEVICE=y
 #
 # Altera FPGA firmware download module
 #
+# CONFIG_SUNXI_CLK_PREPARE is not set
 
 #
 # SCSI device support
@@ -611,6 +612,7 @@ CONFIG_SERIO_LIBPS2=y
 # CONFIG_SERIO_PS2MULT is not set
 # CONFIG_SERIO_ARC_PS2 is not set
 # CONFIG_SERIO_APBPS2 is not set
+# CONFIG_SERIO_SUN4I_PS2 is not set
 # CONFIG_GAMEPORT is not set
 
 #
@@ -628,8 +630,8 @@ CONFIG_LEGACY_PTYS=y
 CONFIG_LEGACY_PTY_COUNT=16
 # CONFIG_SERIAL_NONSTANDARD is not set
 # CONFIG_TRACE_SINK is not set
-CONFIG_DEVMEM=y
-CONFIG_DEVKMEM=y
+# CONFIG_DEVMEM is not set
+# CONFIG_DEVKMEM is not set
 
 #
 # Serial drivers
@@ -665,6 +667,7 @@ CONFIG_DUMP_REG_MISC=y
 # CONFIG_SUNXI_TRANSFORM is not set
 CONFIG_SUNXI_SYS_INFO=y
 CONFIG_SUNXI_TIMER_TEST=m
+# CONFIG_SUNXI_G2D is not set
 # CONFIG_I2C is not set
 # CONFIG_SPI is not set
 
@@ -851,6 +854,7 @@ CONFIG_COMMON_CLK=y
 #
 # Common Clock Framework
 #
+# CONFIG_COMMON_CLK_ENABLE_SYNCBOOT is not set
 # CONFIG_COMMON_CLK_DEBUG is not set
 
 #

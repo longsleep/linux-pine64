@@ -1161,6 +1161,9 @@ static struct page *__rmqueue_cma(struct zone *zone, unsigned int order)
 {
 	struct page *page;
 
+	if (zone->nr_try_movable > 0)
+		goto alloc_movable;
+
 	if (zone->nr_try_cma > 0) {
 		/* Okay. Now, we can try to allocate the page from cma region */
 		zone->nr_try_cma -= 1 << order;
@@ -1172,8 +1175,6 @@ static struct page *__rmqueue_cma(struct zone *zone, unsigned int order)
 
 		return page;
 	}
-	if (zone->nr_try_movable > 0)
-		goto alloc_movable;
 
 	/* Reset counter */
 	zone->nr_try_movable = zone->max_try_movable;
@@ -2064,6 +2065,10 @@ zonelist_scan:
 		}
 
 try_this_zone:
+#ifdef CONFIG_CMA
+		if (unlikely(gfp_mask & ___GFP_WRITE))
+			migratetype = MIGRATE_RECLAIMABLE;
+#endif
 		page = buffered_rmqueue(preferred_zone, zone, order,
 						gfp_mask, migratetype);
 		if (page)

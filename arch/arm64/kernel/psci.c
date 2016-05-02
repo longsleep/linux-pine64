@@ -443,7 +443,7 @@ static int cpu_psci_cpu_disable(unsigned int cpu)
 	if (!psci_ops.cpu_off)
 		return -EOPNOTSUPP;
 
-	return 0;
+	return cpu == 0 ? -EPERM : 0;
 }
 
 static void cpu_psci_cpu_die(unsigned int cpu)

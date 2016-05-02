@@ -199,12 +199,40 @@ static s32 axp81x_regu_dependence(const char *ldo_name)
 	return axp81x_dependence;
 }
 
+static s32 axp20_regu_dependence(const char *ldo_name)
+{
+	s32 axp20_dependence = 0;
+
+	if (strcmp("axp20_dcdc2", ldo_name) == 0) {
+		axp20_dependence |= AXP209_DCDC2;
+	} else if (strcmp("axp20_dcdc3", ldo_name) == 0) {
+		axp20_dependence |= AXP209_DCDC3;
+	} else if (strcmp("axp20_ldo1", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO1;
+	}else if (strcmp("axp20_ldo2", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO2;
+	}else if (strcmp("axp20_ldo3", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO3;
+	}else if (strcmp("axp20_ldo4", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO4;
+	}else if (strcmp("axp20_ldoio0", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDOIO0;
+	}else {
+		return -1;
+	}
+
+	axp20_dependence |= (0 << 30);
+	return axp20_dependence;
+}
+
 s32 get_ldo_dependence(const char *ldo_name, s32 count)
 {
 	s32 ret = -1;
 
 	if((strncmp("axp81x", ldo_name, 6) == 0)){
 		ret = axp81x_regu_dependence(ldo_name);
+	} else if ((strncmp("axp20", ldo_name, 5) == 0)) {
+		ret = axp20_regu_dependence(ldo_name);
 	} else {
 		return 0;
 	}

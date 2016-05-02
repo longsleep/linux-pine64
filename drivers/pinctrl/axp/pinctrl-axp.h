@@ -16,11 +16,6 @@
 #include <linux/kernel.h>
 #include <linux/pinctrl/pinconf-sunxi.h>
 
-#define AXP_PINCTRL_GPIO0	PINCTRL_PIN(0, "GPIO0")     /* axp8xx GPIO0 */
-#define AXP_PINCTRL_GPIO1	PINCTRL_PIN(1, "GPIO1")     /* axp8xx GPIO1 */
-#define AXP_PINCTRL_GPIO2	PINCTRL_PIN(2, "GPIO2")     /* axp8xx CHGLED : power supply for moto OUTPUT  */
-#define AXP_PINCTRL_GPIO3	PINCTRL_PIN(3, "GPIO3")     /* axp8xx N_VBUSEN : OUTPUT */
-
 /*
  * GPIO Registers.
  */
@@ -32,12 +27,31 @@
 * GPIO3<-->N_VBUSEN(PIN 11)
 */
 #if defined (CONFIG_AW_AXP81X)
+#define AXP_PINCTRL_GPIO0               PINCTRL_PIN(0, "GPIO0")     /* axp8xx GPIO0 */
+#define AXP_PINCTRL_GPIO1               PINCTRL_PIN(1, "GPIO1")     /* axp8xx GPIO1 */
+#define AXP_PINCTRL_GPIO2               PINCTRL_PIN(2, "GPIO2")     /* axp8xx CHGLED : power supply for moto OUTPUT  */
+#define AXP_PINCTRL_GPIO3               PINCTRL_PIN(3, "GPIO3")     /* axp8xx N_VBUSEN : OUTPUT */
+
 #define AXP_GPIO0_CFG                   (AXP81X_GPIO0_CTL)//0x90
 #define AXP_GPIO1_CFG                   (AXP81X_GPIO1_CTL)//0x92
 #define AXP_GPIO2_CFG                   (AXP81X_LDO_DC_EN2)//0x12
 #define AXP_GPIO3_CFG                   (AXP81X_HOTOVER_CTL)//0x8f
 #define AXP_GPIO3_STA                   (AXP81X_IPS_SET)//0x30
 #define AXP_GPIO01_STATE                (AXP81X_GPIO01_SIGNAL)
+
+#elif defined(CONFIG_AW_AXP20)
+#define AXP_PINCTRL_GPIO0               PINCTRL_PIN(0, "GPIO0")     /* axp20x GPIO0 */
+#define AXP_PINCTRL_GPIO1               PINCTRL_PIN(1, "GPIO1")     /* axp20x GPIO1 */
+#define AXP_PINCTRL_GPIO2               PINCTRL_PIN(2, "GPIO2")     /* axp20x GPIO2 */
+#define AXP_PINCTRL_GPIO3               PINCTRL_PIN(3, "GPIO3")     /* axp20x GPIO3 */
+#define AXP_PINCTRL_GPIO4               PINCTRL_PIN(4, "GPIO4")     /* axp20x CHGLED */
+
+#define AXP20_GPIO0_CFG                 (POWER20_GPIO0_CTL)
+#define AXP20_GPIO1_CFG                 (POWER20_GPIO1_CTL)
+#define AXP20_GPIO2_CFG                 (POWER20_GPIO2_CTL)
+#define AXP20_GPIO3_CFG                 (POWER20_GPIO3_CTL)
+#define AXP20_GPIO4_CFG                 (POWER20_OFF_CTL)
+#define AXP20_GPIO012_STATE             (POWER20_GPIO012_SIGNAL)
 #endif
 
 #ifndef AXP_GPIO0_CFG

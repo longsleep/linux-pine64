@@ -100,7 +100,7 @@ static s32 axp_i2c_probe(struct i2c_client *client,
 
 	if (axp81x_config.pmu_used) {
 		battery_data.voltage_max_design = axp81x_config.pmu_init_chgvol;
-		battery_data.voltage_min_design = axp81x_config.pmu_pwroff_vol;
+		battery_data.voltage_min_design = axp81x_config.pmu_pwroff_vol * 1000;
 		battery_data.energy_full_design = axp81x_config.pmu_battery_cap;
 		axp_sply_init_data.chgcur = axp81x_config.pmu_runtime_chgcur;
 		axp_sply_init_data.chgvol = axp81x_config.pmu_init_chgvol;
@@ -165,7 +165,7 @@ static s32  axp81x_platform_probe(struct platform_device *pdev)
 
 	if (axp81x_config.pmu_used) {
 		battery_data.voltage_max_design = axp81x_config.pmu_init_chgvol;
-		battery_data.voltage_min_design = axp81x_config.pmu_pwroff_vol;
+		battery_data.voltage_min_design = axp81x_config.pmu_pwroff_vol * 1000;
 		battery_data.energy_full_design = axp81x_config.pmu_battery_cap;
 		axp_sply_init_data.chgcur = axp81x_config.pmu_runtime_chgcur;
 		axp_sply_init_data.chgvol = axp81x_config.pmu_init_chgvol;

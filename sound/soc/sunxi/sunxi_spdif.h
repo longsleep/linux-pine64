@@ -1,8 +1,8 @@
 /*
  * sound\soc\sunxi\spdif\sunxi_spdif.h
  * (C) Copyright 2010-2016
- * Reuuimlla Technology Co., Ltd. <www.reuuimllatech.com>
- * chenpailin <chenpailin@Reuuimllatech.com>
+ * AllWinner Technology Co., Ltd. <www.allwinnertech.com>
+ * wolfgang huang <huangjinhui@allwinnertech.com>
  *
  * some simple description for this code
  *
@@ -13,178 +13,176 @@
  *
  */
 
-#ifndef SUNXI_SPDIF_H_
-#define SUNXI_SPDIF_H_
-#include "sunxi_dma.h"
+#ifndef	__SUNXI_SPDIF_H_
+#define	__SUNXI_SPDIF_H_
 
-/*------------------SPDIF register definition--------------------*/
-
-#define	SUNXI_SPDIF_CTL	(0x00)
-#ifdef CONFIG_ARCH_SUN8IW1
-	#define SUNXI_SPDIF_CTL_MCLKOUTEN				(1<<2)
-#endif
-#if defined (CONFIG_ARCH_SUN8IW1) || defined(CONFIG_ARCH_SUN8IW7) || defined(CONFIG_ARCH_SUN50I)\
-	|| defined(CONFIG_ARCH_SUN8IW11)
-	#define SUNXI_SPDIF_CTL_MCLKDIV(v)				((v)<<4)		//v even
-#endif
-#ifdef CONFIG_ARCH_SUN8IW10
-	#define SUNXI_SPDIF_CTL_LOOP					(1<<2)
-#endif
-	#define SUNXI_SPDIF_CTL_GEN					(1<<1)
-	#define SUNXI_SPDIF_CTL_RESET					(1<<0)
-
-#define SUNXI_SPDIF_TXCFG (0x04)
-	#define SUNXI_SPDIF_TXCFG_SINGLEMOD				(1<<31)
-	#define SUNXI_SPDIF_TXCFG_ASS					(1<<17)
-	#define SUNXI_SPDIF_TXCFG_NONAUDIO				(1<<16)
-	#define SUNXI_SPDIF_TXCFG_TXRATIO(v)				((v)<<4)
-	#define SUNXI_SPDIF_TXCFG_FMTRVD				(3<<2)
-	#define SUNXI_SPDIF_TXCFG_FMT16BIT				(0<<2)
-	#define SUNXI_SPDIF_TXCFG_FMT20BIT				(1<<2)
-	#define SUNXI_SPDIF_TXCFG_FMT24BIT				(2<<2)
-	#define SUNXI_SPDIF_TXCFG_CHSTMODE				(1<<1)
-	#define SUNXI_SPDIF_TXCFG_TXEN					(1<<0)
-
-#define SUNXI_SPDIF_RXCFG (0x08)
-	#define SUNXI_SPDIF_RXCFG_LOCKFLAG				(1<<4)
-	#define SUNXI_SPDIF_RXCFG_CHSTSRC				(1<<3)
-	#define SUNXI_SPDIF_RXCFG_CHSTCP				(1<<1)
-	#define SUNXI_SPDIF_RXCFG_RXEN					(1<<0)
-#if defined(CONFIG_ARCH_SUN9IW1) \
-|| defined(CONFIG_ARCH_SUN8IW6) || defined(CONFIG_ARCH_SUN8IW7) || defined(CONFIG_ARCH_SUN50I) \
-|| defined(CONFIG_ARCH_SUN8IW10) || defined(CONFIG_ARCH_SUN8IW11)
+/* SPDIF register definition */
+#define	SUNXI_SPDIF_CTL		0x00
+#define	SUNXI_SPDIF_TXCFG	0x04
+#define	SUNXI_SPDIF_RXCFG	0x08
+#if	defined(CONFIG_ARCH_SUN9IW1) || \
+	defined(CONFIG_ARCH_SUN8IW6) || \
+	defined(CONFIG_ARCH_SUN8IW7) || \
+	defined(CONFIG_ARCH_SUN50I) || \
+	defined(CONFIG_ARCH_SUN8IW10) || \
+	defined(CONFIG_ARCH_SUN8IW11)
 #define SUNXI_SPDIF_TXFIFO (0x20)
 #else
 #define SUNXI_SPDIF_TXFIFO (0x0C)
 #endif
-#define SUNXI_SPDIF_RXFIFO (0x10)
-
-#define SUNXI_SPDIF_FCTL (0x14)
-
-#if defined(CONFIG_ARCH_SUN9IW1) \
-	|| defined(CONFIG_ARCH_SUN8IW6) || defined(CONFIG_ARCH_SUN8IW7)|| defined(CONFIG_ARCH_SUN50I) \
-	|| defined(CONFIG_ARCH_SUN8IW10) || defined(CONFIG_ARCH_SUN8IW11)
-	#define SUNXI_SPDIFFCTL_HUBEN					(1<<31)
+#define	SUNXI_SPDIF_RXFIFO	0x10
+#define	SUNXI_SPDIF_FIFO_CTL	0x14
+#define	SUNXI_SPDIF_FIFO_STA	0x18
+#define	SUNXI_SPDIF_INT		0x1C
+#if	defined(CONFIG_ARCH_SUN9IW1) || \
+	defined(CONFIG_ARCH_SUN8IW6) || \
+	defined(CONFIG_ARCH_SUN8IW7) || \
+	defined(CONFIG_ARCH_SUN50I) || \
+	defined(CONFIG_ARCH_SUN8IW10) || \
+	defined(CONFIG_ARCH_SUN8IW11)
+#define SUNXI_SPDIF_INT_STA (0x0C)
 #else
-	#define SUNXI_SPDIF_FCTL_FIFOSRC				(1<<31)
+#define SUNXI_SPDIF_INT_STA (0x20)
 #endif
-#ifdef CONFIG_ARCH_SUN8IW10
-	#define SUNXI_SPDIF_FCTL_FTX					(1<<30)
-	#define SUNXI_SPDIF_FCTL_FRX					(1<<29)
-	#define SUNXI_SPDIF_FCTL_TXTL(v)				((v)<<12)
-	#define SUNXI_SPDIF_FCTL_RXTL(v)				(((v))<<4)
+#define	SUNXI_SPDIF_TXCNT	0x24
+#define	SUNXI_SPDIF_RXCNT	0x28
+#define	SUNXI_SPDIF_TXCH_STA0	0x2C
+#define	SUNXI_SPDIF_TXCH_STA1	0x30
+#define	SUNXI_SPDIF_RXCH_STA0	0x34
+#define	SUNXI_SPDIF_RXCH_STA1	0x38
+
+/* SUNXI_SPDIF_CTL register */
+#define	CTL_RESET		0
+#define	CTL_GEN_EN		1
+#if	defined(CONFIG_ARCH_SUN8IW1)
+#define	CTL_MCLKOUTEN		2
+#endif
+#if	defined(CONFIG_ARCH_SUN8IW10)
+#define	CTL_LOOP_EN		2
+#endif
+#if 	defined(CONFIG_ARCH_SUN8IW1) || \
+	defined(CONFIG_ARCH_SUN8IW7) || \
+	defined(CONFIG_ARCH_SUN50I) || \
+	defined(CONFIG_ARCH_SUN8IW11)
+#define	CTL_MCLKDIV		4
+#endif
+
+/* SUNXI_SPDIF_TXCFG register */
+#define	TXCFG_TXEN		0
+/* Chan status generated form TX_CHSTA */
+#define	TXCFG_CHAN_STA_EN	1
+#define	TXCFG_SAMPLE_BIT	2
+#define	TXCFG_CLK_DIV_RATIO	4
+#define	TXCFG_DATA_TYPE		16
+/* Only valid in PCM mode */
+#define	TXCFG_ASS		17
+#define	TXCFG_SINGLE_MOD	31
+
+/* SUNXI_SPDIF_RXCFG register */
+#define	RXCFG_RXEN		0
+#define	RXCFG_CHSR_CP		1
+#define	RXCFG_CHST_SRC		3
+#define	RXCFG_LOCK_FLAG		4
+
+/* SUNXI_SPDIF_FIFO_CTL register */
+#define	FIFO_CTL_RXOM		0
+#define	FIFO_CTL_TXIM		2
+#if	defined(CONFIG_ARCH_SUN8IW10)
+#define	FIFO_CTL_RXTL		4
+#define	FIFO_CTL_TXTL		12
+#define	FIFO_CTL_FRX		29
+#define	FIFO_CTL_FTX		30
 #else
-	#define SUNXI_SPDIF_FCTL_FTX					(1<<17)
-	#define SUNXI_SPDIF_FCTL_FRX					(1<<16)
-	#define SUNXI_SPDIF_FCTL_TXTL(v)				((v)<<8)
-	#define SUNXI_SPDIF_FCTL_RXTL(v)				(((v))<<3)
+#define	FIFO_CTL_RXTL		3
+#define	FIFO_CTL_TXTL		8
+#define	FIFO_CTL_FRX		16
+#define	FIFO_CTL_FTX		17
 #endif
-	#define SUNXI_SPDIF_FCTL_TXIM(v)				((v)<<2)
-	#define SUNXI_SPDIF_FCTL_RXOM(v)				((v)<<0)
-
-#define SUNXI_SPDIF_FSTA (0x18)
-#ifdef CONFIG_ARCH_SUN8IW10
-	#define SUNXI_SPDIF_FSTA_TXE					(1<<31)
-	#define SUNXI_SPDIF_FSTA_TXECNTSHT				(16)
-	#define SUNXI_SPDIF_FSTA_RXA					(1<<15)
+#if	defined(CONFIG_ARCH_SUN9IW1) || \
+	defined(CONFIG_ARCH_SUN8IW6) || \
+	defined(CONFIG_ARCH_SUN8IW7) || \
+	defined(CONFIG_ARCH_SUN50I) || \
+	defined(CONFIG_ARCH_SUN8IW10) || \
+	defined(CONFIG_ARCH_SUN8IW11)
+#define	FIFO_CTL_HUBEN		31
 #else
-	#define SUNXI_SPDIF_FSTA_TXE					(1<<14)
-	#define SUNXI_SPDIF_FSTA_TXECNTSHT				(8)
-	#define SUNXI_SPDIF_FSTA_RXA					(1<<6)
+#define	FIFO_CTL_SRC		31
 #endif
-	#define SUNXI_SPDIF_FSTA_RXACNTSHT				(0)
-
-#define SUNXI_SPDIF_INT (0x1C)
-	#define SUNXI_SPDIF_INT_RXLOCKEN				(1<<18)
-	#define SUNXI_SPDIF_INT_RXUNLOCKEN				(1<<17)
-	#define SUNXI_SPDIF_INT_RXPARERREN				(1<<16)
-	#define SUNXI_SPDIF_INT_TXDRQEN					(1<<7)
-	#define SUNXI_SPDIF_INT_TXUIEN					(1<<6)
-	#define SUNXI_SPDIF_INT_TXOIEN					(1<<5)
-	#define SUNXI_SPDIF_INT_TXEIEN					(1<<4)
-	#define SUNXI_SPDIF_INT_RXDRQEN					(1<<2)
-	#define SUNXI_SPDIF_INT_RXOIEN					(1<<1)
-	#define SUNXI_SPDIF_INT_RXAIEN					(1<<0)
-#if defined(CONFIG_ARCH_SUN9IW1) \
-	|| defined(CONFIG_ARCH_SUN8IW6)|| defined(CONFIG_ARCH_SUN8IW7) || defined(CONFIG_ARCH_SUN50I)\
-	|| defined(CONFIG_ARCH_SUN8IW10) || defined(CONFIG_ARCH_SUN8IW11)
-	#define SUNXI_SPDIF_ISTA (0x0c)
+#if	defined(CONFIG_ARCH_SUN8IW10)
+#define	CTL_TXTL_MASK		255
+#define	CTL_RXTL_MASK		127	
 #else
-	#define SUNXI_SPDIF_ISTA (0x20)
-#endif
-	#define SUNXI_SPDIF_ISTA_RXLOCKSTA				(1<<18)
-	#define SUNXI_SPDIF_ISTA_RXUNLOCKSTA			(1<<17)
-	#define SUNXI_SPDIF_ISTA_RXPARERRSTA			(1<<16)
-	#define SUNXI_SPDIF_ISTA_TXUSTA					(1<<6)
-	#define SUNXI_SPDIF_ISTA_TXOSTA					(1<<5)
-	#define SUNXI_SPDIF_ISTA_TXESTA					(1<<4)
-	#define SUNXI_SPDIF_ISTA_RXOSTA					(1<<1)
-	#define SUNXI_SPDIF_ISTA_RXASTA					(1<<0)
-
-#define SUNXI_SPDIF_TXCNT	(0x24)
-
-#define SUNXI_SPDIF_RXCNT	(0x28)
-
-#define SUNXI_SPDIF_TXCHSTA0 (0x2C)
-	#define SUNXI_SPDIF_TXCHSTA0_CLK(v)				((v)<<28)
-	#define SUNXI_SPDIF_TXCHSTA0_SAMFREQ(v)			((v)<<24)
-	#define SUNXI_SPDIF_TXCHSTA0_CHNUM(v)			((v)<<20)
-	#define SUNXI_SPDIF_TXCHSTA0_SRCNUM(v)			((v)<<16)
-	#define SUNXI_SPDIF_TXCHSTA0_CATACOD(v)			((v)<<8)
-	#define SUNXI_SPDIF_TXCHSTA0_MODE(v)			((v)<<6)
-	#define SUNXI_SPDIF_TXCHSTA0_EMPHASIS(v)	  	((v)<<3)
-	#define SUNXI_SPDIF_TXCHSTA0_CP					(1<<2)
-	#define SUNXI_SPDIF_TXCHSTA0_AUDIO				(1<<1)
-	#define SUNXI_SPDIF_TXCHSTA0_PRO				(1<<0)
-
-#define SUNXI_SPDIF_TXCHSTA1 (0x30)
-	#define SUNXI_SPDIF_TXCHSTA1_CGMSA(v)			((v)<<8)
-	#define SUNXI_SPDIF_TXCHSTA1_ORISAMFREQ(v)		((v)<<4)
-	#define SUNXI_SPDIF_TXCHSTA1_SAMWORDLEN(v)		((v)<<1)
-	#define SUNXI_SPDIF_TXCHSTA1_MAXWORDLEN			(1<<0)
-
-#define SUNXI_SPDIF_RXCHSTA0 (0x34)
-	#define SUNXI_SPDIF_RXCHSTA0_CLK(v)				((v)<<28)
-	#define SUNXI_SPDIF_RXCHSTA0_SAMFREQ(v)			((v)<<24)
-	#define SUNXI_SPDIF_RXCHSTA0_CHNUM(v)			((v)<<20)
-	#define SUNXI_SPDIF_RXCHSTA0_SRCNUM(v)			((v)<<16)
-	#define SUNXI_SPDIF_RXCHSTA0_CATACOD(v)			((v)<<8)
-	#define SUNXI_SPDIF_RXCHSTA0_MODE(v)			((v)<<6)
-	#define SUNXI_SPDIF_RXCHSTA0_EMPHASIS(v)	  	((v)<<3)
-	#define SUNXI_SPDIF_RXCHSTA0_CP					(1<<2)
-	#define SUNXI_SPDIF_RXCHSTA0_AUDIO				(1<<1)
-	#define SUNXI_SPDIF_RXCHSTA0_PRO				(1<<0)
-
-#define SUNXI_SPDIF_RXCHSTA1 (0x38)
-	#define SUNXI_SPDIF_RXCHSTA1_CGMSA(v)			((v)<<8)
-	#define SUNXI_SPDIF_RXCHSTA1_ORISAMFREQ(v)		((v)<<4)
-	#define SUNXI_SPDIF_RXCHSTA1_SAMWORDLEN(v)		((v)<<1)
-	#define SUNXI_SPDIF_RXCHSTA1_MAXWORDLEN			(1<<0)
-
-
-/* Clock dividers */
-#define SUNXI_DIV_MCLK	0
-#define SUNXI_DIV_BCLK	1
-
-struct sunxi_spdif_info {
-	void __iomem   *regs;    /* spdif base */
-	struct clk *pllclk;
-	struct clk *moduleclk;
-	struct snd_soc_dai_driver dai;
-	struct sunxi_dma_params play_dma_param;
-	struct sunxi_dma_params capture_dma_param;
-	struct pinctrl *pinctrl;
-	struct pinctrl_state  *pinstate;
-	struct pinctrl_state  *pinstate_sleep;
-	u32 clk_enable_cnt;
-};
-
-//extern struct sunxi_spdif_info sunxi_spdif;
-extern s32 get_clock_divder(u32 sample_rate, u32 sample_width, u32 * mclk_div, u32* mpll, u32* bclk_div, u32* mult_fs);
-
-extern int spdif_set_fmt(unsigned int fmt,struct sunxi_spdif_info *sunxi_spdif);
-extern int spdif_set_clkdiv(int div_id, int div,struct sunxi_spdif_info *sunxi_spdif);
-extern int spdif_set_params(int format,struct sunxi_spdif_info *sunxi_spdif);
-extern void spdif_txctrl_enable(int tx_en, int chan, int hub_en,struct sunxi_spdif_info *sunxi_spdif);
+#define	CTL_TXTL_MASK		31
+#define	CTL_RXTL_MASK		31
 #endif
 
+/* SUNXI_SPDIF_FIFO_STA register */
+#define	FIFO_STA_RXA_CNT	0
+#if	defined(CONFIG_ARCH_SUN8IW10)
+#define	FIFO_STA_RXA		15
+#define	FIFO_STA_TXA_CNT	16
+#define	FIFO_STA_TXE		31
+#else
+#define	FIFO_STA_RXA		6
+#define	FIFO_STA_TXA_CNT	8
+#define	FIFO_STA_TXE		14
+#endif
+
+/* SUNXI_SPDIF_INT register */
+#define	INT_RXAIEN		0
+#define	INT_RXOIEN		1
+#define	INT_RXDRQEN		2
+#define	INT_TXEIEN		4
+#define	INT_TXOIEN		5
+#define	INT_TXUIEN		6
+#define	INT_TXDRQEN		7
+#define	INT_RXPAREN		16
+#define	INT_RXUNLOCKEN		17
+#define	INT_RXLOCKEN		18
+
+/* SUNXI_SPDIF_INT_STA  */
+#define	INT_STA_RXA		0
+#define	INT_STA_STO		1
+#define	INT_STA_TXE		4
+#define	INT_STA_TXO		5
+#define	INT_STA_TXU		6
+#define	INT_STA_RXPAR		16
+#define	INT_STA_RXUNLOCK	17
+#define	INT_STA_RXLOCK		18
+
+/* SUNXI_SPDIF_TXCH_STA0 register */
+#define	TXCHSTA0_PRO		0
+#define	TXCHSTA0_AUDIO		1
+#define	TXCHSTA0_CP		2
+#define	TXCHSTA0_EMPHASIS	3
+#define	TXCHSTA0_MODE		6
+#define	TXCHSTA0_CATACOD	8
+#define	TXCHSTA0_SRCNUM		16
+#define	TXCHSTA0_CHNUM		20
+#define	TXCHSTA0_SAMFREQ	24
+#define	TXCHSTA0_CLK		28
+
+/* SUNXI_SPDIF_TXCH_STA1 register */
+#define	TXCHSTA1_MAXWORDLEN	0
+#define	TXCHSTA1_SAMWORDLEN	1
+#define	TXCHSTA1_ORISAMFREQ	4
+#define	TXCHSTA1_CGMSA		8
+
+/* SUNXI_SPDIF_RXCH_STA0 register */
+#define	RXCHSTA0_PRO		0
+#define	RXCHSTA0_AUDIO		1
+#define	RXCHSTA0_CP			2
+#define	RXCHSTA0_EMPHASIS	3
+#define	RXCHSTA0_MODE		6
+#define	RXCHSTA0_CATACOD	8
+#define	RXCHSTA0_SRCNUM		16
+#define	RXCHSTA0_CHNUM		20
+#define	RXCHSTA0_SAMFREQ	24
+#define	RXCHSTA0_CLK		28
+
+/* SUNXI_SPDIF_RXCH_STA1 register */
+#define	RXCHSTA1_MAXWORDLEN	0
+#define	RXCHSTA1_SAMWORDLEN	1
+#define	RXCHSTA1_ORISAMFREQ	4
+#define	RXCHSTA1_CGMSA		8
+#endif	/* __SUNXI_SPDIF_H_ */

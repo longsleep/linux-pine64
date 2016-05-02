@@ -32,6 +32,6 @@ typedef struct {
 #define ION_IOC_SUNXI_PHYS_ADDR             7
 
 
-
+#define ION_IOC_SUNXI_TEE_ADDR              17
 
 #endif

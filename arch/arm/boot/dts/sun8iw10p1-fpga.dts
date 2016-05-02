@@ -79,5 +79,9 @@
 		ohci0:ohci0-controller@0x01c1a400 {
 			interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>; /* ohci0 is IRQ51 on fpga */
 		};
+
+		disp: disp@01000000 {
+			interrupts = <GIC_SPI 8 0x0104>,<GIC_SPI 23 0x0104>,<GIC_SPI 21 0x0104>;/* for eink */
+		};
 	};
 };

@@ -8,6 +8,8 @@
 #include <video/sunxi_display2.h>
 #include <linux/sunxi_tr.h>
 
+typedef u32 compat_uptr_t;
+
 #define DBG_TIME_TYPE 3
 #define DBG_TIME_SIZE 100
 #define WB_CHECK_SIZE  5
@@ -40,10 +42,12 @@ struct hwc_ioctl_arg {
     void *arg;
 };
 
+#if defined(CONFIG_COMPAT)
 struct hwc_compat_ioctl_arg {
     enum HWC_IOCTL cmd;
     compat_uptr_t arg;
 };
+#endif
 
 struct hwc_commit_layer{
     int aquirefencefd;
@@ -57,12 +61,15 @@ struct hwc_dispc_data {
     bool force_flip[DISP_NUMS_SCREEN];
 };
 
+#if defined(CONFIG_COMPAT)
 struct hwc_compat_dispc_data {
     compat_uptr_t hwc_layer_info[DISP_NUMS_SCREEN];
     int releasefencefd[CNOUTDISPSYNC];
     compat_uptr_t data;
     bool force_flip[DISP_NUMS_SCREEN];
 };
+#endif
+
 struct display_sync {
     unsigned int timeline_count;
     struct sw_sync_timeline *timeline;
@@ -222,6 +229,8 @@ unsigned int hwc_get_sync(int sync_disp, int fd)
 {
     struct sync_fence *fence = NULL;
     struct sync_pt *pt = NULL;
+
+#if defined(CONFIG_SW_SYNC)
     fence = sync_fence_fdget(fd);
     if(fence == NULL)
     {
@@ -229,6 +238,7 @@ unsigned int hwc_get_sync(int sync_disp, int fd)
         goto err;
     }
     sync_fence_put(fence);
+#endif
     if(!list_empty(&fence->pt_list_head))
     {
         pt = list_entry(fence->pt_list_head.next, struct sync_pt, pt_list);
@@ -311,7 +321,9 @@ static bool hwc_fence_get(void *user_fence)
                     {
                         sw_sync_timeline_inc(composer_priv.display_sync[i].timeline, 1);
                     }
+#if defined(CONFIG_SW_SYNC)
                     sync_timeline_destroy(&composer_priv.display_sync[i].timeline->obj);
+#endif
                     composer_priv.display_sync[i].timeline = NULL;
                 }
                 mutex_unlock(&composer_priv.sync_lock);
@@ -330,7 +342,9 @@ fecne_ret:
 static int hwc_commit(void *user_display, bool compat)
 {
     struct hwc_dispc_data disp_data;
+#if defined(CONFIG_COMPAT)
     struct hwc_compat_dispc_data disp_compat_data;
+#endif
     struct disp_capture_info wb_data;
     bool need_wb = 0;
     int ret = 0, i = 0;
@@ -341,6 +355,7 @@ static int hwc_commit(void *user_display, bool compat)
     bool force_flip[DISP_NUMS_SCREEN];
 
     composer_frame_checkin(0);
+#if defined(CONFIG_COMPAT)
     if(compat)
     {
         ret = copy_from_user(&disp_compat_data,
@@ -360,7 +375,9 @@ static int hwc_commit(void *user_display, bool compat)
             releasefencefd[i] = disp_compat_data.releasefencefd[i];
         }
         wb_ptr_data = ((unsigned long)disp_compat_data.data);
-    }else{
+    } else
+#endif
+    {
         ret = copy_from_user(&disp_data, (void __user *)user_display, sizeof(struct hwc_dispc_data));
         if(ret)
         {
@@ -446,6 +463,7 @@ static int hwc_check_wb(int disp, int fd)
     return 0;
 }
 
+#if defined(CONFIG_COMPAT)
 static int hwc_compat_ioctl(unsigned int cmd, unsigned long arg)
 {
     int ret = -EFAULT;
@@ -488,6 +506,7 @@ static int hwc_compat_ioctl(unsigned int cmd, unsigned long arg)
 	}
 	return ret;
 }
+#endif
 
 static int hwc_ioctl(unsigned int cmd, unsigned long arg)
 {
@@ -586,7 +605,9 @@ s32 composer_init(disp_drv_info *psg_disp_drv)
     init_waitqueue_head(&composer_priv.commit_wq);
 
 	disp_register_ioctl_func(DISP_HWC_COMMIT, hwc_ioctl);
+#if defined(CONFIG_COMPAT)
     disp_register_compat_ioctl_func(DISP_HWC_COMMIT, hwc_compat_ioctl);
+#endif
     disp_register_sync_finish_proc(disp_composer_proc);
 	disp_register_standby_func(hwc_suspend, hwc_resume);
     composer_priv.tmp_hw_lyr = kzalloc(sizeof(struct disp_layer_config) * 16, GFP_KERNEL);

@@ -17,18 +17,26 @@
 
 extern unsigned long totalram_pages;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+struct __fb_addr_para
+{
+	unsigned int fb_paddr;
+	unsigned int fb_size;
+};
+
+extern void sunxi_get_fb_addr_para(struct __fb_addr_para *fb_addr_para);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL)
 extern int ths_read_data(int value);
-#else
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL) */
+
+#ifdef CONFIG_SUN50IW1P1_THERMAL
 extern int sunxi_get_sensor_temp(u32 sensor_num, long *temperature);
-#endif
+#endif /* CONFIG_SUN50IW1P1_THERMAL */
 
-#ifndef CONFIG_CPU_BUDGET_THERMAL
-extern int gpu_thermal_cool_register(int (*cool) (int));
+#ifdef CONFIG_SUNXI_GPU_COOLING
 extern int gpu_thermal_cool_unregister(void);
-#endif /* CONFIG_CPU_BUDGET_THERMAL */
+#endif /* CONFIG_SUNXI_GPU_COOLING */
 
-static struct mali_gpu_device_data mali_gpu_data;
 static struct mali_gpu_device_data mali_gpu_data;
 
 #ifndef CONFIG_MALI_DT
@@ -52,17 +60,18 @@ static struct platform_device mali_gpu_device =
 */
 static long get_temperature(void)
 {
-	#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
-		return ths_read_data(private_data.sensor_num);
-	#else
-		long temperature;
+	long temperature = 0;
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL)
+		temperature = ths_read_data(private_data.sensor_num);
+	#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL) */
+	#ifdef CONFIG_SUN50IW1P1_THERMAL
 		if(sunxi_get_sensor_temp(private_data.sensor_num, &temperature))
 		{
 			MALI_PRINT_ERROR(("Failed to get the temperature information from sensor %d!\n", private_data.sensor_num));
 			return -1;
 		}
-		return temperature;
-	#endif
+	#endif /* CONFIG_SUN50IW1P1_THERMAL */
+	return temperature;
 }
 
 /*
@@ -134,11 +143,14 @@ static bool set_clk_freq(int freq /* MHz */)
 */
 static void set_gpu_freq(int freq /* MHz */)
 {
-	mutex_lock(&private_data.lock);
-	mali_dev_pause();
-	(void)set_clk_freq(freq);
-	mali_dev_resume();
-	mutex_unlock(&private_data.lock);
+	if (&private_data.lock)
+	{
+		mutex_lock(&private_data.lock);
+		mali_dev_pause();
+		(void)set_clk_freq(freq);
+		mali_dev_resume();
+		mutex_unlock(&private_data.lock);
+	}
 }
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(3,10,0))
@@ -246,9 +258,9 @@ void disable_gpu_clk(void)
 int mali_platform_device_deinit(struct platform_device *device)
 {
 	disable_gpu_clk();
-#ifndef CONFIG_CPU_BUDGET_THERMAL
+#ifdef CONFIG_SUNXI_GPU_COOLING
 	gpu_thermal_cool_unregister();
-#endif /* CONFIG_CPU_BUDGET_THERMAL */
+#endif /* CONFIG_SUNXI_GPU_COOLING */
 	return 0;
 }
 #endif /* CONFIG_MALI_DT */
@@ -485,11 +497,14 @@ static ssize_t change_voltage_store(struct device *dev, struct device_attribute 
 
 	if(vol <= 1300)
 	{
-		mutex_lock(&private_data.lock);
-		mali_dev_pause();
-		set_voltage(vol);
-		mali_dev_resume();
-		mutex_unlock(&private_data.lock);
+		if (&private_data.lock)
+		{
+			mutex_lock(&private_data.lock);
+			mali_dev_pause();
+			set_voltage(vol);
+			mali_dev_resume();
+			mutex_unlock(&private_data.lock);
+		}
 	}
 	else
 	{
@@ -723,6 +738,7 @@ int aw_mali_platform_device_register(void)
 {
 	int err=0;
 	struct platform_device *pdev;
+	struct __fb_addr_para fb_addr_para = {0};
 
 #ifdef CONFIG_MALI_DT
 	pdev = device;
@@ -733,8 +749,6 @@ int aw_mali_platform_device_register(void)
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 
-	mali_gpu_data.shared_mem_size = totalram_pages * PAGE_SIZE; /* B */
-
 #ifndef CONFIG_MALI_DT
 	err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources, sizeof(mali_gpu_resources) / sizeof(mali_gpu_resources[0]));
 	if(err)
@@ -743,6 +757,11 @@ int aw_mali_platform_device_register(void)
 		return err;
 	}
 #endif
+
+	sunxi_get_fb_addr_para(&fb_addr_para);
+	mali_gpu_data.fb_start = fb_addr_para.fb_paddr;
+	mali_gpu_data.fb_size = fb_addr_para.fb_size;
+	mali_gpu_data.shared_mem_size = totalram_pages * PAGE_SIZE; /* B */
 
 	err = platform_device_add_data(pdev, &mali_gpu_data, sizeof(mali_gpu_data));
 	if(err)
@@ -768,7 +787,11 @@ int aw_mali_platform_device_register(void)
 
 #if defined(CONFIG_PM_RUNTIME)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
 	pm_runtime_set_autosuspend_delay(&(pdev->dev), 1000);
+#else
+	pm_runtime_set_autosuspend_delay(&(pdev->dev), 2);
+#endif
 	pm_runtime_use_autosuspend(&(pdev->dev));
 #endif
 	pm_runtime_enable(&(pdev->dev));
@@ -784,8 +807,6 @@ int aw_mali_platform_device_register(void)
 
 #ifdef CONFIG_CPU_BUDGET_THERMAL
 	register_budget_cooling_notifier(&gpu_throttle_notifier);
-#else /* CONFIG_CPU_BUDGET_THERMAL */
-	gpu_thermal_cool_register(gpu_thermal_cool);
 #endif
 
     return err;

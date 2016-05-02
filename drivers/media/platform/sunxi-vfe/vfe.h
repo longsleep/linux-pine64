@@ -7,11 +7,11 @@
 
 #include <linux/types.h>
 #include <linux/interrupt.h>
-#include <media/sunxi_camera.h>
 #include <linux/i2c.h>
 #include <linux/workqueue.h>
 #include <linux/pm_runtime.h>
 
+#include <media/sunxi_camera.h>
 #include <media/videobuf2-core.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mediabus.h>
@@ -99,12 +99,6 @@ struct vfe_regs {
 	void              *isp_saved_regs_dma_addr;
 };
 
-struct vfe_clk_freq {
-	unsigned long			master_clk_freq;
-	unsigned long			core_clk_freq;
-	unsigned long			dphy_clk_freq;
-};
-
 enum vfe_regulator
 {
 	ENUM_ISP_REGULATOR,
@@ -176,7 +170,6 @@ struct ccm_config {
 	unsigned int            is_bayer_raw;
 	struct vfe_gpio_cfg     gpio[MAX_GPIO_NUM];
 	struct vfe_power        power;
-	struct vfe_clk_freq	    clk_freq;
 	int                     act_used;
 	char                    act_name[I2C_NAME_SIZE];
 	unsigned int            act_slave;
@@ -186,10 +179,6 @@ struct ccm_config {
 	__flash_driver_ic_type  flash_type;
 	char                    flvdd_str[32];
 };
-
-struct sunxi_vip_platform_data {
-	unsigned int vip_sel;
-}; 
 
 static LIST_HEAD(devlist);
 struct vfe_dev {
@@ -237,9 +226,6 @@ struct vfe_dev {
 	struct vfe_power        *power;
 	struct regulator   		*vfe_system_power[3];
 	int vfe_sensor_power_cnt;
-	struct vfe_clk_freq		*clk_freq;
-	struct clk			  	*clock[CLK_NUM];
-	struct clk			  	*clock_src[CLK_SRC_NUM];
 	/* about vfe channel */ 
 	unsigned int            cur_ch;
 	/* about some global info*/
@@ -249,8 +235,10 @@ struct vfe_dev {
 	unsigned int            is_same_module;   /* the modules connected on the same bus are the same modle */
 	unsigned int            input;
 	enum v4l2_mbus_type     mbus_type;
+	unsigned int            flash_sel;
+	unsigned int            cci_sel;
+	unsigned int            csi_sel;
 	unsigned int            mipi_sel;
-	unsigned int            vip_sel;
 	unsigned int            isp_sel;
 	struct ccm_config       ccm_cfg_content[MAX_INPUT_NUM];
 	struct ccm_config       *ccm_cfg[MAX_INPUT_NUM];
@@ -266,7 +254,6 @@ struct vfe_dev {
 	unsigned int            thumb_height;
 	unsigned int            buf_byte_size;    /* including main and thumb buffer */
 	unsigned int            buf_addr;         /* including main and thumb buffer */
-	struct isp_frame_info   isp_frame_info;
 	struct isp_init_para    isp_init_para;
 	struct isp_table_addr   isp_tbl_addr[MAX_INPUT_NUM];
 	struct vfe_mm  			isp_lut_tbl_buf_mm[MAX_INPUT_NUM];
@@ -277,7 +264,6 @@ struct vfe_dev {
 	struct mutex            isp_3a_result_mutex;
 	struct isp_3a_result    isp_3a_result[MAX_INPUT_NUM];
 	struct isp_3a_result    *isp_3a_result_pt;
-	//struct tasklet_struct   isp_isr_bh_task;
 	struct work_struct      isp_isr_bh_task;
 	struct work_struct      isp_isr_set_sensor_task;
 	struct vfe_ctrl_para    ctrl_para;

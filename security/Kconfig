@@ -167,5 +167,7 @@ config DEFAULT_SECURITY
 	default "yama" if DEFAULT_SECURITY_YAMA
 	default "" if DEFAULT_SECURITY_DAC
 
+source security/optee/Kconfig
+
 endmenu
 

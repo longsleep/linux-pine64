@@ -33,9 +33,10 @@
 #else
 #define ISP_HEIGHT_16B_ALIGN 1
 #endif
-struct isp_dev *isp_gbl;
 static int isp_dbg_en = 0; 
 static int isp_dbg_lv = 1;
+
+static LIST_HEAD(isp_drv_list);
 
 static const struct isp_pix_fmt sunxi_isp_formats[] = {
 	{
@@ -277,12 +278,12 @@ static int __isp_cal_ch_addr(enum enable_flag flip, unsigned int buf_base_addr,
 	}
 	return 0;
 }
-static unsigned int __isp_new_set_size_internal(enum pixel_fmt *fmt, struct isp_size_settings *size_settings)
+static unsigned int __isp_new_set_size_internal(struct isp_dev *isp, enum pixel_fmt *fmt, struct isp_size_settings *size_settings)
 {
 	int x_ratio,y_ratio,weight_shift;
 	struct coor *ob_start = &size_settings->ob_start;
 	struct isp_size *ob_black_size, *ob_valid_size, *full_size, *scale_size, *ob_rot_size;
-	struct isp_yuv_size_addr_info *isp_yuv_size_addr = &isp_gbl->isp_yuv_size_addr[0];
+	struct isp_yuv_size_addr_info *isp_yuv_size_addr = &isp->isp_yuv_size_addr[0];
 	//ob zone config
 	ob_black_size  = &size_settings->ob_black_size;
 	ob_valid_size = &size_settings->ob_valid_size;
@@ -370,11 +371,11 @@ static unsigned int __isp_new_set_size_internal(enum pixel_fmt *fmt, struct isp_
 					isp_yuv_size_addr[ROT_CH].isp_byte_size);
 }
 
-unsigned int sunxi_isp_set_size(enum pixel_fmt *fmt, struct isp_size_settings *size_settings)
+unsigned int sunxi_isp_set_size(struct isp_dev *isp, enum pixel_fmt *fmt, struct isp_size_settings *size_settings)
 {
-	return __isp_new_set_size_internal(fmt, size_settings);
+	return __isp_new_set_size_internal(isp, fmt, size_settings);
 }
-void sunxi_isp_set_fmt(enum bus_pixeltype type, enum pixel_fmt *fmt)
+void sunxi_isp_set_fmt(struct isp_dev *isp, enum bus_pixeltype type, enum pixel_fmt *fmt)
 {
 	//printk("type = %d\n",type);
 	__isp_set_input_fmt_internal(type);
@@ -385,11 +386,11 @@ void sunxi_isp_set_fmt(enum bus_pixeltype type, enum pixel_fmt *fmt)
 
 		if(fmt[MAIN_CH] == PIX_FMT_YVU420P_8 || fmt[MAIN_CH] == PIX_FMT_YVU422P_8)
 		{
-			 isp_gbl->plannar_uv_exchange_flag[MAIN_CH] = 1;
+			 isp->plannar_uv_exchange_flag[MAIN_CH] = 1;
 		}
 		else
 		{
-			isp_gbl->plannar_uv_exchange_flag[MAIN_CH] = 0;
+			isp->plannar_uv_exchange_flag[MAIN_CH] = 0;
 		}
 
 
@@ -398,11 +399,11 @@ void sunxi_isp_set_fmt(enum bus_pixeltype type, enum pixel_fmt *fmt)
 
 		if(fmt[SUB_CH] == PIX_FMT_YVU420P_8 || fmt[SUB_CH] == PIX_FMT_YVU422P_8)
 		{
-			isp_gbl->plannar_uv_exchange_flag[SUB_CH] = 1;
+			isp->plannar_uv_exchange_flag[SUB_CH] = 1;
 		}
 		else
 		{
-			isp_gbl->plannar_uv_exchange_flag[SUB_CH] = 0;
+			isp->plannar_uv_exchange_flag[SUB_CH] = 0;
 		}
 	} else {
 		//for exchange sub and man ch.
@@ -410,37 +411,37 @@ void sunxi_isp_set_fmt(enum bus_pixeltype type, enum pixel_fmt *fmt)
 
 		if(fmt[MAIN_CH] == PIX_FMT_YVU420P_8 || fmt[MAIN_CH] == PIX_FMT_YVU422P_8)
 		{
-			isp_gbl->plannar_uv_exchange_flag[SUB_CH] = 1;
+			isp->plannar_uv_exchange_flag[SUB_CH] = 1;
 		}
 		else
 		{
-			isp_gbl->plannar_uv_exchange_flag[SUB_CH] = 0;
+			isp->plannar_uv_exchange_flag[SUB_CH] = 0;
 		}
 		bsp_isp_module_disable(TG_EN);
 	}
 
 	if(fmt[ROT_CH]!=PIX_FMT_NONE) 
 	{
-		isp_gbl->rotation_en = 1;
+		isp->rotation_en = 1;
 		bsp_isp_module_enable(ROT_EN);
 		__isp_set_output_fmt_internal(fmt[ROT_CH],ROT_CH);
 
 		if(fmt[SUB_CH] == PIX_FMT_YVU420P_8 || fmt[SUB_CH] == PIX_FMT_YVU422P_8)
 		{
-			isp_gbl->plannar_uv_exchange_flag[ROT_CH] = 1;
+			isp->plannar_uv_exchange_flag[ROT_CH] = 1;
 		}
 		else
 		{
-			isp_gbl->plannar_uv_exchange_flag[ROT_CH] = 0;
+			isp->plannar_uv_exchange_flag[ROT_CH] = 0;
 		}
 	} else {
 		bsp_isp_module_disable(ROT_EN);
 	}
 }
 
-void sunxi_isp_set_flip(enum isp_channel ch, enum enable_flag on_off)
+void sunxi_isp_set_flip(struct isp_dev *isp, enum isp_channel ch, enum enable_flag on_off)
 {
-	enum enable_flag *flip_en_glb = &isp_gbl->flip_en_glb[0];
+	enum enable_flag *flip_en_glb = &isp->flip_en_glb[0];
 	bsp_isp_set_flip(ch,on_off);
 	flip_en_glb[ch] = on_off;
 }
@@ -449,20 +450,21 @@ void sunxi_isp_set_mirror(enum isp_channel ch, enum enable_flag on_off)
 	bsp_isp_set_mirror(ch,on_off);
 }
 
-void sunxi_isp_set_output_addr(unsigned long buf_base_addr)
+void sunxi_isp_set_output_addr(struct v4l2_subdev *sd, unsigned long buf_base_addr)
 {
+	struct isp_dev *isp = v4l2_get_subdevdata(sd);
 	int tmp_addr;
-	struct isp_yuv_size_addr_info *isp_yuv_size_addr = &isp_gbl->isp_yuv_size_addr[0];
-	__isp_cal_ch_addr(isp_gbl->flip_en_glb[MAIN_CH], buf_base_addr, &isp_yuv_size_addr[MAIN_CH]);
-	if(isp_gbl->plannar_uv_exchange_flag[MAIN_CH] == 1)
+	struct isp_yuv_size_addr_info *isp_yuv_size_addr = &isp->isp_yuv_size_addr[0];
+	__isp_cal_ch_addr(isp->flip_en_glb[MAIN_CH], buf_base_addr, &isp_yuv_size_addr[MAIN_CH]);
+	if(isp->plannar_uv_exchange_flag[MAIN_CH] == 1)
 	{
 		tmp_addr = isp_yuv_size_addr[MAIN_CH].yuv_addr.u_addr;
 		isp_yuv_size_addr[MAIN_CH].yuv_addr.u_addr = isp_yuv_size_addr[MAIN_CH].yuv_addr.v_addr;
 		isp_yuv_size_addr[MAIN_CH].yuv_addr.v_addr = tmp_addr;
 	}
 
-	__isp_cal_ch_addr(isp_gbl->flip_en_glb[SUB_CH], ALIGN_4K(buf_base_addr + isp_yuv_size_addr[MAIN_CH].isp_byte_size), &isp_yuv_size_addr[SUB_CH]);
-	if(isp_gbl->plannar_uv_exchange_flag[SUB_CH] == 1)
+	__isp_cal_ch_addr(isp->flip_en_glb[SUB_CH], ALIGN_4K(buf_base_addr + isp_yuv_size_addr[MAIN_CH].isp_byte_size), &isp_yuv_size_addr[SUB_CH]);
+	if(isp->plannar_uv_exchange_flag[SUB_CH] == 1)
 	{
 		tmp_addr = isp_yuv_size_addr[SUB_CH].yuv_addr.u_addr;
 		isp_yuv_size_addr[SUB_CH].yuv_addr.u_addr = isp_yuv_size_addr[SUB_CH].yuv_addr.v_addr;
@@ -473,14 +475,14 @@ void sunxi_isp_set_output_addr(unsigned long buf_base_addr)
 	bsp_isp_set_yuv_addr(&isp_yuv_size_addr[SUB_CH].yuv_addr, SUB_CH, ISP_SRC0);
 
 	//printk("%s, line: %d\n", __FUNCTION__, __LINE__);
-	if(isp_gbl->rotation_en == 1)
+	if(isp->rotation_en == 1)
 	{
 		//printk("%s, line: %d\n", __FUNCTION__, __LINE__);//flip_en_glb must be disable
 		__isp_cal_ch_addr(DISABLE, ALIGN_4K(buf_base_addr + isp_yuv_size_addr[MAIN_CH].isp_byte_size +
 		isp_yuv_size_addr[SUB_CH].isp_byte_size), &isp_yuv_size_addr[ROT_CH]);
 
 		//printk("%s, line: %d\n", __FUNCTION__, __LINE__);
-		if(isp_gbl->plannar_uv_exchange_flag[ROT_CH] == 1)
+		if(isp->plannar_uv_exchange_flag[ROT_CH] == 1)
 		{
 			tmp_addr = isp_yuv_size_addr[ROT_CH].yuv_addr.u_addr;
 			isp_yuv_size_addr[ROT_CH].yuv_addr.u_addr = isp_yuv_size_addr[ROT_CH].yuv_addr.v_addr;
@@ -499,6 +501,25 @@ static int sunxi_isp_subdev_s_power(struct v4l2_subdev *sd, int enable)
 }
 static int sunxi_isp_subdev_s_stream(struct v4l2_subdev *sd, int enable)
 {
+	struct isp_dev *isp = v4l2_get_subdevdata(sd);
+
+	if(!enable)
+		return 0;
+
+	if(isp->vflip == 0) {
+		sunxi_isp_set_flip(isp, MAIN_CH, DISABLE);
+		sunxi_isp_set_flip(isp, SUB_CH, DISABLE);
+	} else {
+		sunxi_isp_set_flip(isp, MAIN_CH, ENABLE);
+		sunxi_isp_set_flip(isp, SUB_CH, ENABLE);
+	}
+	if(isp->hflip == 0) {
+		sunxi_isp_set_mirror(MAIN_CH, DISABLE);
+		sunxi_isp_set_mirror(SUB_CH, DISABLE);
+	} else {
+		sunxi_isp_set_mirror(MAIN_CH, ENABLE);
+		sunxi_isp_set_mirror(SUB_CH, ENABLE);
+	}
 	return 0;
 }
 
@@ -598,8 +619,9 @@ static int sunxi_isp_subdev_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_f
 
 int sunxi_isp_addr_init(struct v4l2_subdev *sd, u32 val)
 {
-	bsp_isp_set_dma_load_addr((unsigned long)isp_gbl->isp_load_reg_mm.dma_addr);
-	bsp_isp_set_dma_saved_addr((unsigned long)isp_gbl->isp_save_reg_mm.dma_addr);
+	struct isp_dev *isp = v4l2_get_subdevdata(sd);
+	bsp_isp_set_dma_load_addr((unsigned long)isp->isp_load_reg_mm.dma_addr);
+	bsp_isp_set_dma_saved_addr((unsigned long)isp->isp_save_reg_mm.dma_addr);
 	return 0;
 }
 static int sunxi_isp_subdev_cropcap(struct v4l2_subdev *sd,
@@ -622,7 +644,7 @@ int sunxi_isp_set_mainchannel(struct isp_dev *isp, struct main_channel_cfg *main
 
 	isp_dbg(0,"bus_code = %d, isp_fmt = %p\n",isp_fmt_cfg->bus_code,isp_fmt_cfg->isp_fmt);
 	isp_fmt_cfg->bus_code = main_cfg->bus_code;
-	sunxi_isp_set_fmt(isp_fmt_cfg->bus_code,&isp_fmt_cfg->isp_fmt[0]);
+	sunxi_isp_set_fmt(isp, isp_fmt_cfg->bus_code,&isp_fmt_cfg->isp_fmt[0]);
     
 	if(0 == win_cfg->width || 0 == win_cfg->height)
 	{
@@ -650,7 +672,7 @@ int sunxi_isp_set_mainchannel(struct isp_dev *isp, struct main_channel_cfg *main
 	size_settings.ob_start = isp_fmt_cfg->ob_start;
 	size_settings.ob_valid_size = isp_fmt_cfg->ob_valid_size;
 	size_settings.ob_rot_size = isp_fmt_cfg->isp_size[ROT_CH];
-	main_cfg->pix.sizeimage = sunxi_isp_set_size(&isp_fmt_cfg->isp_fmt[0],&size_settings);	
+	main_cfg->pix.sizeimage = sunxi_isp_set_size(isp, &isp_fmt_cfg->isp_fmt[0],&size_settings);	
 	isp_print("main_cfg->pix.sizeimage = %d,main_cfg->pix.width = %d ,main_cfg->pix.height = %d\n",main_cfg->pix.sizeimage,main_cfg->pix.width,main_cfg->pix.height);
 	return 0;
 }
@@ -677,8 +699,8 @@ int sunxi_isp_set_subchannel(struct isp_dev *isp, struct v4l2_pix_format *sub)
 	size_settings.ob_start = isp_fmt_cfg->ob_start;
 	size_settings.ob_valid_size = isp_fmt_cfg->ob_valid_size;
 	size_settings.ob_rot_size = isp_fmt_cfg->isp_size[ROT_CH];
-	sunxi_isp_set_fmt(isp_fmt_cfg->bus_code, &isp_fmt_cfg->isp_fmt[0]);
-	sub->sizeimage= sunxi_isp_set_size(&isp_fmt_cfg->isp_fmt[0],&size_settings);
+	sunxi_isp_set_fmt(isp, isp_fmt_cfg->bus_code, &isp_fmt_cfg->isp_fmt[0]);
+	sub->sizeimage= sunxi_isp_set_size(isp, &isp_fmt_cfg->isp_fmt[0],&size_settings);
 	isp_print("sub->sizeimage = %d,sub->width = %d,sub->height = %d\n",sub->sizeimage,sub->width,sub->height);
 	return ret;
 }
@@ -733,8 +755,8 @@ int sunxi_isp_set_rotchannel(struct isp_dev *isp, struct rot_channel_cfg *rot)
 	size_settings.ob_start = isp_fmt_cfg->ob_start;
 	size_settings.ob_valid_size = isp_fmt_cfg->ob_valid_size;
 	size_settings.ob_rot_size = isp_fmt_cfg->isp_size[ROT_CH];
-	sunxi_isp_set_fmt(isp_fmt_cfg->bus_code, &isp_fmt_cfg->isp_fmt[0]);
-	rot->pix.sizeimage = sunxi_isp_set_size(&isp_fmt_cfg->isp_fmt[0],&size_settings);
+	sunxi_isp_set_fmt(isp, isp_fmt_cfg->bus_code, &isp_fmt_cfg->isp_fmt[0]);
+	rot->pix.sizeimage = sunxi_isp_set_size(isp, &isp_fmt_cfg->isp_fmt[0],&size_settings);
 	isp_print("rot->pix.sizeimage = %d,rot->pix.width = %d ,rot->pix.height = %d\n",rot->pix.sizeimage,rot->pix.width,rot->pix.height);
 	return ret;
 }
@@ -830,22 +852,22 @@ static int __sunxi_isp_ctrl(struct isp_dev *isp, struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_VFLIP:
 		if(ctrl->val== 0)
-			sunxi_isp_set_flip(MAIN_CH, DISABLE);
+			sunxi_isp_set_flip(isp, MAIN_CH, DISABLE);
 		else
-			sunxi_isp_set_flip(MAIN_CH, ENABLE);
+			sunxi_isp_set_flip(isp, MAIN_CH, ENABLE);
 		isp->vflip = ctrl->val;
 		break;
 	case V4L2_CID_HFLIP_THUMB:
-			if(ctrl->val == 0)
-				sunxi_isp_set_mirror(SUB_CH, DISABLE);
-			else
-				sunxi_isp_set_mirror(SUB_CH, ENABLE);
+		if(ctrl->val == 0)
+			sunxi_isp_set_mirror(SUB_CH, DISABLE);
+		else
+			sunxi_isp_set_mirror(SUB_CH, ENABLE);
 		break;
 	case V4L2_CID_VFLIP_THUMB:
-			if(ctrl->val == 0)
-				sunxi_isp_set_flip(SUB_CH, DISABLE);
-			else
-				sunxi_isp_set_flip(SUB_CH, ENABLE);
+		if(ctrl->val == 0)
+			sunxi_isp_set_flip(isp, SUB_CH, DISABLE);
+		else
+			sunxi_isp_set_flip(isp, SUB_CH, ENABLE);
 		break;
 	case V4L2_CID_ROTATE:
 		isp->rotate= ctrl->val;
@@ -910,7 +932,7 @@ int sunxi_isp_init_subdev(struct isp_dev *isp)
 
 	v4l2_subdev_init(sd, &sunxi_isp_subdev_ops);
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	snprintf(sd->name, sizeof(sd->name), "sunxi_isp.%u", isp->isp_sel);
+	snprintf(sd->name, sizeof(sd->name), "sunxi_isp.%u", isp->id);
 
 	v4l2_ctrl_handler_init(handler, 3 + ARRAY_SIZE(isp_ctrls));
 
@@ -934,12 +956,6 @@ int sunxi_isp_init_subdev(struct isp_dev *isp)
 	return 0;
 }
     
-
-static void isp_release(struct device *dev)
-{
-	vfe_print("isp_device_release\n");
-};
-
 static int isp_resource_alloc(struct isp_dev *isp)
 {
 	int ret = 0; 
@@ -981,49 +997,50 @@ static void isp_resource_release(struct isp_dev *isp)
 
 static int isp_probe(struct platform_device *pdev)
 {
+    struct device_node *np = pdev->dev.of_node;
 	struct isp_dev *isp = NULL;
-	struct resource *res = NULL;
-	struct isp_platform_data *pdata = NULL;
 	int ret = 0;
-	if(pdev->dev.platform_data == NULL)
+	
+	if(np == NULL)
 	{
+		vfe_err("ISP failed to get of node\n");
 		return -ENODEV;
 	}
-	pdata = pdev->dev.platform_data;
-	vfe_print("isp probe start isp_sel = %d!\n",pdata->isp_sel);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res == NULL) {
-		return -ENODEV;
-	}
 	isp = kzalloc(sizeof(struct isp_dev), GFP_KERNEL);
 	if (!isp) {
 		ret = -ENOMEM;
 		goto ekzalloc;
 	}
-	isp_gbl = isp;
-	isp->use_cnt = 0;
-	isp->rotation_en = 0;
-	sunxi_isp_init_subdev(isp);
-	isp->ioarea = request_mem_region(res->start, resource_size(res), res->name);
-	if (!isp->ioarea) {
+	
+	pdev->id = of_alias_get_id(np, "isp");
+	if (pdev->id < 0) {
+		vfe_err("ISP failed to get alias id\n");
+		ret = -EINVAL;
 		goto freedev;
 	}
-	isp->isp_sel = pdata->isp_sel;
+	
+	isp->base = of_iomap(np, 0);
+	if (!isp->base) {
+		ret = -EIO;
+		goto freedev;
+	}
+	isp->id = pdev->id;
+	isp->pdev = pdev;
+	
+	list_add_tail(&isp->isp_list, &isp_drv_list);
+	isp->rotation_en = 0;	
+	sunxi_isp_init_subdev(isp);
 	
 	spin_lock_init(&isp->slock);
 	init_waitqueue_head(&isp->wait);
 	
-	isp->base = ioremap(res->start, resource_size(res));
-	if (!isp->base) {
-		ret = -EIO;
-		goto out_map;
-	}
 	if(isp_resource_alloc(isp) < 0)
 	{
 		ret = -EIO;
-		goto ereqirq;
+		goto ehwinit;
 	}
+	
 	bsp_isp_init_platform(SUNXI_PLATFORM_ID);
 	bsp_isp_set_base_addr((unsigned long)isp->base);
 	bsp_isp_set_map_load_addr((unsigned long)isp->isp_load_reg_mm.vir_addr);
@@ -1031,14 +1048,11 @@ static int isp_probe(struct platform_device *pdev)
 	memset((unsigned int*)isp->isp_load_reg_mm.vir_addr,0,ISP_LOAD_REG_SIZE);
 	memset((unsigned int*)isp->isp_save_reg_mm.vir_addr,0,ISP_SAVED_REG_SIZE);
 	platform_set_drvdata(pdev, isp);
-	vfe_print("isp probe end isp_sel = %d!\n",pdata->isp_sel);
+	vfe_print("isp%d probe end!\n",isp->id);
 	return 0;
 
-ereqirq:
+ehwinit:
 	iounmap(isp->base);
-out_map:
-	release_resource(isp->ioarea);
-	kfree(isp->ioarea);
 freedev:
 	kfree(isp);
 ekzalloc:
@@ -1062,33 +1076,9 @@ static int isp_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct resource isp0_resource[] = 
-{
-	[0] = {
-		.name  = "isp",
-		.start  = ISP_REGS_BASE,
-		.end    = ISP_REGS_BASE + ISP_REG_SIZE - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-};
-
-static struct isp_platform_data isp0_pdata[] = {
-	{
-		.isp_sel  = 0,
-	},
-};
-
-static struct platform_device isp_device[] = {
-	[0] = {
-		.name  = ISP_MODULE_NAME,
-		.id = 0,
-		.num_resources = ARRAY_SIZE(isp0_resource),
-		.resource = isp0_resource,
-		.dev = {
-			.platform_data  = isp0_pdata,
-			.release        = isp_release,
-		},
-	},
+static const struct of_device_id sunxi_isp_match[] = {
+	{ .compatible = "allwinner,sunxi-isp", },
+	{},
 };
 
 static struct platform_driver isp_platform_driver = {
@@ -1097,6 +1087,7 @@ static struct platform_driver isp_platform_driver = {
 	.driver = {
 		.name   = ISP_MODULE_NAME,
 		.owner  = THIS_MODULE,
+		.of_match_table = sunxi_isp_match,
 	}
 };
 
@@ -1125,11 +1116,15 @@ void sunxi_isp_dump_regs(struct v4l2_subdev *sd)
 
 int sunxi_isp_register_subdev(struct v4l2_device *v4l2_dev, struct v4l2_subdev *sd)
 {
+	if(sd == NULL)
+		return -ENODEV;
 	return v4l2_device_register_subdev(v4l2_dev, sd);
 }
 
 void sunxi_isp_unregister_subdev(struct v4l2_subdev *sd)
 {
+	if(sd == NULL)
+		return;
 	v4l2_device_unregister_subdev(sd);
 	v4l2_ctrl_handler_free(sd->ctrl_handler);
 	v4l2_set_subdevdata(sd, NULL);
@@ -1137,24 +1132,24 @@ void sunxi_isp_unregister_subdev(struct v4l2_subdev *sd)
 
 int sunxi_isp_get_subdev(struct v4l2_subdev **sd, int sel)
 {
-	*sd = &isp_gbl->subdev;
-	return (isp_gbl->use_cnt++);
+	struct isp_dev *isp;
+	list_for_each_entry(isp, &isp_drv_list, isp_list) {
+		if(isp->id == sel) {
+			*sd = &isp->subdev;
+			return 0;
+		}
+	}
+	return -1;
 }
 int sunxi_isp_put_subdev(struct v4l2_subdev **sd, int sel)
 {
 	*sd = NULL;
-	return (isp_gbl->use_cnt--);
+	return 0;
 }
 
 int sunxi_isp_platform_register(void)
 {
-	int ret,i;
-	for(i=0; i<ARRAY_SIZE(isp_device); i++) 
-	{
-		ret = platform_device_register(&isp_device[i]);
-		if (ret)
-			vfe_err("isp device %d register failed\n",i);
-	}
+	int ret;
 	ret = platform_driver_register(&isp_platform_driver);
 	if (ret) {
 		vfe_err("platform driver register failed\n");
@@ -1166,12 +1161,7 @@ int sunxi_isp_platform_register(void)
 
 void  sunxi_isp_platform_unregister(void)
 {
-	int i;
 	vfe_print("sunxi_isp_platform_unregister start\n");
-	for(i=0; i<ARRAY_SIZE(isp_device); i++)
-	{
-		platform_device_unregister(&isp_device[i]);
-	}
 	platform_driver_unregister(&isp_platform_driver);
 	vfe_print("sunxi_isp_platform_unregister end\n");
 }

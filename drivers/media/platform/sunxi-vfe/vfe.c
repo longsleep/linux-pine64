@@ -43,7 +43,6 @@
 #include "csi_cci/cci_helper.h"
 #include "config.h"
 #include "device/camera_cfg.h"
-#include "platform/vfe_resource.h"
 #include "utility/sensor_info.h"
 #include "utility/vfe_io.h"
 #include "csi/sunxi_csi.h"
@@ -84,7 +83,6 @@ static uint vips = 0xffff;
 static int touch_flash_flag = 0;
 static int ev_cumul=0;
 
-static unsigned int vfe_opened_num = 0;
 unsigned int isp_reparse_flag = 0;
 
 static unsigned int frame_cnt = 0;
@@ -592,175 +590,6 @@ static void isp_resource_release(struct vfe_dev *dev)
 	}
 }
 
-static char * clk_name[CLK_NUM] = {
-	"vfe_core_clk",
-	"vfe_master_clk",
-	"vfe_misc_clk",
-	"vfe_mipi_csi_clk",
-	"vfe_dphy_clk",
-};
-
-static char * clk_src_name[CLK_SRC_NUM] = {
-	"vfe_core_clk_src",
-	"vfe_master_clk_24M_src",
-	"vfe_master_clk_pll_src",
-	"vfe_mipi_csi_clk_src",
-	"vfe_dphy_clk_src",
-};
-
-int clk_index[][CLK_NUM] = {			//index of clk in device tree
-	{0,0,0,0,0},
-	{0,0,0,0,0},
-	{0,0,0,0,0},
-	{0,1,2,NOCLK,NOCLK}, 		
-	{0,1,2,NOCLK,NOCLK},
-	{0,1,NOCLK,NOCLK,NOCLK},
-};
-
-int clk_src_index[][CLK_SRC_NUM] = {	//index of clk source in device tree
-	{0,0,0,0,0},
-	{0,0,0,0,0},
-	{0,0,0,0,0},
-	{3,4,5,NOCLK,NOCLK}, 
-	{3,4,5,NOCLK,NOCLK},
-	{2,3,NOCLK,NOCLK,NOCLK},
-};
-
-static int vfe_clk_get(struct vfe_dev *dev)
-{
-#ifdef VFE_CLK
-	int i;
-	int id = dev->platform_id;
-	struct device_node *np = dev->pdev->dev.of_node;
-	for(i = 0; i < CLK_NUM; i++)
-	{
-		if(clk_index[id][i] != NOCLK){
-			dev->clock[i] = os_clk_get(np, clk_index[id][i]);
-			if(!dev->clock[i])
-				vfe_warn("Get clk Index:%d , Name:%s is NULL!\n", (int)clk_index[id][i], clk_name[i]);
-			vfe_dbg(0,"Get clk Name:%s !\n", dev->clock[i]->name);
-		}
-	}
-	
-	for(i = 0; i < CLK_SRC_NUM; i++)
-	{
-		if(clk_src_index[id][i] != NOCLK){
-			dev->clock_src[i] = os_clk_get(np, clk_src_index[id][i]);
-			if(!dev->clock_src[i])
-				vfe_warn("Get clk Index:%d , Name:%s is NULL!\n", (int)clk_src_index[id][i], clk_src_name[i]);
-			vfe_dbg(0,"Get clk Name:%s !\n", dev->clock_src[i]->name);	
-		}
-	}
-
-	if(dev->clock[VFE_CORE_CLK] && dev->clock_src[VFE_CORE_CLK_SRC]) {
-		if (os_clk_set_parent(dev->clock[VFE_CORE_CLK], dev->clock_src[VFE_CORE_CLK_SRC])) {
-			vfe_err("sclk src Name:%s, vfe core clock set parent failed \n",dev->clock_src[VFE_CORE_CLK_SRC]->name);
-			return -1;
-		}
-		if (os_clk_set_rate(dev->clock[VFE_CORE_CLK], VFE_CORE_CLK_RATE)) {
-			vfe_err("set core clock rate error\n");
-			return -1;
-		}
-	} else {
-		vfe_err("vfe core clock is null\n");
-		return -1;
-	}
-	vfe_dbg(0,"vfe core clk = %ld\n",clk_get_rate(dev->clock[VFE_CORE_CLK]));
-#endif
-	return 0;
-}
-
-static int vfe_dphy_clk_set(struct vfe_dev *dev, unsigned long freq)
-{
-#ifdef VFE_CLK
-	if(dev->clock[VFE_MIPI_DPHY_CLK] && dev->clock_src[VFE_MIPI_DPHY_CLK_SRC]) {
-		if(os_clk_set_parent(dev->clock[VFE_MIPI_DPHY_CLK], dev->clock_src[VFE_MIPI_DPHY_CLK_SRC])) {
-			vfe_err("set vfe dphy clock source failed \n");
-			return -1;
-		}
-		if(os_clk_set_rate(dev->clock[VFE_MIPI_DPHY_CLK], freq)) {
-			vfe_err("set vip%d dphy clock error\n",dev->vip_sel);
-			return -1;
-		}
-	} else {
-		vfe_warn("vfe dphy clock is null\n");
-		return -1;
-	}
-#endif  
-  return 0;
-}
-
-static int vfe_clk_enable(struct vfe_dev *dev)
-{
-	int ret = 0;
-#ifdef VFE_CLK
-	int i;
-	for(i = 0; i < CLK_NUM; i++)
-	{
-		if(VFE_MASTER_CLK != i) {
-			if(dev->clock[i]) {
-				if(os_clk_prepare_enable(dev->clock[i])) {
-					vfe_err("%s enable error\n",clk_name[i]);
-					ret = -1;
-				}			
-			} else {
-				vfe_dbg(0,"%s is null\n",clk_name[i]);
-				ret = -1;
-			}
-		}
-	}
-#endif
-	return ret;
-}
-
-static void vfe_clk_disable(struct vfe_dev *dev)
-{
-#ifdef VFE_CLK
-	int i;
-	for(i = 0; i < CLK_NUM; i++)
-	{
-		if(VFE_MASTER_CLK != i) {
-			if(dev->clock[i])
-				os_clk_disable_unprepare(dev->clock[i]);
-			else 
-				vfe_dbg(0,"%s is null\n",clk_name[i]);
-		}
-	}
-#endif  
-}
-
-static void vfe_clk_release(struct vfe_dev *dev)
-{
-#ifdef VFE_CLK
-	int i;
-	for(i = 0; i < CLK_NUM; i++)
-	{
-		if(dev->clock[i])
-			os_clk_put(dev->clock[i]);
-		else
-			vfe_dbg(0,"%s is null\n",clk_name[i]);
-	}
-
-	for(i = 0; i < CLK_SRC_NUM; i++)
-	{
-		if(dev->clock_src[i])
-			os_clk_put(dev->clock_src[i]);
-		else
-			vfe_dbg(0,"%s is null\n",clk_src_name[i]);
-	}
-#endif
-}
-
-static void vfe_reset_enable(struct vfe_dev *dev)
-{
-	os_clk_reset_assert(dev->clock[VFE_CORE_CLK]);
-}
-
-static void vfe_reset_disable(struct vfe_dev *dev)
-{
-	os_clk_reset_deassert(dev->clock[VFE_CORE_CLK]);
-}
-
 static int inline vfe_is_generating(struct vfe_dev *dev)
 {
 	return test_bit(0, &dev->generating);
@@ -831,10 +660,12 @@ static void update_isp_setting(struct vfe_dev *dev)
 		dev->isp_gen_set_pt->module_cfg.lens_table = dev->isp_tbl_addr[dev->input].isp_lsc_tbl_vaddr;
 		dev->isp_gen_set_pt->module_cfg.linear_table= dev->isp_tbl_addr[dev->input].isp_linear_tbl_vaddr;
 		dev->isp_gen_set_pt->module_cfg.disc_table = dev->isp_tbl_addr[dev->input].isp_disc_tbl_vaddr;
-		bsp_isp_update_lut_lens_gamma_table(&dev->isp_tbl_addr[dev->input]);
+		if(dev->is_isp_used)
+			bsp_isp_update_lut_lens_gamma_table(&dev->isp_tbl_addr[dev->input]);
 	}
 	dev->isp_gen_set_pt->module_cfg.drc_table = dev->isp_tbl_addr[dev->input].isp_drc_tbl_vaddr;
-	bsp_isp_update_drc_table(&dev->isp_tbl_addr[dev->input]);
+	if(dev->is_isp_used)
+		bsp_isp_update_drc_table(&dev->isp_tbl_addr[dev->input]);
 }
 
 //static int isp_addr_curr = 0;
@@ -858,9 +689,9 @@ static inline void vfe_set_addr(struct vfe_dev *dev,struct vfe_buffer *buffer)
 	//}
 	//isp_addr_pst = addr_org /4;
 	if(dev->is_isp_used) {
-		sunxi_isp_set_output_addr(addr_org);
+		sunxi_isp_set_output_addr(dev->isp_sd, addr_org);
 	} else {
-		bsp_csi_set_addr(dev->vip_sel, addr_org);
+		bsp_csi_set_addr(dev->csi_sel, addr_org);
 	}
 	vfe_dbg(3,"csi_buf_addr_orginal=%pa\n", &addr_org);//=>vfe_dbg(3,"csi_buf_addr_orginal=0x%016llx\n", addr_org);
 }
@@ -1110,7 +941,7 @@ static int isp_set_capture_flash(struct vfe_dev *dev)
 				dev->isp_gen_set_pt->exp_settings.flash_mode == FLASH_MODE_ON)
 		{
 			vfe_dbg(0,"open torch when nigth mode\n");
-			io_set_flash_ctrl(dev->sd, SW_CTRL_TORCH_ON);
+			io_set_flash_ctrl(dev->flash_sd, SW_CTRL_TORCH_ON);
 			dev->isp_gen_set_pt->exp_settings.flash_open = 1;
 		}
 	}
@@ -1144,17 +975,17 @@ static int isp_set_capture_flash(struct vfe_dev *dev)
 						dev->isp_gen_set_pt->exp_settings.tbl_max_ind);
 			}
 			config_sensor_next_exposure(dev->isp_gen_set_pt,dev->isp_3a_result_pt);
-			io_set_flash_ctrl(dev->sd, SW_CTRL_FLASH_OFF);
+			io_set_flash_ctrl(dev->flash_sd, SW_CTRL_FLASH_OFF);
 	}
 	if(dev->isp_gen_set_pt->exp_settings.flash_open == 1 && dev->isp_gen_set_pt->take_pic_start_cnt == 
 					dev->isp_gen_set_pt->isp_ini_cfg.isp_tunning_settings.flash_delay_frame + 1)
 	{
-		io_set_flash_ctrl(dev->sd, SW_CTRL_FLASH_ON);
+		io_set_flash_ctrl(dev->flash_sd, SW_CTRL_FLASH_ON);
 	}
 	if(dev->isp_gen_set_pt->take_pic_start_cnt == 7 + dev->isp_gen_set_pt->isp_ini_cfg.isp_tunning_settings.flash_delay_frame)
 	{
 		vfe_dbg(0,"close flash when nigth mode\n");
-		io_set_flash_ctrl(dev->sd, SW_CTRL_FLASH_OFF);
+		io_set_flash_ctrl(dev->flash_sd, SW_CTRL_FLASH_OFF);
 		dev->isp_gen_set_pt->exp_settings.tbl_cnt = CLIP(dev->isp_gen_set_pt->exp_settings.expect_tbl_cnt,
 			1,dev->isp_gen_set_pt->exp_settings.tbl_max_ind);
 		dev->isp_gen_set_pt->exp_settings.exposure_lock = ISP_FALSE;
@@ -1167,7 +998,7 @@ static int isp_set_capture_flash(struct vfe_dev *dev)
 			dev->isp_3a_result_pt->af_status == AUTO_FOCUS_STATUS_FINDED))
 	{
 		vfe_dbg(0,"close flash when touch nigth mode \n");            
-		io_set_flash_ctrl(dev->sd, SW_CTRL_FLASH_OFF);
+		io_set_flash_ctrl(dev->flash_sd, SW_CTRL_FLASH_OFF);
 		touch_flash_flag = 0;
 	}
 	return 0;
@@ -1219,9 +1050,9 @@ void vfe_csi_isp_reset(unsigned long data)
 	struct vfe_dev *dev = (struct vfe_dev *)data;
 	mod_timer(&dev->timer_for_reset, jiffies + HZ);
 
-	bsp_csi_enable(dev->vip_sel);
-	bsp_csi_disable(dev->vip_sel);
-	bsp_csi_enable(dev->vip_sel);
+	bsp_csi_enable(dev->csi_sel);
+	bsp_csi_disable(dev->csi_sel);
+	bsp_csi_enable(dev->csi_sel);
 	if(dev->is_isp_used)
 	{
 		bsp_isp_enable();
@@ -1259,16 +1090,16 @@ static irqreturn_t vfe_isr(int irq, void *priv)
 	vfe_dbg(0,"vfe interrupt!!!\n");
 	if(vfe_is_generating(dev) == 0)
 	{
-		bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_ALL);
+		bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_ALL);
 		if(dev->is_isp_used)
 			bsp_isp_clr_irq_status(ISP_IRQ_EN_ALL);
 		return IRQ_HANDLED;
 	}
-	bsp_csi_int_get_status(dev->vip_sel, dev->cur_ch, &status);
+	bsp_csi_int_get_status(dev->csi_sel, dev->cur_ch, &status);
 	if( (status.capture_done==0) && (status.frame_done==0) && (status.vsync_trig==0) )
 	{
 		vfe_print("enter vfe int for nothing\n");
-		bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_ALL);
+		bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_ALL);
 		if(dev->is_isp_used)
 			bsp_isp_clr_irq_status(ISP_IRQ_EN_ALL);
 		return IRQ_HANDLED;
@@ -1283,7 +1114,7 @@ static irqreturn_t vfe_isr(int irq, void *priv)
 				vfe_dbg(3,"call set sensor task schedule! \n");
 				schedule_work(&dev->isp_isr_set_sensor_task);
 			}
-			bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_VSYNC_TRIG);
+			bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_VSYNC_TRIG);
 			return IRQ_HANDLED;
 		}
 	} 
@@ -1306,16 +1137,16 @@ static irqreturn_t vfe_isr(int irq, void *priv)
 	if((status.buf_0_overflow) || (status.buf_1_overflow) || (status.buf_2_overflow) || (status.hblank_overflow))
 	{
 		if((status.buf_0_overflow) || (status.buf_1_overflow) || (status.buf_2_overflow)) {
-			bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_BUF_0_OVERFLOW | CSI_INT_BUF_1_OVERFLOW \
+			bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_BUF_0_OVERFLOW | CSI_INT_BUF_1_OVERFLOW \
 										                                  | CSI_INT_BUF_2_OVERFLOW);
 			vfe_err("fifo overflow\n");
 		}
 		if(status.hblank_overflow) {
-			bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_HBLANK_OVERFLOW);
+			bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_HBLANK_OVERFLOW);
 			vfe_err("hblank overflow\n");
 		}
 		vfe_err("reset csi module\n");
-		bsp_csi_reset(dev->vip_sel);
+		bsp_csi_reset(dev->csi_sel);
 		if(dev->is_isp_used)
 			goto isp_exp_handle;
 		else
@@ -1335,7 +1166,7 @@ isp_exp_handle:
 		if(dev->is_isp_used)
 			bsp_isp_irq_disable(FINISH_INT_EN);
 		else
-			bsp_csi_int_disable(dev->vip_sel, dev->cur_ch,CSI_INT_CAPTURE_DONE);
+			bsp_csi_int_disable(dev->csi_sel, dev->cur_ch,CSI_INT_CAPTURE_DONE);
 		vfe_print("capture image mode!\n"); 
 		buf = list_entry(dma_q->active.next,struct vfe_buffer, list);
 		list_del(&buf->list);
@@ -1345,7 +1176,7 @@ isp_exp_handle:
 		if(dev->is_isp_used)
 			bsp_isp_irq_disable(FINISH_INT_EN);
 		else
-			bsp_csi_int_disable(dev->vip_sel, dev->cur_ch,CSI_INT_FRAME_DONE);
+			bsp_csi_int_disable(dev->csi_sel, dev->cur_ch,CSI_INT_FRAME_DONE);
 		if (dev->first_flag == 0) {
 			dev->first_flag++;
 			vfe_print("capture video mode!\n");
@@ -1377,7 +1208,7 @@ isp_exp_handle:
 		dev->usec = buf->vb.v4l2_buf.timestamp.tv_usec;
 		dev->ms += jiffies_to_msecs(jiffies - dev->jiffies);
 		dev->jiffies = jiffies;
- 		buf->vb.image_quality = dev->isp_3a_result_pt->image_quality.dwval;
+		buf->vb.image_quality = dev->isp_3a_result_pt->image_quality.dwval;
 
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);
 		//isp_stat_handle:
@@ -1469,11 +1300,11 @@ unlock:
 		bsp_isp_clr_irq_status(FINISH_INT_EN);
 		bsp_isp_irq_enable(FINISH_INT_EN);
 	} else {
-		bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_FRAME_DONE);
-		//bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_VSYNC_TRIG);
-		//bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_CAPTURE_DONE);
+		bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_FRAME_DONE);
+		//bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_VSYNC_TRIG);
+		//bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_CAPTURE_DONE);
 		if( (dev->capture_mode == V4L2_MODE_VIDEO) || (dev->capture_mode == V4L2_MODE_PREVIEW) )
-			bsp_csi_int_enable(dev->vip_sel, dev->cur_ch,CSI_INT_FRAME_DONE);
+			bsp_csi_int_enable(dev->csi_sel, dev->cur_ch,CSI_INT_FRAME_DONE);
 	}
 	return IRQ_HANDLED;
 }
@@ -1855,21 +1686,9 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 			goto out;
 		}
 		usleep_range(1000,2000);
-  
-		if(dev->clock[VFE_MIPI_DPHY_CLK]) {
-			os_clk_disable(dev->clock[VFE_MIPI_DPHY_CLK]);
-		} else {
-			vfe_warn("vfe dphy clock is null\n");
-		}
-  
+		v4l2_subdev_call(dev->mipi_sd, core, s_power, 0);
 		bsp_mipi_csi_dphy_enable(dev->mipi_sel);
-
-		if(dev->clock[VFE_MIPI_DPHY_CLK]) {
-			if(os_clk_enable(dev->clock[VFE_MIPI_DPHY_CLK]))
-				vfe_err("vfe dphy clock enable error\n");
-		} else {
-			vfe_warn("vfe dphy clock is null\n");
-		}
+		v4l2_subdev_call(dev->mipi_sd, core, s_power, 1);
 		usleep_range(10000,12000);
 	}
 
@@ -2016,15 +1835,6 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	return ret;
 }
 
-#ifdef CONFIG_VIDEO_V4L1_COMPAT
-static int vidiocgmbuf(struct file *file, void *priv, struct video_mbuf *mbuf)
-{
-	struct vfe_dev *dev = video_drvdata(file);
-
-	return videobuf_cgmbuf(&dev->vb_vidq, mbuf, 8);
-}
-#endif
-
 static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 {
 	struct vfe_dev *dev = video_drvdata(file);
@@ -2047,28 +1857,30 @@ static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 		goto streamon_unlock;
 	}
 
-	bsp_csi_enable(dev->vip_sel);
-	bsp_csi_disable(dev->vip_sel);
-	bsp_csi_enable(dev->vip_sel);
-	if(dev->is_isp_used)
+	bsp_csi_enable(dev->csi_sel);
+	bsp_csi_disable(dev->csi_sel);
+	bsp_csi_enable(dev->csi_sel);
+	if(dev->is_isp_used) {
+		v4l2_subdev_call(dev->isp_sd, video, s_stream, 1);
 		bsp_isp_enable();
+	}
 	/* Resets frame counters */
 	dev->ms = 0;
 	dev->jiffies = jiffies;
 
 	dma_q->frame = 0;
 	dma_q->ini_jiffies = jiffies;
-  
+
 	if (dev->is_isp_used && dev->is_bayer_raw) {
 		/* initial for isp statistic buffer queue */
-		INIT_LIST_HEAD(&isp_stat_bq->active); 
-		INIT_LIST_HEAD(&isp_stat_bq->locked); 
+		INIT_LIST_HEAD(&isp_stat_bq->active);
+		INIT_LIST_HEAD(&isp_stat_bq->locked);
 		for(i=0; i < MAX_ISP_STAT_BUF; i++) {
 			isp_stat_bq->isp_stat[i].isp_stat_buf.buf_status = BUF_ACTIVE;
 			list_add_tail(&isp_stat_bq->isp_stat[i].queue, &isp_stat_bq->active);
 		}
 	}
- 
+
 	ret = vb2_streamon(&dev->vb_vidq, i);
 	if (ret)
 		goto streamon_unlock;
@@ -2089,10 +1901,10 @@ static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 		bsp_isp_clr_irq_status(ISP_IRQ_EN_ALL);
 		bsp_isp_irq_enable(FINISH_INT_EN | SRC0_FIFO_INT_EN);
 		if (dev->is_isp_used && dev->is_bayer_raw)
-			bsp_csi_int_enable(dev->vip_sel, dev->cur_ch, CSI_INT_VSYNC_TRIG);
+			bsp_csi_int_enable(dev->csi_sel, dev->cur_ch, CSI_INT_VSYNC_TRIG);
 	} else {
-		bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch,CSI_INT_ALL);
-		bsp_csi_int_enable(dev->vip_sel, dev->cur_ch, CSI_INT_CAPTURE_DONE | \
+		bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch,CSI_INT_ALL);
+		bsp_csi_int_enable(dev->csi_sel, dev->cur_ch, CSI_INT_CAPTURE_DONE | \
 	                                              CSI_INT_FRAME_DONE | \
 	                                              CSI_INT_BUF_0_OVERFLOW | \
 	                                              CSI_INT_BUF_1_OVERFLOW | \
@@ -2160,8 +1972,8 @@ static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 		bsp_isp_clr_irq_status(ISP_IRQ_EN_ALL);
 	} else {
 		vfe_dbg(0,"disable csi int in streamoff\n");
-		bsp_csi_int_disable(dev->vip_sel, dev->cur_ch, CSI_INT_ALL);
-		bsp_csi_int_clear_status(dev->vip_sel, dev->cur_ch, CSI_INT_ALL);
+		bsp_csi_int_disable(dev->csi_sel, dev->cur_ch, CSI_INT_ALL);
+		bsp_csi_int_clear_status(dev->csi_sel, dev->cur_ch, CSI_INT_ALL);
 	} 
 
 	v4l2_subdev_call(dev->csi_sd, video, s_stream, 0);
@@ -2188,7 +2000,7 @@ static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 	}
 	if(dev->is_isp_used)
 		bsp_isp_disable();
-	bsp_csi_disable(dev->vip_sel);
+	bsp_csi_disable(dev->csi_sel);
 streamoff_unlock:
 	mutex_unlock(&dev->stream_lock);
 
@@ -2232,6 +2044,7 @@ static int internal_s_input(struct vfe_dev *dev, unsigned int i)
 {
 	struct v4l2_control ctrl;
 	struct sensor_item sensor_info;
+	unsigned long core_clk;
 	int ret;
   
 	if (i > dev->dev_qty-1) {
@@ -2262,14 +2075,13 @@ static int internal_s_input(struct vfe_dev *dev, unsigned int i)
 	//set vfe core clk rate for each sensor!
 	if(get_sensor_info(dev->ccm_cfg[i]->ccm, &sensor_info) == 0)
 	{
-		os_clk_set_rate(dev->clock[VFE_CORE_CLK], sensor_info.core_clk_for_sensor);
-		vfe_print("Set vfe core clk = %d, after Set vfe core clk = %ld \n",sensor_info.core_clk_for_sensor, clk_get_rate(dev->clock[VFE_CORE_CLK]));
+		core_clk = sensor_info.core_clk_for_sensor;
 	}
 	else
 	{
-		os_clk_set_rate(dev->clock[VFE_CORE_CLK], VFE_CORE_CLK_RATE);
-		vfe_warn("Not find this sensor info, Set vfe core clk = %d, after Set vfe core clk = %ld \n",VFE_CORE_CLK_RATE, clk_get_rate(dev->clock[VFE_CORE_CLK]));
+		core_clk = CSI_CORE_CLK_RATE;
 	}
+	v4l2_subdev_call(dev->csi_sd, core, ioctl,VIDIOC_SUNXI_CSI_SET_CORE_CLK, &core_clk);
 
 	//alternate isp setting
 	update_isp_setting(dev);
@@ -2283,7 +2095,7 @@ static int internal_s_input(struct vfe_dev *dev, unsigned int i)
 	/* Initial target device */
 	ret = vfe_set_sensor_power_on(dev);
 #ifdef USE_SPECIFIC_CCI
-	csi_cci_init_helper(dev->vip_sel);
+	csi_cci_init_helper(dev->cci_sel);
 #endif
 	if (ret!=0) {
 		vfe_err("sensor standby off error when selecting target device!\n");
@@ -2306,32 +2118,37 @@ static int internal_s_input(struct vfe_dev *dev, unsigned int i)
 		v4l2_subdev_call(dev->sd_act,core,ioctl,ACT_INIT,&vcm_para);
 	}
 
-	bsp_csi_disable(dev->vip_sel);
+	bsp_csi_disable(dev->csi_sel);
 	if(dev->is_isp_used) {
 		vfe_ctrl_para_reset(dev);
 		bsp_isp_disable();
 		bsp_isp_enable();
 		bsp_isp_init(&dev->isp_init_para);
 		/* Set the initial flip */
-		if(dev->ccm_cfg[i]->vflip == 0)
-		{
-			sunxi_isp_set_flip(MAIN_CH, DISABLE);
-			sunxi_isp_set_flip(SUB_CH, DISABLE);
+		ctrl.id = V4L2_CID_VFLIP;
+		ctrl.value = dev->ccm_cfg[i]->vflip;
+		ret = v4l2_subdev_call(dev->isp_sd,core, s_ctrl, &ctrl);
+		if (ret!=0) {
+			vfe_err("isp s_ctrl V4L2_CID_VFLIP error when vidioc_s_input!input_num = %d\n",i);
 		}
-		else
-		{
-			sunxi_isp_set_flip(MAIN_CH, ENABLE);
-			sunxi_isp_set_flip(SUB_CH, ENABLE);
+		ctrl.id = V4L2_CID_VFLIP_THUMB;
+		ctrl.value = dev->ccm_cfg[i]->vflip;
+		ret = v4l2_subdev_call(dev->isp_sd,core, s_ctrl, &ctrl);
+		if (ret!=0) {
+			vfe_err("isp s_ctrl V4L2_CID_VFLIP_THUMB error when vidioc_s_input!input_num = %d\n",i);
 		}
-		if(dev->ccm_cfg[i]->hflip == 0)
-		{
-			sunxi_isp_set_mirror(MAIN_CH, DISABLE);
-			sunxi_isp_set_mirror(SUB_CH, DISABLE);
+  
+		ctrl.id = V4L2_CID_HFLIP;
+		ctrl.value = dev->ccm_cfg[i]->hflip;
+		ret = v4l2_subdev_call(dev->isp_sd,core, s_ctrl, &ctrl);
+		if (ret!=0) {
+			vfe_err("isp s_ctrl V4L2_CID_HFLIP error when vidioc_s_input!input_num = %d\n",i);
 		}
-		else
-		{
-			sunxi_isp_set_mirror(MAIN_CH, ENABLE);
-			sunxi_isp_set_mirror(SUB_CH, ENABLE);
+		ctrl.id = V4L2_CID_HFLIP_THUMB;
+		ctrl.value = dev->ccm_cfg[i]->hflip;
+		ret = v4l2_subdev_call(dev->isp_sd,core, s_ctrl, &ctrl);
+		if (ret!=0) {
+			vfe_err("isp s_ctrl V4L2_CID_HFLIP error when vidioc_s_input!input_num = %d\n",i);
 		}
 	} else {
 		//bsp_isp_exit();
@@ -2930,19 +2747,14 @@ void vfe_clk_open(struct vfe_dev *dev)
 {
 	//hardware
 	vfe_print("..........................vfe clk open!.......................\n");
-	vfe_dphy_clk_set(dev,DPHY_CLK);
-	vfe_clk_enable(dev);
-	vfe_reset_disable(dev);
+	v4l2_subdev_call(dev->csi_sd, core, s_power, 1);
+	v4l2_subdev_call(dev->mipi_sd, core, s_power, 1);
 }
 void vfe_clk_close(struct vfe_dev *dev)
 {
 	vfe_print("..........................vfe clk close!.......................\n");
-	vfe_clk_disable(dev);
-	if(vfe_opened_num < 2)
-	{
-		vfe_reset_enable(dev);
-	}
-	vfe_opened_num--;
+	v4l2_subdev_call(dev->csi_sd, core, s_power, 0);
+	v4l2_subdev_call(dev->mipi_sd, core, s_power, 0);
 }
 static void vfe_suspend_trip(struct vfe_dev *dev);
 static void vfe_resume_trip(struct vfe_dev *dev);
@@ -2962,7 +2774,7 @@ static int vfe_open(struct file *file)
 #endif
 	vfe_resume_trip(dev);
 #ifdef USE_SPECIFIC_CCI
-	csi_cci_init_helper(dev->vip_sel);
+	csi_cci_init_helper(dev->cci_sel);
 #endif
 	if(dev->ccm_cfg[0]->is_isp_used || dev->ccm_cfg[1]->is_isp_used) {
 		//must be after ahb and core clock enable
@@ -2993,7 +2805,6 @@ open_end:
 	else
 	{
 		vfe_print("vfe_open ok\n");
-		vfe_opened_num ++;
 	}
 	return ret;   
 }
@@ -3023,9 +2834,9 @@ static int vfe_close(struct file *file)
 		vfe_print("vfe select input flag = %d, s_input have not be used .\n", dev->vfe_s_input_flag);
 	}
 	//hardware
-	bsp_csi_int_disable(dev->vip_sel, dev->cur_ch,CSI_INT_ALL);
+	bsp_csi_int_disable(dev->csi_sel, dev->cur_ch,CSI_INT_ALL);
 	v4l2_subdev_call(dev->csi_sd, video, s_stream, 0);
-	bsp_csi_disable(dev->vip_sel);
+	bsp_csi_disable(dev->csi_sel);
 	if(dev->is_isp_used)
 		bsp_isp_disable();
 	if(dev->mbus_type == V4L2_MBUS_CSI2) {
@@ -3186,7 +2997,7 @@ static int vfe_s_ctrl(struct v4l2_ctrl *ctrl)
 			break;
 		case V4L2_CID_HUE:
 			bsp_isp_s_hue(dev->isp_gen_set_pt, ctrl->val );
-		break;
+			break;
 		case V4L2_CID_AUTO_WHITE_BALANCE:
 			if(ctrl->val == 0)
 				bsp_isp_s_auto_white_balance(dev->isp_gen_set_pt, WB_MANUAL);
@@ -3412,14 +3223,6 @@ static int put_isp_stat_buf32(struct isp_stat_buf *kp, struct isp_stat_buf32 __u
 #define VIDIOC_ISP_AF_STAT_REQ32 	_IOWR('V', BASE_VIDIOC_PRIVATE + 3, struct isp_stat_buf32)
 #define VIDIOC_ISP_GAMMA_REQ32 	_IOWR('V', BASE_VIDIOC_PRIVATE + 5, struct isp_stat_buf32)
 
-static long vfe_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	long ret = -ENOIOCTLCMD;
-	if (file->f_op->unlocked_ioctl)
-		ret = file->f_op->unlocked_ioctl(file, cmd, arg);
-	return ret;
-}
-
 static long vfe_compat_ioctl32(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	union {
@@ -3450,7 +3253,10 @@ static long vfe_compat_ioctl32(struct file *file, unsigned int cmd, unsigned lon
 	else {
 		mm_segment_t old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		err = vfe_ioctl(file, cmd, (unsigned long)&karg);
+		if (file->f_op->unlocked_ioctl)
+			err = file->f_op->unlocked_ioctl(file, cmd, (unsigned long)&karg);
+		else
+			err = -ENOIOCTLCMD;
 		set_fs(old_fs);
 	}	
 	switch (cmd) {
@@ -3506,9 +3312,6 @@ static const struct v4l2_ioctl_ops vfe_ioctl_ops = {
 	.vidioc_streamoff         = vidioc_streamoff,
 	.vidioc_g_parm            = vidioc_g_parm,
 	.vidioc_s_parm            = vidioc_s_parm,
-#ifdef CONFIG_VIDEO_V4L1_COMPAT
-	.vidiocgmbuf              = vidiocgmbuf,
-#endif
 	.vidioc_default		 = vfe_param_handler,
 };
 
@@ -3548,19 +3351,8 @@ static int vfe_pin_config(struct vfe_dev *dev, int enable)
 	}
 	usleep_range(5000, 6000);
 #else
-	void __iomem *gpio_base,*clk_base;
+	void __iomem *gpio_base;
 	vfe_print("directly write pin config @ FPGA\n");
-	clk_base = ioremap(0x01c20000, 0x200);
-	if (!clk_base) {
-		printk("clk_base directly write pin config EIO\n");
-		return -EIO;
-	}
-	writel(0xffffffff,(clk_base+0x64));
-	writel(0xffffffff,(clk_base+0x2c4));
-	writel(0x0000000f,(clk_base+0x100));
-	writel(0x80000000,(clk_base+0x130));//open misc clk gate
-	writel(0x80018000,(clk_base+0x134));//set sclk src pll_periph0 and mclk src clk_hosc
-	
 	gpio_base = ioremap(GPIO_REGS_VBASE, 0x120);
 	if (!gpio_base) {
 		printk("gpio_base directly write pin config EIO\n");
@@ -3656,10 +3448,10 @@ static int vfe_resource_request(struct platform_device *pdev ,struct vfe_dev *de
 	}
 	vfe_dbg(0,"clock resource\n");
 	/*clock resource*/
-	if (vfe_clk_get(dev)) {
-		vfe_err("vfe clock get failed!\n");
-		return -ENXIO;
-	}
+//	if (vfe_clk_get(dev)) {
+//		vfe_err("vfe clock get failed!\n");
+//		return -ENXIO;
+//	}
 	vfe_dbg(0,"get pin resource\n");
 	/* request gpio */  
 	vfe_request_gpio(dev);
@@ -3670,7 +3462,7 @@ static void vfe_resource_release(struct vfe_dev *dev)
 {
 	vfe_gpio_release(dev);
 	vfe_pin_release(dev);
-	vfe_clk_release(dev); 
+//	vfe_clk_release(dev); 
 	if(dev->irq > 0)
 		free_irq(dev->irq, dev);
 }
@@ -3859,7 +3651,7 @@ static int vfe_sensor_check(struct vfe_dev *dev)
 	vfe_print("Check sensor!\n");
 	vfe_set_sensor_power_on(dev);
 #ifdef USE_SPECIFIC_CCI
-	csi_cci_init_helper(dev->vip_sel);
+	csi_cci_init_helper(dev->cci_sel);
 #endif
 	ret = (v4l2_subdev_call(sd,core, init, 0)< 0)?-1:0;
 	vfe_set_sensor_power_off(dev);
@@ -3870,7 +3662,7 @@ static int vfe_sensor_check(struct vfe_dev *dev)
 		vfe_set_sensor_power_on(dev);
 	}
 #ifdef USE_SPECIFIC_CCI
-	csi_cci_exit_helper(dev->vip_sel);
+	csi_cci_exit_helper(dev->cci_sel);
 #endif
 	return ret;
 }
@@ -3881,7 +3673,7 @@ static int vfe_sensor_subdev_register_check(struct vfe_dev *dev,struct v4l2_devi
 {
 	int ret;
 	ccm_cfg->sd= NULL;
-	ccm_cfg->sd = cci_bus_match(ccm_cfg->ccm, dev->id, sensor_i2c_board->addr);// ccm_cfg->i2c_addr >> 1);
+	ccm_cfg->sd = cci_bus_match(ccm_cfg->ccm, dev->cci_sel, sensor_i2c_board->addr);// ccm_cfg->i2c_addr >> 1);
 	if(ccm_cfg->sd)
 	{
 		ret = v4l2_device_register_subdev(&dev->v4l2_dev,ccm_cfg->sd);
@@ -3918,7 +3710,7 @@ static int vfe_sensor_subdev_unregister(struct v4l2_device *v4l2_dev,
 static int vfe_actuator_subdev_register( struct vfe_dev *dev, struct ccm_config  *ccm_cfg, struct i2c_board_info *act_i2c_board)
 {
 	ccm_cfg->sd_act= NULL;
-	ccm_cfg->sd_act = cci_bus_match(ccm_cfg->act_name, dev->id, act_i2c_board->addr);// ccm_cfg->i2c_addr >> 1);
+	ccm_cfg->sd_act = cci_bus_match(ccm_cfg->act_name, dev->cci_sel, act_i2c_board->addr);// ccm_cfg->i2c_addr >> 1);
 	//reg_sd_act:         
 	if (!ccm_cfg->sd_act) {
 		vfe_err("Error registering v4l2 act subdevice!\n");
@@ -4357,16 +4149,16 @@ static void probe_work_handle(struct work_struct *work)
 	vfe_dbg(0,"v4l2 subdev register\n");
 	/* v4l2 subdev register */
 	/*Register ISP subdev*/
-	sunxi_isp_get_subdev(&dev->isp_sd, dev->id);
+	sunxi_isp_get_subdev(&dev->isp_sd, dev->isp_sel);
 	sunxi_isp_register_subdev(&dev->v4l2_dev, dev->isp_sd);
 	/*Register CSI subdev*/	
-	sunxi_csi_get_subdev(&dev->csi_sd, dev->id);
+	sunxi_csi_get_subdev(&dev->csi_sd, dev->csi_sel);
 	sunxi_csi_register_subdev(&dev->v4l2_dev, dev->csi_sd);
 	/*Register MIPI subdev*/	
-	sunxi_mipi_get_subdev(&dev->mipi_sd, dev->id);
+	sunxi_mipi_get_subdev(&dev->mipi_sd, dev->mipi_sel);
 	sunxi_mipi_register_subdev(&dev->v4l2_dev, dev->mipi_sd);
 	/*Register flash subdev*/	
-	sunxi_flash_get_subdev(&dev->flash_sd, dev->id);
+	sunxi_flash_get_subdev(&dev->flash_sd, dev->flash_sel);
 	sunxi_flash_register_subdev(&dev->v4l2_dev, dev->flash_sd);
 	/*Register Sensor subdev*/
 	dev->is_same_module = 0;
@@ -4516,7 +4308,6 @@ static int vfe_probe(struct platform_device *pdev)
 {
     struct device_node *np = pdev->dev.of_node;
 	struct vfe_dev *dev;
-	struct sunxi_vip_platform_data *pdata = NULL;
 	int ret = 0;
 	int input_num;
 	unsigned int i;
@@ -4530,32 +4321,34 @@ static int vfe_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto ekzalloc;
 	}
-	pdata = kzalloc(sizeof(struct csi_platform_data), GFP_KERNEL);
-	if (pdata == NULL) {
-        ret = -ENOMEM;
-		goto freedev;
-	}
-	pdev->dev.platform_data = pdata;
 
 	pdev->id = of_alias_get_id(np, "vfe");
 	if (pdev->id < 0) {
 		vfe_err("VFE failed to get alias id\n");
 		ret = -EINVAL;
-		goto freepdata;
+		goto freedev;
 	}
-	pdata->vip_sel = pdev->id;
+	
+	of_property_read_u32(np, "cci_sel", &dev->cci_sel);	
+	of_property_read_u32(np, "csi_sel", &dev->csi_sel);
+	of_property_read_u32(np, "mipi_sel", &dev->mipi_sel);
+	of_property_read_u32(np, "isp_sel", &dev->isp_sel);
 
 	dev->platform_id = SUNXI_PLATFORM_ID;
 
 	dev->id = pdev->id;
 	dev->pdev = pdev;
-	dev->vip_sel = pdata->vip_sel;
 	dev->generating = 0;
 	dev->opened = 0;
 	dev->vfe_sensor_power_cnt = 0;
 	dev->vfe_s_input_flag = 0;
+	
 	vfe_print("pdev->id = %d\n",pdev->id);
-	vfe_print("dev->vip_sel = %d\n",pdata->vip_sel);
+	vfe_print("dev->cci_sel = %d\n",dev->cci_sel);
+	vfe_print("dev->csi_sel = %d\n",dev->csi_sel);
+	vfe_print("dev->mipi_sel = %d\n",dev->mipi_sel);
+	vfe_print("dev->isp_sel = %d\n",dev->isp_sel);
+
 	spin_lock_init(&dev->slock);
 	vfe_dbg(0,"fetch sys_config\n");
 	/* fetch sys_config! */
@@ -4574,7 +4367,7 @@ static int vfe_probe(struct platform_device *pdev)
 	ret = fetch_config(dev);
 	if (ret) {
 		vfe_err("Error at fetch_config\n");
-		goto freepdata;
+		goto freedev;
 	}
 
 	if(vips!=0xffff)
@@ -4588,7 +4381,7 @@ static int vfe_probe(struct platform_device *pdev)
 	vfe_get_regulator(dev);
 	ret = vfe_resource_request(pdev,dev);
 	if(ret < 0)
-		goto freepdata;
+		goto freedev;
 	/*initial parameter */
 	dev->cur_ch = 0;
 	dev->isp_init_para.isp_src_ch_mode = ISP_SINGLE_CH;
@@ -4608,8 +4401,6 @@ static int vfe_probe(struct platform_device *pdev)
 	dev->capture_mode = V4L2_MODE_PREVIEW;
 	//=======================================
 	return 0;
-freepdata:
-	kfree(pdata);
 freedev:
 	kfree(dev);
 ekzalloc:
@@ -4639,22 +4430,22 @@ static int vfe_remove(struct platform_device *pdev)
 	int input_num;
 	/*Unegister ISP subdev*/
 	sunxi_isp_unregister_subdev(dev->isp_sd);
-	sunxi_isp_put_subdev(&dev->isp_sd, dev->id);
+	sunxi_isp_put_subdev(&dev->isp_sd, dev->isp_sel);
 	/*Unegister CSI subdev*/	
 	sunxi_csi_unregister_subdev(dev->csi_sd);
-	sunxi_csi_put_subdev(&dev->csi_sd, dev->id);
+	sunxi_csi_put_subdev(&dev->csi_sd, dev->csi_sel);
 	/*Unegister MIPI subdev*/	
 	sunxi_mipi_unregister_subdev(dev->mipi_sd);
-	sunxi_mipi_put_subdev(&dev->mipi_sd, dev->id);	
+	sunxi_mipi_put_subdev(&dev->mipi_sd, dev->mipi_sel);	
 	/*Unegister flash subdev*/	
 	sunxi_flash_unregister_subdev(dev->flash_sd);
-	sunxi_flash_put_subdev(&dev->flash_sd, dev->id);
+	sunxi_flash_put_subdev(&dev->flash_sd, dev->flash_sel);
 	mutex_destroy(&dev->stream_lock);
 	mutex_destroy(&dev->opened_lock);
 	mutex_destroy(&dev->buf_lock);
 	sysfs_remove_group(&dev->pdev->dev.kobj, &vfe_attribute_group);
 #ifdef USE_SPECIFIC_CCI
-	csi_cci_bus_unmatch_helper(dev->vip_sel);
+	csi_cci_bus_unmatch_helper(dev->cci_sel);
 #endif
 	vfe_put_regulator(dev);
 #ifdef CONFIG_PM_RUNTIME

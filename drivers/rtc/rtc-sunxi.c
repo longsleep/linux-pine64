@@ -49,7 +49,9 @@
  */
 //#define SUNXI_ALARM1_USED
 
-#if (defined CONFIG_ARCH_SUN50IW1P1) || (defined CONFIG_ARCH_SUN8IW10P1)
+#if (defined CONFIG_ARCH_SUN50IW1P1) \
+	|| (defined CONFIG_ARCH_SUN8IW10P1) \
+	|| (defined CONFIG_ARCH_SUN8IW11P1)
 #define SUNXI_RTC_YMD				0x0010
 
 #define SUNXI_RTC_HMS				0x0014
@@ -111,7 +113,11 @@
  */
 #define SUNXI_DATE_GET_DAY_VALUE(x)		SUNXI_GET(x, SUNXI_MASK_DH, 0)
 #define SUNXI_DATE_GET_MON_VALUE(x)		SUNXI_GET(x, SUNXI_MASK_M, 8)
+#if defined(CONFIG_ARCH_SUN8IW10P1)
+#define SUNXI_DATE_GET_YEAR_VALUE(x, mask)	SUNXI_GET(x, mask, 15)
+#else
 #define SUNXI_DATE_GET_YEAR_VALUE(x, mask)	SUNXI_GET(x, mask, 16)
+#endif
 
 /*
  * Get time values
@@ -187,6 +193,12 @@ static struct sunxi_rtc_data_year data_year_param[] = {
 		.max		= 2225,
 		.mask		= 0xff,
 		.leap_shift	= 24,
+	},
+	[2] = {
+		.min		= 2010,
+		.max		= 2137,
+		.mask		= 0x7f,
+		.leap_shift	= 22,
 	},
 };
 
@@ -532,7 +544,7 @@ static const struct rtc_class_ops sunxi_rtc_ops = {
 static const struct of_device_id sunxi_rtc_dt_ids[] = {
 	{ .compatible = "allwinner,sun4i-a10-rtc", .data = &data_year_param[0] },
 	{ .compatible = "allwinner,sun7i-a20-rtc", .data = &data_year_param[1] },
-	{ .compatible = "allwinner,sun8i-b100-rtc", .data = &data_year_param[0] },
+	{ .compatible = "allwinner,sun8i-b100-rtc", .data = &data_year_param[2] },
 	{ .compatible = "allwinner,sun50i-rtc", .data = &data_year_param[0] },
 	{ /* sentinel */ },
 };
@@ -685,4 +697,4 @@ module_platform_driver(sunxi_rtc_driver);
 
 MODULE_DESCRIPTION("sunxi RTC driver");
 MODULE_AUTHOR("Carlo Caione <carlo.caione@gmail.com>");
-MODULE_LICENSE("GPL V2");
+MODULE_LICENSE("Dual BSD/GPL");

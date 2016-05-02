@@ -20,7 +20,7 @@
 #define _SDIO_HALINIT_C_
 
 #include <rtl8723b_hal.h>
-#include <linux/of.h>
+
 #ifdef CONFIG_EFUSE_CONFIG_FILE
 #include <linux/fs.h>
 #include <asm/uaccess.h>
@@ -1910,17 +1910,7 @@ _ReadEfuseInfo8723BS(
 
 #ifdef CONFIG_EFUSE_CONFIG_FILE
 	if (check_phy_efuse_tx_power_info_valid(padapter) == _FALSE) {
-		char MapPath[128];
-		struct device_node *node;
-		const char *string;
-		node = of_find_node_by_type(NULL,"wlan");
-		if(of_property_read_string(node, "efuse_map_path", &string)){
-			sprintf(MapPath, "%s", EFUSE_MAP_PATH);
-			DBG_871X("[WARNING] no efuse file name config in sys_config.fex, use default: %s!!\n",MapPath);
-		}else	
-			sprintf(MapPath, "%s%s", "/system/etc/wifi/", string);
-		printk("efuse_map_path=%s\n",MapPath);
-		fp = filp_open(MapPath, O_RDONLY, 0);//modify pengyuding
+		fp = filp_open(EFUSE_MAP_PATH, O_RDONLY, 0);
 		if (fp == NULL || IS_ERR(fp)) {
 			DBG_871X("[WARNING] invalid phy efuse and no efuse file, use driver default!!\n");
 		} else {

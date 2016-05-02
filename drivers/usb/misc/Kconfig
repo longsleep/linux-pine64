@@ -200,6 +200,13 @@ config USB_TEST
 	  See <http://www.linux-usb.org/usbtest/> for more information,
 	  including sample test device firmware and "how to use it".
 
+config USB_SUNXI_EH_TEST
+	tristate "USB SUNXI EH Test Mode Support driver"
+	depends on USB
+	help
+	  This driver is for running tests define on OTG & Embedded Host
+	  Specification.
+
 config USB_ISIGHTFW
 	tristate "iSight firmware loading support"
 	select FW_LOADER

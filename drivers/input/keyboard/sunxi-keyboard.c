@@ -334,11 +334,14 @@ static int sunxi_keyboard_startup(struct platform_device *pdev)
 		ret = -EBUSY;
 	}else
 		dprintk(DEBUG_INIT, "ir irq num: %d !\n",key_data->irq_num);
-	key_data->pclk = of_clk_get(np, 0);
-	key_data->mclk = of_clk_get(np, 1);
-	if (NULL==key_data->pclk||IS_ERR(key_data->pclk)
-		||NULL==key_data->mclk||IS_ERR(key_data->mclk)) {
-		dprintk(DEBUG_INIT, "%s:keyboard has no clk.\n", __func__);
+	key_data->mclk = of_clk_get(np, 0);
+	if (IS_ERR_OR_NULL(key_data->mclk)) {
+		dprintk(DEBUG_INIT, "%s: keyboard has no clk.\n", __func__);
+	} else{
+		if (clk_prepare_enable(key_data->mclk)) {
+			pr_err("%s enable apb1_keyadc clock failed!\n", __func__);
+			return -EINVAL;
+		}
 	}
 
 	return ret;

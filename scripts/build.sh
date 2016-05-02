@@ -129,6 +129,24 @@ build_kernel()
 	else
 		cp -f rootfs.cpio.gz output/
 	fi
+	#exchange sdc0 and sdc2 in sun50iw1p1 for dragonBoard card boot
+	if [ "x${LICHEE_PLATFORM}" = "xdragonboard"  -a "x${LICHEE_CHIP}" = "xsun50iw1p1" ]; then
+		local SYS_CONFIG_FILE=../tools/pack/chips/${LICHEE_CHIP}/configs/${LICHEE_BOARD}/sys_config.fex
+		local DTS_PATH=./arch/arm64/boot/dts/
+
+		#sun50iw1p1_bak.dtsi means the orginal dtsi
+		if [ -f ${DTS_PATH}/sun50iw1p1_bak.dtsi ];then
+			#sun50iw1p1.dtsi that we use in fact
+			rm -f ${DTS_PATH}/sun50iw1p1.dtsi
+			mv ${DTS_PATH}/sun50iw1p1_bak.dtsi ${DTS_PATH}/sun50iw1p1.dtsi
+		fi
+		# if find dragonboard_test=1 in sys_config.fex ,then will exchange sdc0 and sdc2
+		if [ -n "`grep "dragonboard_test" $SYS_CONFIG_FILE | grep "1" | grep -v ";"`" ]; then
+			cp ${DTS_PATH}/sun50iw1p1.dtsi  ${DTS_PATH}/sun50iw1p1_bak.dtsi
+			rm -f ${DTS_PATH}/sun50iw1p1.dtsi
+			cp  ${DTS_PATH}/sun50iw1p1_for_dragonboard.dtsi   ${DTS_PATH}/sun50iw1p1.dtsi
+	    fi
+	fi
 
     if [ ! -f .config ] ; then
         printf "\n\033[0;31;1mUsing default config ${LICHEE_KERN_DEFCONF} ...\033[0m\n\n"

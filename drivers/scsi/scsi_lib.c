@@ -879,6 +879,10 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 				/* Detected disc change.  Set a bit
 				 * and quietly refuse further access.
 				 */
+				if (sshdr.asc == 0x28 && sshdr.ascq == 0x00) {
+					action = ACTION_DELAYED_RETRY;
+					break;
+				}
 				cmd->device->changed = 1;
 				description = "Media Changed";
 				action = ACTION_FAIL;

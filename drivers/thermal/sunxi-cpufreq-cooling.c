@@ -128,7 +128,7 @@ static int cpufreq_thermal_notifier(struct notifier_block *nb,
 		{
 			cpufreq_verify_within_limits(policy, min_freq, max_freq);
 				policy->user_policy.max = policy->max;
-			pr_info("CPU Budget:update CPU %d cpufreq max to %lu min to %lu\n",policy->cpu,max_freq, min_freq);
+			//pr_info("CPU Budget:update CPU %d cpufreq max to %lu min to %lu\n",policy->cpu,max_freq, min_freq);
 		}
 	}
 	return 0;

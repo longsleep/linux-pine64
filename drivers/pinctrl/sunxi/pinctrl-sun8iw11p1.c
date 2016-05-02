@@ -173,11 +173,13 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "twi0"),		/* SCK */
+		  SUNXI_FUNCTION(0x3, "vdevice"),	/* vdevice */
 		  SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(B, 1),
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "twi0"),		/* SDA */
+		  SUNXI_FUNCTION(0x3, "vdevice"),	/* vdevice */
 		  SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(B, 2),
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
@@ -928,14 +930,14 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D12 */
-		  SUNXI_FUNCTION(0x4, "ps2"),		/* SCK1 */
+		  SUNXI_FUNCTION(0x4, "ps21"),		/* SCK1 */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D12 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 12)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 13),
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D13 */
-		  SUNXI_FUNCTION(0x4, "ps2"),		/* SDA1 */
+		  SUNXI_FUNCTION(0x4, "ps21"),		/* SDA1 */
 		  SUNXI_FUNCTION(0x5, "sim0"),		/* RST */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D13 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 13)),
@@ -1143,7 +1145,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "spi0"),		/* CS1 */
-		  SUNXI_FUNCTION(0x3, "ps2"),		/* SCK1 */
+		  SUNXI_FUNCTION(0x3, "ps21"),		/* SCK1 */
 		  SUNXI_FUNCTION(0x4, "tclk"),		/* TCLKIN0 */
 		  SUNXI_FUNCTION(0x7, "io_disabled"),
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 26)),
@@ -1151,7 +1153,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "spi1"),		/* CS1 */
-		  SUNXI_FUNCTION(0x3, "ps2"),		/* SDA1 */
+		  SUNXI_FUNCTION(0x3, "ps21"),		/* SDA1 */
 		  SUNXI_FUNCTION(0x4, "tclk"),		/* TCLKIN1 */
 		  SUNXI_FUNCTION(0x7, "io_disabled"),
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 27)),
@@ -1186,14 +1188,14 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(I, 20),
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
-		  SUNXI_FUNCTION(0x2, "ps2"),		/* SCK0 */
+		  SUNXI_FUNCTION(0x2, "ps20"),		/* SCK0 */
 		  SUNXI_FUNCTION(0x3, "uart7"),		/* TX */
 		  SUNXI_FUNCTION(0x4, "hdmi"),		/* HSCL */
 		  SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(I, 21),
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
-		  SUNXI_FUNCTION(0x2, "ps2"),		/* SDA0 */
+		  SUNXI_FUNCTION(0x2, "ps20"),		/* SDA0 */
 		  SUNXI_FUNCTION(0x3, "uart7"),		/* RX */
 		  SUNXI_FUNCTION(0x4, "hdmi"),		/* HSDA */
 		  SUNXI_FUNCTION(0x7, "io_disabled")),

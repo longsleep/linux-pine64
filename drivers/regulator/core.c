@@ -645,7 +645,7 @@ static void regulator_dev_release(struct device *dev)
 	kfree(rdev);
 }
 
-#ifdef CONFIG_AW_AXP
+#if defined(CONFIG_AW_AXP) || defined(CONFIG_AW_AXP_NEW)
 static u32 axp_debug = 0x0;
 static DEFINE_MUTEX(enabler_list_mutex);
 /*
@@ -1110,7 +1110,7 @@ static struct class regulator_class = {
 	.name = "regulator",
 	.dev_release = regulator_dev_release,
 	.dev_attrs = regulator_dev_attrs,
-#ifdef CONFIG_AW_AXP
+#if defined(CONFIG_AW_AXP) || defined(CONFIG_AW_AXP_NEW)
 	.class_attrs = axp_class_attrs,
 #endif
 };
@@ -2141,7 +2141,7 @@ int regulator_enable(struct regulator *regulator)
 	if (regulator->always_on)
 		return 0;
 
-#ifdef CONFIG_AW_AXP
+#if defined(CONFIG_AW_AXP) || defined(CONFIG_AW_AXP_NEW)
 	if(0 != axp_debug) {
 		printk("%s:%s\n", __func__, regulator->supply_name);
 		dump_stack();
@@ -2248,7 +2248,7 @@ int regulator_disable(struct regulator *regulator)
 	if (regulator->always_on)
 		return 0;
 
-#ifdef CONFIG_AW_AXP
+#if defined(CONFIG_AW_AXP) || defined(CONFIG_AW_AXP_NEW)
 	if(0 != axp_debug) {
 		printk("%s:%s\n", __func__, regulator->supply_name);
 		dump_stack();
@@ -4064,7 +4064,7 @@ regulator_register(const struct regulator_desc *regulator_desc,
 	else if (dev->parent)
 		rdev->regmap = dev_get_regmap(dev->parent, NULL);
 	INIT_LIST_HEAD(&rdev->consumer_list);
-#ifdef CONFIG_AW_AXP
+#if defined(CONFIG_AW_AXP) || defined(CONFIG_AW_AXP_NEW)
 	INIT_LIST_HEAD(&rdev->enabler_list);
 #endif
 	INIT_LIST_HEAD(&rdev->list);
@@ -4148,7 +4148,7 @@ regulator_register(const struct regulator_desc *regulator_desc,
 			goto scrub;
 
 		/* 20140604 by Ming Li, to sure regulator init don't enable and set voltage*/
-#ifdef CONFIG_AW_AXP
+#if defined(CONFIG_AW_AXP) || defined(CONFIG_AW_AXP_NEW)
 #else
 		/* Enable supply if rail is enabled */
 		if (_regulator_is_enabled(rdev)) {

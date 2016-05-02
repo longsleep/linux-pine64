@@ -153,7 +153,7 @@ _mali_osk_irq_t *_mali_osk_irq_init(u32 irqnum, _mali_osk_irq_uhandler_t uhandle
 #if defined(DEBUG)
 	/* Verify that the configured interrupt settings are working */
 	if (_MALI_OSK_ERR_OK != test_interrupt(irqnum, trigger_func, ack_func, probe_data, description)) {
-		MALI_DEBUG_PRINT(2, ("Test of IRQ handler for core '%s' failed\n", description));
+		MALI_DEBUG_PRINT(2, ("Test of IRQ(%d) handler for core '%s' failed\n", irqnum, description));
 		kfree(irq_object);
 		return NULL;
 	}

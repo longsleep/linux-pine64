@@ -17,27 +17,158 @@
 #include <linux/platform_device.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/delay.h>
+
 #include <media/v4l2-device.h>
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-subdev.h>
 #include <media/sunxi_camera.h>
+
 #include "bsp_csi.h"
 #include "sunxi_csi.h"
 #include "../vfe_os.h"
 #include "../platform_cfg.h"
+
 #define CSI_MODULE_NAME "vfe_csi"
 
 #define IS_FLAG(x,y) (((x)&(y)) == y)
 
-struct csi_dev *csi_gbl[2];
+static LIST_HEAD(csi_drv_list);
+
+static char * clk_name[CSI_CLK_NUM] = {
+	"csi_core_clk",
+	"csi_master_clk",
+	"csi_misc_clk",
+	"csi_core_clk_src",
+	"csi_master_clk_24M_src",
+	"csi_master_clk_pll_src",
+};
+
+static int csi_clk_get(struct csi_dev *dev)
+{
+#ifdef VFE_CLK
+	int i;
+	int clk_index[CSI_CLK_NUM];
+	struct device_node *np = dev->pdev->dev.of_node;
+	
+	of_property_read_u32_array(np, "clocks-index", clk_index, CSI_CLK_NUM);
+	for(i = 0; i < CSI_CLK_NUM; i++)
+	{
+		if(clk_index[i] != NOCLK){
+			dev->clock[i] = of_clk_get(np, clk_index[i]);
+			if(IS_ERR_OR_NULL(dev->clock[i]))
+				vfe_warn("Get clk Index:%d , Name:%s is NULL!\n", (int)clk_index[i], clk_name[i]);
+			vfe_dbg(0,"Get clk Name:%s !\n", dev->clock[i]->name);
+		}
+	}
+	
+	if(dev->clock[CSI_CORE_CLK] && dev->clock[CSI_CORE_CLK_SRC]) {
+		if (clk_set_parent(dev->clock[CSI_CORE_CLK], dev->clock[CSI_CORE_CLK_SRC])) {
+			vfe_err("sclk src Name:%s, csi core clock set parent failed \n",dev->clock[CSI_CORE_CLK_SRC]->name);
+			return -1;
+		}
+		if (clk_set_rate(dev->clock[CSI_CORE_CLK], CSI_CORE_CLK_RATE)) {
+			vfe_err("set core clock rate error\n");
+			return -1;
+		}
+	} else {
+		vfe_err("csi core clock is null\n");
+		return -1;
+	}
+	vfe_dbg(0,"csi core clk = %ld\n",clk_get_rate(dev->clock[CSI_CORE_CLK]));
+#endif
+	return 0;
+}
+
+static int csi_clk_enable(struct csi_dev *dev)
+{
+	int ret = 0;
+#ifdef VFE_CLK
+	int i;
+	for(i = 0; i < CSI_CORE_CLK_SRC; i++)
+	{
+		if(CSI_MASTER_CLK != i) {
+			if(dev->clock[i]) {
+				if(clk_prepare_enable(dev->clock[i])) {
+					vfe_err("%s enable error\n",clk_name[i]);
+					ret = -1;
+				}			
+			} else {
+				vfe_dbg(0,"%s is null\n",clk_name[i]);
+				ret = -1;
+			}
+		}
+	}
+#else
+	void __iomem *clk_base;
+	clk_base = ioremap(0x01c20000, 0x200);
+	if (!clk_base) {
+		printk("clk_base directly write pin config EIO\n");
+		return -EIO;
+	}
+	writel(0xffffffff,(clk_base+0x64));
+	writel(0xffffffff,(clk_base+0x2c4));
+	writel(0x0000000f,(clk_base+0x100));
+	writel(0x80000000,(clk_base+0x130));//open misc clk gate
+	writel(0x80018000,(clk_base+0x134));//set sclk src pll_periph0 and mclk src clk_hosc
+#endif
+	return ret;
+}
+
+static void csi_clk_disable(struct csi_dev *dev)
+{
+#ifdef VFE_CLK
+	int i;
+	for(i = 0; i < CSI_CORE_CLK_SRC; i++)
+	{
+		if(CSI_MASTER_CLK != i) {
+			if(dev->clock[i])
+				clk_disable_unprepare(dev->clock[i]);
+			else 
+				vfe_dbg(0,"%s is null\n",clk_name[i]);
+		}
+	}
+#endif  
+}
+
+static void csi_clk_release(struct csi_dev *dev)
+{
+#ifdef VFE_CLK
+	int i;
+	for(i = 0; i < CSI_CLK_NUM; i++)
+	{
+		if(dev->clock[i])
+			clk_put(dev->clock[i]);
+		else
+			vfe_dbg(0,"%s is null\n",clk_name[i]);
+	}
+#endif
+}
+
+static void csi_reset_enable(struct csi_dev *dev)
+{
+#ifdef VFE_CLK
+	sunxi_periph_reset_assert(dev->clock[CSI_CORE_CLK]);
+#endif
+}
+
+static void csi_reset_disable(struct csi_dev *dev)
+{
+#ifdef VFE_CLK
+	sunxi_periph_reset_deassert(dev->clock[CSI_CORE_CLK]);
+#endif
+}
 
 static int sunxi_csi_subdev_s_power(struct v4l2_subdev *sd, int enable)
 {
 	struct csi_dev *csi = v4l2_get_subdevdata(sd);
-	if(enable)
-		bsp_csi_enable(csi->csi_sel);
-	else
-		bsp_csi_disable(csi->csi_sel);
+	if(enable) {
+		csi_clk_enable(csi);
+		csi_reset_disable(csi);
+	} else {
+		csi_clk_disable(csi);
+		csi_reset_enable(csi);
+	}
 	return 0;
 }
 static int sunxi_csi_subdev_s_stream(struct v4l2_subdev *sd, int enable)
@@ -45,14 +176,14 @@ static int sunxi_csi_subdev_s_stream(struct v4l2_subdev *sd, int enable)
 	struct csi_dev *csi = v4l2_get_subdevdata(sd);
 	if(enable)
 		if (csi->capture_mode == V4L2_MODE_IMAGE) 
-			bsp_csi_cap_start(csi->csi_sel, csi->bus_info.ch_total_num,CSI_SCAP);
+			bsp_csi_cap_start(csi->id, csi->bus_info.ch_total_num,CSI_SCAP);
 		else
-			bsp_csi_cap_start(csi->csi_sel, csi->bus_info.ch_total_num,CSI_VCAP);
+			bsp_csi_cap_start(csi->id, csi->bus_info.ch_total_num,CSI_VCAP);
 	else
 		if (csi->capture_mode == V4L2_MODE_IMAGE) 
-			bsp_csi_cap_stop(csi->csi_sel, csi->bus_info.ch_total_num,CSI_SCAP);
+			bsp_csi_cap_stop(csi->id, csi->bus_info.ch_total_num,CSI_SCAP);
 		else
-			bsp_csi_cap_stop(csi->csi_sel, csi->bus_info.ch_total_num,CSI_VCAP);		
+			bsp_csi_cap_stop(csi->id, csi->bus_info.ch_total_num,CSI_VCAP);		
 	return 0;
 }
 static int sunxi_csi_subdev_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
@@ -93,13 +224,13 @@ static int sunxi_csi_subdev_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_f
 	}
 	csi->frame_info.arrange = csi->arrange;
 
-	ret = bsp_csi_set_fmt(csi->csi_sel, &csi->bus_info,&csi->frame_info);
+	ret = bsp_csi_set_fmt(csi->id, &csi->bus_info,&csi->frame_info);
 	if (ret < 0) {
 		vfe_err("bsp_csi_set_fmt error at %s!\n",__func__);
 		return -1;
 	}
 
-	ret = bsp_csi_set_size(csi->csi_sel, &csi->bus_info,&csi->frame_info);
+	ret = bsp_csi_set_size(csi->id, &csi->bus_info,&csi->frame_info);
 	if (ret < 0) {
 		vfe_err("bsp_csi_set_size error at %s!\n",__func__);
 		return -1;
@@ -190,6 +321,14 @@ static long sunxi_csi_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd, voi
 		ret = sunxi_csi_get_frmsize(csi, arg);
 		mutex_unlock(&csi->subdev_lock);
 		break;
+	case VIDIOC_SUNXI_CSI_SET_CORE_CLK:
+		mutex_lock(&csi->subdev_lock);
+		ret = clk_set_rate(csi->clock[CSI_CORE_CLK], *(unsigned long *)arg);
+		vfe_print("Set csi core clk = %ld, after Set csi core clk = %ld \n", *(unsigned long *)arg, clk_get_rate(csi->clock[CSI_CORE_CLK]));
+		mutex_unlock(&csi->subdev_lock);
+		break;
+	case VIDIOC_SUNXI_CSI_SET_M_CLK:
+		break;
 	default:
 		return -ENOIOCTLCMD;
 	}
@@ -232,7 +371,7 @@ static int sunxi_csi_subdev_init(struct csi_dev *csi)
 	csi->bus_info.ch_total_num = 1;	
 	v4l2_subdev_init(sd, &sunxi_csi_subdev_ops);
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	snprintf(sd->name, sizeof(sd->name), "sunxi_csi.%u", csi->csi_sel);
+	snprintf(sd->name, sizeof(sd->name), "sunxi_csi.%u", csi->id);
 
 	v4l2_set_subdevdata(sd, csi);
 	return 0;
@@ -242,7 +381,6 @@ static int csi_probe(struct platform_device *pdev)
 {
     struct device_node *np = pdev->dev.of_node;
 	struct csi_dev *csi = NULL;
-	struct csi_platform_data *pdata = NULL;
 	int ret = 0;
 
 	if (np == NULL) {
@@ -254,46 +392,45 @@ static int csi_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto ekzalloc;
 	}
-	pdata = kzalloc(sizeof(struct csi_platform_data), GFP_KERNEL);
-	if (pdata == NULL) {
-        ret = -ENOMEM;
-        goto freedev;
-	}
-	pdev->dev.platform_data = pdata;
 
 	pdev->id = of_alias_get_id(np, "csi_res");
 	if (pdev->id < 0) {
 		vfe_err("CSI failed to get alias id\n");
 		ret = -EINVAL;
-		goto freepdata;
+		goto freedev;
 	}
-	pdata->csi_sel = pdev->id;
 
  	csi->base = of_iomap(np, 0);
 	if (!csi->base) {
 		ret = -EIO;
-		goto freepdata;
+		goto freedev;
 	}
-	csi->csi_sel = pdata->csi_sel;	
+	csi->id = pdev->id;
+	csi->pdev = pdev;
 	spin_lock_init(&csi->slock);
 	init_waitqueue_head(&csi->wait);
 	
-	ret = bsp_csi_set_base_addr(csi->csi_sel, (unsigned long)csi->base);
+	ret = bsp_csi_set_base_addr(csi->id, (unsigned long)csi->base);
 	if(ret < 0)
 		goto ehwinit;
 
-	csi_gbl[csi->csi_sel] = csi;
+	if (csi_clk_get(csi)) {
+		vfe_err("csi clock get failed!\n");
+		return -ENXIO;
+	}
+//	csi_clk_enable(csi);
+//	csi_reset_disable(csi);
+	
+	list_add_tail(&csi->csi_list, &csi_drv_list);
 	sunxi_csi_subdev_init(csi);
 
 	platform_set_drvdata(pdev, csi);
-	vfe_print("csi probe end csi_sel = %d!\n",pdata->csi_sel);
+	vfe_print("csi%d probe end!\n",csi->id);
 
 	return 0;
 
 ehwinit:
 	iounmap(csi->base);
-freepdata:
-    kfree(pdata);
 freedev:
 	kfree(csi);
 ekzalloc:
@@ -307,11 +444,11 @@ static int csi_remove(struct platform_device *pdev)
 	struct csi_dev *csi = platform_get_drvdata(pdev);
 	platform_set_drvdata(pdev, NULL);
 	free_irq(csi->irq, csi);
+	csi_clk_release(csi);
 	mutex_destroy(&csi->subdev_lock);
 	if(csi->base)
 		iounmap(csi->base);
 	kfree(csi);
-	kfree(pdev->dev.platform_data);
 	return 0;
 }
 
@@ -349,25 +486,34 @@ void sunxi_csi_dump_regs(struct v4l2_subdev *sd)
 
 int sunxi_csi_register_subdev(struct v4l2_device *v4l2_dev, struct v4l2_subdev *sd)
 {
+	if(sd == NULL)
+		return -ENODEV;
 	return v4l2_device_register_subdev(v4l2_dev, sd);
 }
 
 void sunxi_csi_unregister_subdev(struct v4l2_subdev *sd)
 {
+	if(sd == NULL)
+		return;
 	v4l2_device_unregister_subdev(sd);
 	v4l2_set_subdevdata(sd, NULL);
 }
 
 int sunxi_csi_get_subdev(struct v4l2_subdev **sd, int sel)
 {
-	*sd = &csi_gbl[sel]->subdev;
-	csi_gbl[sel]->csi_sel = sel;
-	return (csi_gbl[sel]->use_cnt++);
+	struct csi_dev *csi;
+	list_for_each_entry(csi, &csi_drv_list, csi_list) {
+		if(csi->id == sel) {
+			*sd = &csi->subdev;
+			return 0;
+		}
+	}
+	return -1;
 }
 int sunxi_csi_put_subdev(struct v4l2_subdev **sd, int sel)
 {
 	*sd = NULL;
-	return (csi_gbl[sel]->use_cnt--);
+	return 0;
 }
 
 int sunxi_csi_platform_register(void)

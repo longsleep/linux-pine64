@@ -42,6 +42,7 @@
 #include "mali_memory.h"
 #include "mali_memory_dma_buf.h"
 #include "mali_memory_manager.h"
+#include "mali_memory_swap_alloc.h"
 #if defined(CONFIG_MALI400_INTERNAL_PROFILING)
 #include "mali_profiling_internal.h"
 #endif
@@ -106,6 +107,10 @@ MODULE_PARM_DESC(mali_max_pp_cores_group_1, "Limit the number of PP cores to use
 extern int mali_max_pp_cores_group_2;
 module_param(mali_max_pp_cores_group_2, int, S_IRUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(mali_max_pp_cores_group_2, "Limit the number of PP cores to use from second PP group (Mali-450 only).");
+
+extern unsigned int mali_mem_swap_out_threshold_value;
+module_param(mali_mem_swap_out_threshold_value, uint, S_IRUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(mali_mem_swap_out_threshold_value, "Threshold value used to limit how much swappable memory cached in Mali driver.");
 
 #if defined(CONFIG_MALI_DVFS)
 /** the max fps the same as display vsync default 60, can set by module insert parameter */
@@ -178,6 +183,11 @@ extern int mali_platform_device_unregister(void);
 extern int aw_mali_platform_device_register(void);
 #endif
 
+#ifdef CONFIG_SUNXI_GPU_COOLING
+extern int gpu_thermal_cool(int freq /* MHz */);
+extern int gpu_thermal_cool_register(int (*cool) (int));
+#endif /* CONFIG_SUNXI_GPU_COOLING */
+
 /* Linux power management operations provided by the Mali device driver */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
 struct pm_ext_ops mali_dev_ext_pm_ops = {
@@ -209,7 +219,7 @@ static struct of_device_id base_dt_ids[] = {
 	{.compatible = "arm,mali-300"},
 	{.compatible = "arm,mali-400"},
 	{.compatible = "arm,mali-450"},
-	{.compatible = "arm,mali-utgard"},
+	{.compatible = "arm,mali-470"},
 	{},
 };
 
@@ -428,6 +438,10 @@ int mali_module_init(void)
 				      0, 0, 0);
 #endif
 
+#ifdef CONFIG_SUNXI_GPU_COOLING
+	gpu_thermal_cool_register(gpu_thermal_cool);
+#endif /* CONFIG_SUNXI_GPU_COOLING */
+
 	MALI_PRINT(("Mali device driver loaded\n"));
 
 	return 0; /* Success */
@@ -564,7 +578,6 @@ static int mali_driver_suspend_scheduler(struct device *dev)
 				      0,
 				      0, 0, 0);
 	disable_gpu_clk();
-
 	return 0;
 }
 
@@ -590,9 +603,6 @@ static int mali_driver_resume_scheduler(struct device *dev)
 }
 
 #ifdef CONFIG_PM_RUNTIME
-#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_GPU_NOTIFY
-extern int dramfreq_gpu_access(bool access);
-#endif
 static int mali_driver_runtime_suspend(struct device *dev)
 {
 	if (MALI_TRUE == mali_pm_runtime_suspend()) {
@@ -666,6 +676,8 @@ static int mali_open(struct inode *inode, struct file *filp)
 
 	/* link in our session data */
 	filp->private_data = (void *)session_data;
+
+	filp->f_mapping = mali_mem_swap_get_global_swap_file()->f_mapping;
 
 	return 0;
 }
@@ -767,6 +779,11 @@ static int mali_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, 
 		err = request_high_priority_wrapper(session_data, (_mali_uk_request_high_priority_s __user *)arg);
 		break;
 
+	case MALI_IOC_PENDING_SUBMIT:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_pending_submit_s), sizeof(u64)));
+		err = pending_submit_wrapper(session_data, (_mali_uk_pending_submit_s __user *)arg);
+		break;
+
 #if defined(CONFIG_MALI400_PROFILING)
 	case MALI_IOC_PROFILING_ADD_EVENT:
 		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_profiling_add_event_s), sizeof(u64)));
@@ -778,22 +795,28 @@ static int mali_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, 
 		err = profiling_report_sw_counters_wrapper(session_data, (_mali_uk_sw_counters_report_s __user *)arg);
 		break;
 
-
-	case MALI_IOC_PROFILING_MEMORY_USAGE_GET:
-		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_profiling_memory_usage_get_s), sizeof(u64)));
-		err = profiling_memory_usage_get_wrapper(session_data, (_mali_uk_profiling_memory_usage_get_s __user *)arg);
+	case MALI_IOC_PROFILING_STREAM_FD_GET:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_profiling_stream_fd_get_s), sizeof(u64)));
+		err = profiling_get_stream_fd_wrapper(session_data, (_mali_uk_profiling_stream_fd_get_s __user *)arg);
 		break;
 
+	case MALI_IOC_PROILING_CONTROL_SET:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_profiling_control_set_s), sizeof(u64)));
+		err = profiling_control_set_wrapper(session_data, (_mali_uk_profiling_control_set_s __user *)arg);
+		break;
 #else
 
 	case MALI_IOC_PROFILING_ADD_EVENT:          /* FALL-THROUGH */
 	case MALI_IOC_PROFILING_REPORT_SW_COUNTERS: /* FALL-THROUGH */
-	case MALI_IOC_PROFILING_MEMORY_USAGE_GET:   /* FALL-THROUGH */
 		MALI_DEBUG_PRINT(2, ("Profiling not supported\n"));
 		err = -ENOTTY;
 		break;
-
 #endif
+
+	case MALI_IOC_PROFILING_MEMORY_USAGE_GET:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_profiling_memory_usage_get_s), sizeof(u64)));
+		err = mem_usage_get_wrapper(session_data, (_mali_uk_profiling_memory_usage_get_s __user *)arg);
+		break;
 
 	case MALI_IOC_MEM_ALLOC:
 		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_alloc_mem_s), sizeof(u64)));
@@ -813,6 +836,21 @@ static int mali_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, 
 	case MALI_IOC_MEM_UNBIND:
 		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_unbind_mem_s), sizeof(u64)));
 		err = mem_unbind_wrapper(session_data, (_mali_uk_unbind_mem_s __user *)arg);
+		break;
+
+	case MALI_IOC_MEM_COW:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_cow_mem_s), sizeof(u64)));
+		err = mem_cow_wrapper(session_data, (_mali_uk_cow_mem_s __user *)arg);
+		break;
+
+	case MALI_IOC_MEM_COW_MODIFY_RANGE:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_cow_modify_range_s), sizeof(u64)));
+		err = mem_cow_modify_range_wrapper(session_data, (_mali_uk_cow_modify_range_s __user *)arg);
+		break;
+
+	case MALI_IOC_MEM_RESIZE:
+		BUILD_BUG_ON(!IS_ALIGNED(sizeof(_mali_uk_mem_resize_s), sizeof(u64)));
+		err = mem_resize_mem_wrapper(session_data, (_mali_uk_mem_resize_s __user *)arg);
 		break;
 
 	case MALI_IOC_MEM_WRITE_SAFE:

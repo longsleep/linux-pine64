@@ -180,6 +180,75 @@ static int geth_open(struct net_device *ndev);
 static void geth_tx_complete(struct geth_priv *priv);
 static void geth_rx_refill(struct net_device *ndev);
 
+#ifdef CONFIG_GETH_ATTRS
+static ssize_t adjust_bgs_show(struct device *dev, struct device_attribute * attr,char * buf)
+{
+	int value = 0;
+	struct net_device *ndev = to_net_dev(dev);
+	struct geth_priv *priv = netdev_priv(ndev);
+
+	if (priv->phy_ext == INT_PHY) {
+		value = readl(priv->geth_extclk + GETH_CLK_REG) >> 28;
+#if defined(CONFIG_ARCH_SUN8IW8)
+		value = value - (readl(SUNXI_SID_VBASE + 0x00) & 0x0F);
+#elif defined(CONFIG_ARCH_SUN8IW7)
+		value = value - ((readl(SUNXI_SID_VBASE + 0x210) >> 24) & 0x0F);
+#endif
+	}
+
+	return sprintf(buf, "bgs: %d\n", value);
+}
+
+static ssize_t adjust_bgs_write(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned int out = 0;
+	struct net_device *ndev = to_net_dev(dev);
+	struct geth_priv *priv = netdev_priv(ndev);
+	u32 clk_value = readl(priv->geth_extclk + GETH_CLK_REG);
+
+	out = simple_strtoul(buf, NULL, 10);
+
+	if (priv->phy_ext == INT_PHY) {
+#if defined(CONFIG_ARCH_SUN8IW8)
+		clk_value &= ~(0xF << 28);
+		clk_value |= ((readl(SUNXI_SID_VBASE + 0x00) & 0x0F)
+				+ out) << 28;
+#elif defined(CONFIG_ARCH_SUN8IW7)
+		clk_value &= ~(0xF << 28);
+		clk_value |= (((readl(SUNXI_SID_VBASE + 0x210) >> 24)
+				& 0x0F) + out) << 28;
+#endif
+	}
+
+	writel(clk_value, priv->geth_extclk + GETH_CLK_REG);
+
+	return count;
+}
+
+
+static struct device_attribute adjust_reg[] = {
+	__ATTR(adjust_bgs, 0777, adjust_bgs_show, adjust_bgs_write),
+};
+
+static int geth_create_attrs(struct net_device *ndev)
+{
+	int j,ret;
+	for (j = 0; j < ARRAY_SIZE(adjust_reg); j++) {
+		ret = device_create_file(&ndev->dev, &adjust_reg[j]);
+		if (ret)
+			goto sysfs_failed;
+	}
+	goto succeed;
+
+sysfs_failed:
+	while (j--)
+		device_remove_file(&ndev->dev,&adjust_reg[j]);
+succeed:
+	return ret;
+}
+#endif
+
 #ifdef DEBUG
 static void desc_print(struct dma_desc *desc, int size)
 {
@@ -388,7 +457,10 @@ static int geth_phy_init(struct net_device *ndev)
 	int value;
 	struct mii_bus *new_bus;
 	struct geth_priv *priv = netdev_priv(ndev);
-	struct phy_device *phydev = NULL;
+	struct phy_device *phydev = ndev->phydev;
+
+	if (priv->is_suspend && phydev)
+		goto resume;
 
 	new_bus = mdiobus_alloc();
 	if (new_bus == NULL) {
@@ -400,8 +472,7 @@ static int geth_phy_init(struct net_device *ndev)
 	new_bus->read = &geth_mdio_read;
 	new_bus->write = &geth_mdio_write;
 	new_bus->reset = &geth_mdio_reset;
-	snprintf(new_bus->id, MII_BUS_ID_SIZE, "%s-%x",
-		new_bus->name, 0);
+	snprintf(new_bus->id, MII_BUS_ID_SIZE, "%s-%x", new_bus->name, 0);
 
 	new_bus->parent = priv->dev;
 	new_bus->priv = ndev;
@@ -419,50 +490,57 @@ static int geth_phy_init(struct net_device *ndev)
 		goto err;
 	}
 
+	phy_write(phydev, MII_BMCR, BMCR_RESET);
+	while (BMCR_RESET & phy_read(phydev, MII_BMCR))
+		msleep(30);
+
+	value = phy_read(phydev, MII_BMCR);
+	phy_write(phydev, MII_BMCR, (value & ~BMCR_PDOWN));
+
 	phydev->irq = PHY_POLL;
 
-	phydev = phy_connect(ndev, dev_name(&phydev->dev),
-			&geth_adjust_link, priv->phy_interface);
-	if (IS_ERR(phydev)) {
+	value = phy_connect_direct(ndev, phydev, &geth_adjust_link, priv->phy_interface);
+	if (value) {
 		netdev_err(ndev, "Could not attach to PHY\n");
 		goto err;
 	} else {
 		netdev_info(ndev, "%s: PHY ID %08x at %d IRQ %s (%s)\n",
 				ndev->name, phydev->phy_id, phydev->addr,
 				"poll", dev_name(&phydev->dev));
-#if defined(CONFIG_ARCH_SUN8IW8) || defined(CONFIG_ARCH_SUN8IW7)
-		if (priv->phy_ext == INT_PHY) {
-			phy_write(phydev, 0x1f, 0x013d);
-			phy_write(phydev, 0x10, 0x3ffe);
-			phy_write(phydev, 0x1f, 0x063d);
-			phy_write(phydev, 0x13, 0x8000);
-			phy_write(phydev, 0x1f, 0x023d);
-			phy_write(phydev, 0x18, 0x1000);
-			phy_write(phydev, 0x1f, 0x063d);
-			phy_write(phydev, 0x15, 0x132c);
-			phy_write(phydev, 0x1f, 0x013d);
-			phy_write(phydev, 0x13, 0xd602);
-			phy_write(phydev, 0x17, 0x003b);
-			phy_write(phydev, 0x1f, 0x063d);
-			phy_write(phydev, 0x14, 0x7088);
-			phy_write(phydev, 0x1f, 0x033d);
-			phy_write(phydev, 0x11, 0x8530);
-			phy_write(phydev, 0x1f, 0x003d);
-		}
-
-#endif
-		phy_write(phydev, MII_BMCR, BMCR_RESET);
-		while (BMCR_RESET & phy_read(phydev, MII_BMCR))
-			msleep(30);
-
-		value = phy_read(phydev, MII_BMCR);
-		phy_write(phydev, MII_BMCR, (value & ~BMCR_PDOWN));
-
 	}
 
 	phydev->supported &= PHY_GBIT_FEATURES;
 	phydev->advertising = phydev->supported;
 
+resume:
+#if defined(CONFIG_ARCH_SUN8IW8) || defined(CONFIG_ARCH_SUN8IW7)
+	if (priv->phy_ext == INT_PHY) {
+		//EPHY Initial
+		phy_write(phydev, 0x1f , 0x0100); /* switch to page 1        */
+		phy_write(phydev, 0x12 , 0x4824); /* Disable APS             */
+		phy_write(phydev, 0x1f , 0x0200); /* switchto page 2         */
+		phy_write(phydev, 0x18 , 0x0000); /* PHYAFE TRX optimization */
+		phy_write(phydev, 0x1f , 0x0600); /* switchto page 6         */
+		phy_write(phydev, 0x14 , 0x708F); /* PHYAFE TX optimization  */
+		phy_write(phydev, 0x19 , 0x0000);
+		phy_write(phydev, 0x13 , 0xf000); /* PHYAFE RX optimization  */
+		phy_write(phydev, 0x15 , 0x1530);
+		phy_write(phydev, 0x1f , 0x0800); /* switch to page 8         */
+		phy_write(phydev, 0x18 , 0x00bc); /* PHYAFE TRX optimization */
+		//disable iEEE
+		phy_write(phydev, 0x1f , 0x0100); /* switchto page 1 */
+		/* reg 0x17 bit3,set 0 to disable iEEE */
+		phy_write(phydev, 0x17 , phy_read(phydev, 0x17) & (~(1<<3)));
+		phy_write(phydev, 0x1f , 0x0000); /* switch to page 0 */
+	}
+#endif
+	if (priv->is_suspend) {
+		if (phydev->drv->config_init) {
+			phy_scan_fixups(phydev);
+			phydev->drv->config_init(phydev);
+		}
+		phy_start(phydev);
+	}
 
 	return 0;
 
@@ -483,6 +561,12 @@ static int geth_phy_release(struct net_device *ndev)
 	/* Stop and disconnect the PHY */
 	if (phydev) {
 		phy_stop(phydev);
+	}
+
+	if (priv->is_suspend)
+		return 0;
+
+	if (phydev) {
 		value = phy_read(phydev, MII_BMCR);
 		phy_write(phydev, MII_BMCR, (value | BMCR_PDOWN));
 		phy_disconnect(phydev);
@@ -600,7 +684,7 @@ static void geth_free_rx_sk(struct geth_priv *priv)
 	for (i = 0; i < dma_desc_rx; i++) {
 		if (priv->rx_sk[i] != NULL) {
 			struct dma_desc *desc = priv->dma_rx + i;
-			dma_unmap_single(priv->dev, desc_buf_get_addr(desc),
+			dma_unmap_single(priv->dev, (u32)desc_buf_get_addr(desc),
 					 desc_buf_get_len(desc),
 					 DMA_FROM_DEVICE);
 			dev_kfree_skb_any(priv->rx_sk[i]);
@@ -617,7 +701,7 @@ static void geth_free_tx_sk(struct geth_priv *priv)
 		if (priv->tx_sk[i] != NULL) {
 			struct dma_desc *desc = priv->dma_tx + i;
 			if (desc_buf_get_addr(desc))
-				dma_unmap_single(priv->dev, desc_buf_get_addr(desc),
+				dma_unmap_single(priv->dev, (u32)desc_buf_get_addr(desc),
 						 desc_buf_get_len(desc),
 						 DMA_TO_DEVICE);
 			dev_kfree_skb_any(priv->tx_sk[i]);
@@ -661,30 +745,25 @@ static int geth_suspend(struct device *dev)
 
 	geth_stop(ndev);
 
-	device_enable_async_suspend(dev);
-
 	return 0;
 }
 
-static int geth_resume(struct device *dev)
+static void geth_resume(struct device *dev)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct geth_priv *priv = netdev_priv(ndev);
-	int ret;
+	int ret = 0;
 
 	if (!netif_running(ndev))
-		return 0;
+		return;
 
 	spin_lock(&priv->lock);
 	netif_device_attach(ndev);
 	spin_unlock(&priv->lock);
 
 	ret = geth_open(ndev);
-	priv->is_suspend = false;
-
-	device_disable_async_suspend(dev);
-
-	return ret;
+	if (!ret)
+		priv->is_suspend = false;
 }
 
 static int geth_freeze(struct device *dev)
@@ -698,8 +777,10 @@ static int geth_restore(struct device *dev)
 }
 
 static const struct dev_pm_ops geth_pm_ops = {
-	.suspend = geth_suspend,
-	.resume = geth_resume,
+	.complete = geth_resume, 
+	.prepare = geth_suspend, 
+	.suspend = NULL, //geth_suspend,
+	.resume = NULL, //geth_resume,
 	.freeze = geth_freeze,
 	.restore = geth_restore,
 };
@@ -824,6 +905,16 @@ static void geth_clk_enable(struct geth_priv *priv)
 		clk_value |= 0x00000002;
 	else if (phy_interface == PHY_INTERFACE_MODE_RMII)
 		clk_value |= 0x00002001;
+
+	if (priv->phy_ext == INT_PHY) {
+#if defined(CONFIG_ARCH_SUN8IW8)
+		clk_value |= ((readl(SUNXI_SID_VBASE + 0x00) & 0x0F)
+				+ 3) << 28;
+#elif defined(CONFIG_ARCH_SUN8IW7)
+		clk_value |= (((readl(SUNXI_SID_VBASE + 0x210) >> 24)
+				& 0x0F) + 3) << 28;
+#endif
+	}
 
 	/* Adjust Tx/Rx clock delay */
 	clk_value &= ~(0x07 << 10);
@@ -989,7 +1080,8 @@ static int geth_stop(struct net_device *ndev)
 	/* Disable Rx/Tx */
 	sunxi_mac_disable(priv->base);
 
-	geth_clk_disable(priv);
+	if (!priv->is_suspend)
+		geth_clk_disable(priv);
 	geth_power_off(priv);
 
 	netif_tx_lock_bh(ndev);
@@ -1032,7 +1124,7 @@ static void geth_tx_complete(struct geth_priv *priv)
 				priv->ndev->stats.tx_errors++;
 		}
 
-		dma_unmap_single(priv->dev, desc_buf_get_addr(desc),
+		dma_unmap_single(priv->dev, (u32)desc_buf_get_addr(desc),
 				desc_buf_get_len(desc), DMA_TO_DEVICE);
 
 		skb = priv->tx_sk[entry];
@@ -1211,7 +1303,7 @@ static int geth_rx(struct geth_priv *priv, int limit)
 		priv->rx_sk[entry] = NULL;
 
 		skb_put(skb, frame_len);
-		dma_unmap_single(priv->dev, desc_buf_get_addr(desc),
+		dma_unmap_single(priv->dev, (u32)desc_buf_get_addr(desc),
 				desc_buf_get_len(desc), DMA_FROM_DEVICE);
 
 		skb->protocol = eth_type_trans(skb, priv->ndev);
@@ -1818,6 +1910,11 @@ static int geth_probe(struct platform_device *pdev)
 
 	/* Before open the device, the mac address is be set */
 	geth_check_addr(ndev, mac_str);
+
+#ifdef CONFIG_GETH_ATTRS
+	geth_create_attrs(ndev);
+#endif
+	device_enable_async_suspend(&pdev->dev);
 
 	return 0;
 

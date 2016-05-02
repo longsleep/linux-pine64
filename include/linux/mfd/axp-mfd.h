@@ -16,6 +16,7 @@
 #include <linux/module.h>
 
 #include <linux/mfd/axp-mfd-81x.h>
+#include <linux/mfd/axp-mfd-20.h>
 
 #define AXP_MFD_ATTR(_name)				\
 {							\

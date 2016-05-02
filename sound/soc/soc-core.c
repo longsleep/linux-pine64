@@ -2143,7 +2143,7 @@ int snd_soc_update_bits(struct snd_soc_codec *codec, unsigned short reg,
 {
 	bool change;
 	unsigned int old, new;
-	int ret;
+	unsigned int ret;
 
 	if (codec->using_regmap) {
 		ret = regmap_update_bits_check(codec->control_data, reg,

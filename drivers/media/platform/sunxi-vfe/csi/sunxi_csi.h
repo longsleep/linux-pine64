@@ -21,14 +21,25 @@
 #include "../platform_cfg.h"
 
 #define VIDIOC_SUNXI_CSI_GET_FRM_SIZE 			1
+#define VIDIOC_SUNXI_CSI_SET_CORE_CLK 			2
+#define VIDIOC_SUNXI_CSI_SET_M_CLK 			3
 
-struct csi_platform_data
-{
-	unsigned int csi_sel;
+#define CSI_CORE_CLK_RATE (300*1000*1000)
+
+enum{
+	CSI_CORE_CLK = 0,
+	CSI_MASTER_CLK,
+	CSI_MISC_CLK,
+	CSI_CORE_CLK_SRC,	
+	CSI_MASTER_CLK_24M_SRC,
+	CSI_MASTER_CLK_PLL_SRC,		
+	CSI_CLK_NUM,
 }; 
+
+#define NOCLK 			0xff
+
 struct csi_dev
 {
-	unsigned int  csi_sel;
 	int use_cnt;
 	struct v4l2_subdev subdev;
 	struct platform_device  *pdev;
@@ -42,6 +53,9 @@ struct csi_dev
 	struct frame_info       frame_info;
 	struct frame_arrange    arrange;
 	unsigned int            capture_mode;
+	struct list_head		csi_list;	
+	struct pinctrl		 	*pctrl;
+	struct clk				*clock[CSI_CLK_NUM];
 };
 
 void sunxi_csi_dump_regs(struct v4l2_subdev *sd);

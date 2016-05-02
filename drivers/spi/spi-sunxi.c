@@ -131,6 +131,8 @@ struct sunxi_spi {
  */
 #define SPI_CHIP_SELECT_CS0 (0x01)
 #define SPI_CHIP_SELECT_CS1 (0x02)
+#define SPI_CHIP_SELECT_CS2 (0x04)
+#define SPI_CHIP_SELECT_CS3 (0x08)
 
 	int cs_bitmap;/* cs0- 0x1; cs1-0x2, cs0&cs1-0x3. */
 
@@ -761,6 +763,12 @@ static int sunxi_spi_check_cs(int cs_id, struct sunxi_spi *sspi)
 		break;
         case 1:
 		ret = (sspi->cs_bitmap & SPI_CHIP_SELECT_CS1) ? SUNXI_SPI_OK : SUNXI_SPI_FAIL;
+		break;
+	case 2:
+		ret = (sspi->cs_bitmap & SPI_CHIP_SELECT_CS2) ? SUNXI_SPI_OK : SUNXI_SPI_FAIL;
+		break;
+	case 3:
+		ret = (sspi->cs_bitmap & SPI_CHIP_SELECT_CS3) ? SUNXI_SPI_OK : SUNXI_SPI_FAIL;
 		break;
         default:
 		SPI_ERR("[spi-%d]: chip select not support! cs = %d \n", sspi->master->bus_num, cs_id);

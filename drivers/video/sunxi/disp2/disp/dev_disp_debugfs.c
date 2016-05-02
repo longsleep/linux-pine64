@@ -193,6 +193,68 @@ static void dispdbg_process(void)
 			return ;
 		}
 	}
+	/*eink debug*/
+#ifdef SUPPORT_EINK
+	else if (!strncmp(dispdbg_priv.name,"eink",4)) {
+
+		struct disp_eink_manager *eink_manager = NULL;
+		enum eink_update_mode mode;
+		int enable_decode = 0;
+		struct area_info area;
+		char* next;
+		char* tosearch;
+
+		eink_manager = disp_get_eink_manager(0);
+		memset((void*)&area, 0, sizeof(struct area_info));
+
+		if (!strncmp(dispdbg_priv.command,"update",6)) {
+			tosearch = dispdbg_priv.param;
+			next = strsep(&tosearch, " ");
+			mode = simple_strtoul(next,NULL,0);
+
+			next = strsep(&tosearch, " ");
+			area.x_top = simple_strtoul(next,NULL,0);
+			next = strsep(&tosearch, " ");
+			area.y_top = simple_strtoul(next,NULL,0);
+			next = strsep(&tosearch, " ");
+			area.x_bottom= simple_strtoul(next,NULL,0);
+			next = strsep(&tosearch, " ");
+			area.y_bottom = simple_strtoul(next,NULL,0);
+			if (eink_manager->eink_update)
+				eink_manager->eink_update(eink_manager, 0, mode, area);
+
+		} else if (!strncmp(dispdbg_priv.command,"disable",7)) {
+			if (eink_manager->disable)
+				eink_manager->disable(eink_manager);
+			else
+				printk("%s: eink diable err!\n",__func__);
+		}
+		 else if (!strncmp(dispdbg_priv.command,"clearwd",7)) {
+		 	int overlap=1;
+		 	tosearch = dispdbg_priv.param;
+			next = strsep(&tosearch, " ");
+			overlap =  simple_strtoul(next,NULL,0);
+			if (eink_manager->clearwd)
+				eink_manager->clearwd(eink_manager, overlap);
+			else
+				printk("%s: eink clearwd err!\n",__func__);
+		}
+		else if (!strncmp(dispdbg_priv.command,"decode",6)) {
+			tosearch = dispdbg_priv.param;
+			next = strsep(&tosearch, " ");
+			enable_decode = simple_strtoul(next,NULL,0);
+			if (eink_manager->decode)
+				eink_manager->decode(eink_manager, enable_decode);
+			else
+				printk("%s: eink decode err!\n",__func__);
+		} else if (!strncmp(dispdbg_priv.command,"continue",8)) {
+			tosearch = dispdbg_priv.param;
+			next = strsep(&tosearch, " ");
+			eink_manager->flush_continue_flag = simple_strtoul(next,NULL,0);
+		}
+
+	}
+#endif
 	else if (!strncmp(dispdbg_priv.name,"enhance",7)) {
 		char *p = dispdbg_priv.name + 7;
 		int disp;

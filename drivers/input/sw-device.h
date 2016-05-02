@@ -47,14 +47,14 @@ enum{
         DEBUG_OTHERS_INFO       = 1U << 6,
 };
 
-#define NOTE_INFO1              ";Behind the equals sign said detected equipment corresponding to the name of the driver\n"
-#define NOTE_INFO2              ";Note: don't change the file format!\n"
-#define GSENSOR_DEVICE_KEY_NAME "gsensor_module_name"
-#define CTP_DEVICE_KEY_NAME     "ctp_module_name"
-#define LSENSOR_DEVICE_KEY_NAME "light sensor_module_name"
-#define GYR_SENSOR_DEVICE_KEY_NAME "gyr sensor_module_name"
-#define COMPASS_SENSOR_DEVICE_KEY_NAME "compass sensor_module_name"
-#define FILE_DIR                "sensors_cache/device.info"
+//#define NOTE_INFO1              ";Behind the equals sign said detected equipment corresponding to the name of the driver\n"
+//#define NOTE_INFO2              ";Note: don't change the file format!\n"
+#define GSENSOR_DETECTING_FLAG (1)
+#define CTP_DETECTING_FLAG (2)
+#define LSENSOR_DETECTING_FLAG (3)
+#define GYR_SENSOR_DETECTING_FLAG (4)
+#define COMPASS_SENSOR_DETECTING_FLAG (5)
+//#define FILE_DIR                "sensors_cache/device.info"
 
 
 #define STRING_LENGTH           (128)
@@ -62,7 +62,7 @@ enum{
 #define NAME_LENGTH             (32)
 #define ADDRESS_NUMBER          (5)
 #define REG_VALUE_NUMBER        (10)
-#define DEFAULT_TOTAL_ROW       (7)
+//#define DEFAULT_TOTAL_ROW       (7)
 
 /*
 * sw_write_info - The contents of the device.info file
@@ -70,10 +70,10 @@ enum{
 * @str_info:    Record contents.
 * @str_id:      Record the line Numbers.
 */
-struct sw_write_info{
-        char str_info[STRING_LENGTH];
-        int str_id;
-};
+//struct sw_write_info{
+      //  char str_info[STRING_LENGTH];
+ //       int str_id;
+//};
 
 /*
 * sw_device_info - Record related information of the device
@@ -128,15 +128,15 @@ struct para_power{
 /*
 * para_name - Used to parse the key word
 *
-* @used_keyname:        sysconfig.fex para key name, format:xxx_para ,For example: ctp_para
-* @used_subname:        sysconfig.fex para used name, format:xxx_used ,For example: ctp_used
-* @detected_keyname:    sysconfig.fex detect list para key name, format:xxx_list_para,
-*                       For example: ctp_list_para
-* @detected_subname:    sysconfig.fex detect list para detect used name, format:xxx_det_used,
-*                       For example: ctp_det_used
-* @twi_id_name:         sysconfig.fex para twi id name, format:xxx_twi_id ,For example: ctp_twi_id
-* @write_key_name:      Device.info file Identifies the device driver keyword
-*                       format:xxx_module_name,For example:ctp_module_name
+* @used_keyname:        		sysconfig.fex para key name, format:xxx_para ,For example: ctp_para
+* @used_subname:        		sysconfig.fex para used name, format:xxx_used ,For example: ctp_used
+* @detected_keyname:    		sysconfig.fex detect list para key name, format:xxx_list_para,
+*                       		For example: ctp_list_para
+* @detected_subname:    		sysconfig.fex detect list para detect used name, format:xxx_det_used,
+*                       		For example: ctp_det_used
+* @twi_id_name:         		sysconfig.fex para twi id name, format:xxx_twi_id ,For example: ctp_twi_id
+* @device_detecting_flag:   the kind of devices which is being detected
+*                       		
 */
 struct para_name{
         char* used_keyname;
@@ -144,7 +144,7 @@ struct para_name{
         char* detect_keyname;
         char* detect_subname;
         char* twi_id_name;
-        char* write_key_name;
+        int device_detecting_flag;
 };
 
 /*
@@ -169,9 +169,9 @@ struct para_name{
 struct sw_device{
         struct sw_device_info   *info;
         struct i2c_client       *temp_client;
-        struct file             *filp;
+        //struct file             *filp;
         struct para_name        *name;
-        struct sw_write_info write_info[NAME_LENGTH];
+        //struct sw_write_info write_info[NAME_LENGTH];
 
         char    device_name[NAME_LENGTH];
         char    check_addr[NAME_LENGTH];
@@ -179,9 +179,9 @@ struct sw_device{
         int     support_number;
         int     current_number;
         int     detect_used;
-        int     write_flag;
-        int     total_raw;
-        int     write_id;
+        //int     write_flag;
+        //int     total_raw;
+        //int     write_id;
 
         __u32   twi_id; 
 
@@ -203,17 +203,27 @@ struct sw_device_name{
         char c_name[NAME_LENGTH];
         char gy_name[NAME_LENGTH];
         char ls_name[NAME_LENGTH];
+        char compass_name[NAME_LENGTH];
 
         unsigned short g_addr;
         unsigned short c_addr;
         unsigned short gy_addr;
         unsigned short ls_addr;
+        unsigned short compass_addr;
 };
 
 struct node_pointer{
 	const char *name;
 	struct device_node *np; 
 };
+
+struct sw_device_getted_flag {
+	int g_getted_flag;
+	int c_getted_flag;
+	int gy_getted_flag;
+	int ls_getted_flag;
+	int compass_getted_flag;
+	};
 
 struct device_node *find_np_by_name(const char *name);
 

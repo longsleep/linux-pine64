@@ -12,6 +12,33 @@ config AW_AXP81X
 	---help---
 	AXP81X driver
 
+config AW_AXP20
+	bool "AXP20 driver"
+	depends on I2C
+	depends on AXP_TWI_USED
+	---help---
+	AXP20 driver
+
+if AW_AXP20
+choice
+	prompt "AXP calculate type:"
+	default AW_AXP20_COU
+
+	config AW_AXP20_COU
+		bool "COULOMB"
+		---help---
+			AXP driver for coulomb
+	config AW_AXP20_OCV
+		bool "OCV"
+		---help---
+			AXP driver for ocv
+	config AW_AXP20_OCV_SMALL
+		bool "OCV For small battery "
+		---help---
+			AXP driver for modify sampling resistance
+endchoice
+endif # !AW_AXP20
+
 config AXP_TWI_USED
 	bool "AXP use twi as transfer channel"
 	default n

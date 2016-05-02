@@ -57,7 +57,7 @@ CONFIG_80211W = n
 CONFIG_REDUCE_TX_CPU_LOADING = n
 CONFIG_BR_EXT = y
 CONFIG_ANTENNA_DIVERSITY = n
-CONFIG_TDLS = n
+CONFIG_TDLS = y
 ######################## Wake On Lan ##########################
 CONFIG_WOWLAN = y
 CONFIG_GPIO_WAKEUP = y
@@ -654,7 +654,7 @@ EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_$(MODULE_NAME).ma
 endif
 
 #WIFIMAC_PATH
-USER_WIFIMAC_PATH ?=
+USER_WIFIMAC_PATH ?= /data/misc/wifi/wifimac.txt
 ifneq ($(USER_WIFIMAC_PATH),)
 EXTRA_CFLAGS += -DWIFIMAC_PATH=\"$(USER_WIFIMAC_PATH)\"
 else

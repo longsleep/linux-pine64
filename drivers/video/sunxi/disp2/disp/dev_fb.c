@@ -1150,6 +1150,29 @@ static s32 fb_parse_bootlogo_base(phys_addr_t *fb_base, int * fb_size)
 	return 0;
 }
 
+unsigned long fb_get_address_info(u32 fb_id, u32 phy_virt_flag)
+{
+	struct fb_info *info = NULL;
+	unsigned long phy_addr = 0;
+	unsigned long virt_addr = 0;
+
+	if (fb_id >= FB_MAX) {
+		return 0;
+	}
+
+	info = g_fbi.fbinfo[fb_id];
+	phy_addr = info->fix.smem_start;
+	virt_addr = (unsigned long)info->screen_base;
+
+	if (0 == phy_virt_flag) {
+		//get virtual address
+		return virt_addr;
+	} else {
+		//get phy address
+		return phy_addr;
+	}
+}
+
 s32 fb_init(struct platform_device *pdev)
 {
 	struct disp_fb_create_info fb_para;
@@ -1249,11 +1272,17 @@ s32 fb_init(struct platform_device *pdev)
 				fb_para.width = g_disp_drv.disp_init.fb_width[i];
 				fb_para.height = g_disp_drv.disp_init.fb_height[i];
 			}
+
 			fb_para.output_width = bsp_disp_get_screen_width_from_output_type(screen_id,
 				    g_disp_drv.disp_init.output_type[screen_id], g_disp_drv.disp_init.output_mode[screen_id]);
 			fb_para.output_height = bsp_disp_get_screen_height_from_output_type(screen_id,
 				    g_disp_drv.disp_init.output_type[screen_id], g_disp_drv.disp_init.output_mode[screen_id]);
 			fb_para.fb_mode = screen_id;
+
+			#if defined (SUPPORT_EINK)	//fix me: for eink panel,fix in sysconfig
+			fb_para.output_width = fb_para.width;
+			fb_para.output_height = fb_para.height;
+			#endif
 
 			display_fb_request(i, &fb_para);
 #if defined(CONFIG_DISP2_SUNXI_BOOT_COLORBAR)

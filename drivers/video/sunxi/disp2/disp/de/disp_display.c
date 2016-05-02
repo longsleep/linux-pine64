@@ -33,6 +33,13 @@ s32 bsp_disp_init(disp_bsp_init_para * para)
 	disp_init_smbl(para);
 	disp_init_capture(para);
 
+#if defined(SUPPORT_WB)
+	disp_init_format_convert_manager(para);
+#endif
+#if defined SUPPORT_EINK
+	disp_init_eink(para);
+#endif
+
 	disp_init_connections(para);
 
 	return DIS_SUCCESS;
@@ -135,7 +142,7 @@ s32 disp_device_attached_and_enable(int disp_mgr, int disp_dev, enum disp_output
 				mgr->device->disable(mgr->device);
 		}
 		if (DISP_OUTPUT_TYPE_TV == output_type)
-			msleep(300);
+			disp_delay_ms(300);
 		if (mgr->device->set_mode)
 			mgr->device->set_mode(mgr->device, mode);
 		if (mgr->device->enable)
@@ -215,6 +222,49 @@ s32 bsp_disp_device_switch(int disp, enum disp_output_type output_type, enum dis
 
 	return ret;
 }
+
+s32 bsp_disp_eink_update(struct disp_eink_manager* manager, void *src_img, enum eink_update_mode mode, struct area_info* update_area)
+{
+	int ret = -1;
+	struct area_info area;
+
+	memcpy(&area, update_area, sizeof(struct area_info));
+
+	__debug("src_img=0x%p, mode=0x%d, x_top=%u, y_top=%u, x_bottom=%u, y_bottom=%u\n", \
+			src_img, mode, area.x_top,area.y_top, area.x_bottom, area.y_bottom);
+
+	if (manager)
+		ret = manager->eink_update(manager, src_img, mode, area);
+	else
+		__debug("eink manager is NULL!\n");
+
+	return ret;
+}
+
+
+s32 bsp_disp_eink_set_temperature(struct disp_eink_manager* manager, unsigned int temp)
+{
+	s32 ret = -1;
+	if (manager)
+		ret = manager->set_temperature(manager, temp);
+	else
+		__debug("eink manager is NULL!\n");
+
+	return ret;
+}
+
+
+s32 bsp_disp_eink_get_temperature(struct disp_eink_manager* manager)
+{
+	s32 ret = -1;
+	if (manager)
+		ret = manager->get_temperature(manager);
+	else
+		__debug("eink manager is NULL!\n");
+
+	return ret;
+}
+
 
 s32 disp_init_connections(disp_bsp_init_para * para)
 {
@@ -904,22 +954,31 @@ s32 bsp_disp_tv_register(struct disp_tv_func * func)
 	u32 disp = 0;
 	u32 num_screens = 0;
 	s32 ret = 0, registered_cnt = 0;
-	struct disp_device*  ptv = NULL;
-	disp_init_tv();
+	struct disp_device* dispdev = NULL;
+
 	num_screens = bsp_disp_feat_get_num_screens();
+	disp_init_tv();
 	for (disp=0; disp<num_screens; disp++) {
-		ptv = disp_device_find(disp, DISP_OUTPUT_TYPE_TV);
-		if (ptv) {
-			registered_cnt ++;
+		dispdev = disp_device_find(disp, DISP_OUTPUT_TYPE_TV);
+		if (dispdev && dispdev->set_func) {
+			ret = dispdev->set_tv_func(dispdev, func);
+			if (0 == ret)
+				registered_cnt ++;
 		}
-		else {
-			DE_WRN("'ptv is null\n");
-			continue;
-		}
-		ret = disp_tv_set_func(ptv, func);
 	}
 
-	if (0 != registered_cnt && !ret) {
+#if defined(SUPPORT_VGA)
+	disp_init_vga();
+	for (disp=0; disp<num_screens; disp++) {
+		dispdev = disp_device_find(disp, DISP_OUTPUT_TYPE_VGA);
+		if (dispdev && dispdev->set_tv_func) {
+			ret = dispdev->set_tv_func(dispdev, func);
+			if (0 == ret)
+				registered_cnt ++;
+		}
+	}
+#endif
+	if (0 != registered_cnt) {
 		gdisp.tv_registered = 1;
 		if (gdisp.init_para.start_process) {
 			gdisp.init_para.start_process();

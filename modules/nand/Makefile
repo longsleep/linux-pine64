@@ -46,6 +46,10 @@ ifneq ($(strip $(CONFIG_ARCH_SUN8IW10P1)),)
 obj-m += sun8iw10p1/
 endif
 
+ifneq ($(strip $(CONFIG_ARCH_SUN8IW11P1)),)
+obj-m += sun8iw11p1/
+endif
+
 install: build	
 	@if cat ../../.config|grep "CONFIG_ARCH_SUN8IW1P1=y" >/dev/null 2>&1;then \
 	cp sun8iw1p1/nand.ko $(LICHEE_MOD_DIR)/;\
@@ -73,6 +77,9 @@ install: build
 	fi
 	@if cat ../../.config|grep "CONFIG_ARCH_SUN8IW10P1=y" >/dev/null 2>&1;then \
 	cp sun8iw10p1/nand.ko $(LICHEE_MOD_DIR)/;\
+	fi
+	@if cat ../../.config|grep "CONFIG_ARCH_SUN8IW11P1=y" >/dev/null 2>&1;then \
+	cp sun8iw11p1/nand.ko $(LICHEE_MOD_DIR)/;\
 	fi
 	
 build:
@@ -102,6 +109,9 @@ build:
 	fi
 	@if cat ../../.config|grep "CONFIG_ARCH_SUN8IW10P1=y" >/dev/null 2>&1;then \
 	cp sun8iw10p1/libnand_sun8iw10p1 sun8iw10p1/libnand_sun8iw10p1.a;\
+	fi
+	@if cat ../../.config|grep "CONFIG_ARCH_SUN8IW11P1=y" >/dev/null 2>&1;then \
+	cp sun8iw11p1/libnand_sun8iw11p1 sun8iw11p1/libnand_sun8iw11p1.a;\
 	fi
 	$(MAKE) -C $(LICHEE_KDIR) M=$(PWD)
 

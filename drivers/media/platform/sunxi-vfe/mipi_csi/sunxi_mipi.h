@@ -18,23 +18,30 @@
 #define _SUNXI_MIPI__H_
 
 #include "../platform_cfg.h"
-struct mipi_platform_data
-{
-	unsigned int mipi_sel;
+
+enum{
+	MIPI_CSI_CLK = 0,		
+	MIPI_DPHY_CLK,
+	MIPI_CSI_CLK_SRC,
+	MIPI_DPHY_CLK_SRC,
+	MIPI_CLK_NUM,
 }; 
+
+#define NOCLK 			0xff
+
 struct mipi_dev
 {
-	unsigned int  mipi_sel;
 	int use_cnt;
 	struct v4l2_subdev subdev;
 	struct platform_device  *pdev;
+	struct list_head 	mipi_list;	
 	unsigned int id;
 	spinlock_t slock;
-//	int irq;  
 	wait_queue_head_t   wait;
-	void __iomem      *base;
+	void __iomem      	*base;
 	struct mipi_para        mipi_para;
 	struct mipi_fmt         mipi_fmt;
+	struct clk				*clock[MIPI_CLK_NUM];
 };
 
 int sunxi_mipi_get_subdev(struct v4l2_subdev **sd, int sel);

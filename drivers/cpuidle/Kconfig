@@ -47,4 +47,10 @@ config CPU_IDLE_CALXEDA
 	help
 	  Select this to enable cpuidle on Calxeda processors.
 
+config CPU_IDLE_SUNXI
+	bool "CPU Idle Driver for Sunxi processors"
+	depends on ARCH_SUN8IW11
+	help
+	  Select this to enable cpuidle on Sunxi processors.
+
 endif

@@ -6,110 +6,6 @@ unsigned int vfe_dbg_lv = 1;
 EXPORT_SYMBOL_GPL(vfe_dbg_en);
 EXPORT_SYMBOL_GPL(vfe_dbg_lv);
 
-struct clk *os_clk_get(struct device_node *np, int index)
-{
-#ifdef VFE_CLK
-	struct clk *clk_p;
-	clk_p = of_clk_get(np, index);
-	if(IS_ERR_OR_NULL(clk_p))
-		return NULL;
-  	return clk_p;
-#else
-	return NULL;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_get);
-
-void  os_clk_put(struct clk *clk)
-{
-#ifdef VFE_CLK
-	clk_put(clk);
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_put);
-
-int os_clk_set_parent(struct clk *clk, struct clk *parent) 
-{
-#ifdef VFE_CLK
-	return clk_set_parent(clk, parent);
-#else
-	return 0;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_set_parent);
-
-int os_clk_set_rate(struct clk *clk, unsigned long rate) 
-{
-#ifdef VFE_CLK
-	int ret;
-	ret = clk_set_rate(clk, rate);
-	if(ret < 0)
-	{
-		vfe_warn("Set clk rate %ld is ERR!\n",rate);
-	}
-	return ret;
-#else
-	return 0;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_set_rate);
-
-int os_clk_enable(struct clk *clk) 
-{
-#ifdef VFE_CLK
-	return clk_enable(clk);
-#else
-	return 0;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_enable);
-
-int os_clk_prepare_enable(struct clk *clk)
-{
-#ifdef VFE_CLK
-	return clk_prepare_enable(clk);
-#else
-	return 0;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_prepare_enable);
-
-void os_clk_disable(struct clk *clk) 
-{
-#ifdef VFE_CLK
-	clk_disable(clk);
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_disable);
-
-void os_clk_disable_unprepare(struct clk *clk)
-{
-#ifdef VFE_CLK
-	clk_disable_unprepare(clk);
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_disable_unprepare);
-
-int os_clk_reset_assert(struct clk *clk) 
-{
-#ifdef VFE_CLK
-	return sunxi_periph_reset_assert(clk);
-#else
-	return 0;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_reset_assert);
-
-int os_clk_reset_deassert(struct clk *clk) 
-{
-#ifdef VFE_CLK
-	return sunxi_periph_reset_deassert(clk);
-#else
-	return 0;
-#endif
-}
-EXPORT_SYMBOL_GPL(os_clk_reset_deassert);
-
 int os_gpio_request(struct vfe_gpio_cfg *gpio_list, __u32 group_count_max)
 {    
 #ifdef VFE_GPIO
@@ -142,7 +38,7 @@ int os_gpio_set(struct vfe_gpio_cfg *gpio_list, __u32 group_count_max)
 {    
 #ifdef VFE_GPIO
 	struct gpio_config pin_cfg;
-	char   pin_name[32];
+	char pin_name[32];
 	__u32 config;
 
 	if(gpio_list == NULL)
@@ -206,7 +102,7 @@ int os_gpio_release(u32 p_handler, __s32 if_release_to_default_status)
 	}
 	else
 	{
-		vfe_warn("os_gpio_release, hdl is INVALID\n");
+		vfe_dbg(0, "os_gpio_release, hdl is INVALID\n");
 	}
 #endif
 	return 0;
@@ -226,7 +122,6 @@ int os_gpio_write(u32 p_handler, __u32 value_to_gpio, const char *gpio_name, int
 		{
 			vfe_dbg(0,"os_gpio_write, hdl is INVALID\n");
 		}
-
 	}
 	else
 	{

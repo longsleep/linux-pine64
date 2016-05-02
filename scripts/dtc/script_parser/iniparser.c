@@ -717,7 +717,7 @@ dictionary *iniparser_load(const char *ininame)
 		goto out;
 	}
 
-	dict = dictionary_new(0);
+	dict = dictionary_new(DICT_STORAGE_SIZE);
 	if (!dict) {
 		goto out;
 	}
@@ -946,7 +946,7 @@ int  iniparser_get_str2int(char *saddr, int value[])
 		data_count = 0;
 		while (src[data_count] != '\0') {
 			data_count++;
-			if (data_count > 127) {
+			if (data_count > DICT_STORAGE_SIZE - 1) {
 				break;
 			}
 		}
@@ -967,7 +967,7 @@ int  iniparser_get_str2int(char *saddr, int value[])
 		data_count = 0;
 		while (src[data_count] != '"') {
 			data_count++;
-			if (data_count > 127) {
+			if (data_count > DICT_STORAGE_SIZE - 1) {
 				break;
 			}
 		}

@@ -56,6 +56,11 @@ static const struct axp_desc_pin axp_pins[] = {
 	AXP_PIN_DESC(AXP_PINCTRL_GPIO3,
 		     AXP_FUNCTION(0x0, "gpio_in"),
 		     AXP_FUNCTION(0x1, "gpio_out")),
+#if defined(CONFIG_AW_AXP20)
+	AXP_PIN_DESC(AXP_PINCTRL_GPIO4,
+		     AXP_FUNCTION(0x0, "gpio_in"),
+		     AXP_FUNCTION(0x1, "gpio_out")),
+#endif
 };
 
 #define AXP_NUM_GPIOS   ARRAY_SIZE(axp_pins)
@@ -76,6 +81,8 @@ static int axp_gpio_get_data(int gpio)
 
 #ifdef CONFIG_AW_AXP22
 	axp = axp_dev_lookup(AXP22);
+#elif defined(CONFIG_AW_AXP20)
+	axp = axp_dev_lookup(AXP20);
 #elif defined(CONFIG_AW_AXP81X)
 	axp = axp_dev_lookup(AXP81X);
 #endif
@@ -84,12 +91,20 @@ static int axp_gpio_get_data(int gpio)
 		return -ENXIO;
 	}
 	switch(gpio){
+#if defined(CONFIG_AW_AXP81X) || defined(CONFIG_AW_AXP22)
 		case 0:axp_read(axp->dev,AXP_GPIO01_STATE,&ret);ret &= 0x1;break;
 		case 1:axp_read(axp->dev,AXP_GPIO01_STATE,&ret);ret &= 0x2;break;
 		case 2:printk("This IO is not an input,no return value!");return -ENXIO;
 		case 3:printk("This IO is not an input,no return value!");return -ENXIO;
 		case 4:printk("This IO is not an input,no return value!");return -ENXIO;
 		case 5:printk("This IO is not an input,no return value!");return -ENXIO;
+#elif defined(CONFIG_AW_AXP20)
+		case 0:axp_read(axp->dev,AXP20_GPIO012_STATE,&ret);ret &= 0x10;ret >>= 4;break;
+		case 1:axp_read(axp->dev,AXP20_GPIO012_STATE,&ret);ret &= 0x20;ret >>= 5;break;
+		case 2:axp_read(axp->dev,AXP20_GPIO012_STATE,&ret);ret &= 0x40;ret >>= 6;break;
+		case 3:axp_read(axp->dev,AXP20_GPIO3_CFG,&ret);ret &= 0x01;break;
+		case 4:printk("This IO is not an input,no return value!");return -ENXIO;
+#endif
 		default:return -ENXIO;
 	}
 	return ret;
@@ -104,6 +119,8 @@ static int axp_gpio_set_data(int gpio, int value)
 	if ((0 <= gpio) && (4 >= gpio)) {
 #ifdef CONFIG_AW_AXP22
 		axp = axp_dev_lookup(AXP22);
+#elif defined(CONFIG_AW_AXP20)
+		axp = axp_dev_lookup(AXP20);
 #elif defined(CONFIG_AW_AXP81X)
 		axp = axp_dev_lookup(AXP81X);
 #endif
@@ -117,28 +134,36 @@ static int axp_gpio_set_data(int gpio, int value)
 
 	if(value){//high
 		switch(gpio) {
-			case 0:
-				return axp_update_sync(axp->dev,AXP_GPIO0_CFG,0x01,0x07);
-			case 1:
-				return axp_update_sync(axp->dev,AXP_GPIO1_CFG,0x01,0x07);
-			case 2:
-				return axp_set_bits(axp->dev,AXP_GPIO2_CFG,0x80);
-			case 3:
-				axp_clr_bits(axp->dev,AXP_GPIO3_CFG, 0x10);
-				return axp_set_bits(axp->dev,AXP_GPIO3_STA,0x04);
+#if defined(CONFIG_AW_AXP81X) || defined(CONFIG_AW_AXP22)
+			case 0: return axp_update_sync(axp->dev,AXP_GPIO0_CFG,0x01,0x07);
+			case 1: return axp_update_sync(axp->dev,AXP_GPIO1_CFG,0x01,0x07);
+			case 2: return axp_set_bits(axp->dev,AXP_GPIO2_CFG,0x80);
+			case 3: axp_clr_bits(axp->dev,AXP_GPIO3_CFG, 0x10);
+					return axp_set_bits(axp->dev,AXP_GPIO3_STA,0x04);
+#elif defined(CONFIG_AW_AXP20)
+			case 0: return axp_update_sync(axp->dev,AXP20_GPIO0_CFG,0x01,0x7);
+			case 1: return axp_update_sync(axp->dev,AXP20_GPIO1_CFG,0x01,0x7);
+			case 2: return axp_set_bits(axp->dev,AXP20_GPIO2_CFG,0x01);
+			case 3: return axp_set_bits(axp->dev,AXP20_GPIO3_CFG,0x02);
+			case 4: return axp_clr_bits(axp->dev,AXP20_GPIO4_CFG,0x30);
+#endif
 			default:break;
 		}
 	}else{//low
 		switch(gpio){
-			case 0:
-				return axp_update_sync(axp->dev,AXP_GPIO0_CFG,0x0,0x07);
-			case 1:
-				return axp_update_sync(axp->dev,AXP_GPIO1_CFG,0x0,0x07);
-			case 2:
-				return axp_clr_bits(axp->dev,AXP_GPIO2_CFG,0x80);
-			case 3:
-				axp_clr_bits(axp->dev,AXP_GPIO3_CFG, 0x10);
-				return axp_clr_bits(axp->dev,AXP_GPIO3_STA,0x04);
+#if defined(CONFIG_AW_AXP81X) || defined(CONFIG_AW_AXP22)
+			case 0: return axp_update_sync(axp->dev,AXP_GPIO0_CFG,0x0,0x07);
+			case 1: return axp_update_sync(axp->dev,AXP_GPIO1_CFG,0x0,0x07);
+			case 2: return axp_clr_bits(axp->dev,AXP_GPIO2_CFG,0x80);
+			case 3: axp_clr_bits(axp->dev,AXP_GPIO3_CFG, 0x10);
+					return axp_clr_bits(axp->dev,AXP_GPIO3_STA,0x04);
+#elif defined(CONFIG_AW_AXP20)
+			case 0: return axp_update_sync(axp->dev,AXP20_GPIO0_CFG,0x00,0x7);
+			case 1: return axp_update_sync(axp->dev,AXP20_GPIO1_CFG,0x00,0x7);
+			case 2: return axp_clr_bits(axp->dev,AXP20_GPIO2_CFG,0x03);
+			case 3: return axp_clr_bits(axp->dev,AXP20_GPIO3_CFG,0x02);
+			case 4: return axp_set_bits(axp->dev,AXP20_GPIO4_CFG,0x30);
+#endif
 			default:break;
 		}
 	}
@@ -153,6 +178,8 @@ static int axp_pmx_set(int gpio, int mux)
 
 #ifdef CONFIG_AW_AXP22
 	axp = axp_dev_lookup(AXP22);
+#elif defined(CONFIG_AW_AXP20)
+	axp = axp_dev_lookup(AXP20);
 #elif defined(CONFIG_AW_AXP81X)
 	axp = axp_dev_lookup(AXP81X);
 #endif
@@ -163,23 +190,39 @@ static int axp_pmx_set(int gpio, int mux)
 	}
 	if(mux == 1){//output
 		switch(gpio){
+#if defined(CONFIG_AW_AXP81X) || defined(CONFIG_AW_AXP22)
 			case 0: return axp_clr_bits_sync(axp->dev,AXP_GPIO0_CFG, 0x06);
 			case 1: return axp_clr_bits_sync(axp->dev,AXP_GPIO1_CFG, 0x06);
 			case 2: return 0;
-			case 3: return axp_clr_bits(axp->dev,AXP_GPIO3_CFG, 0x10);
+			case 3: return axp_clr_bits_sync(axp->dev,AXP_GPIO3_CFG, 0x10);
+#elif defined(CONFIG_AW_AXP20)
+			case 0: return axp_clr_bits_sync(axp->dev,AXP20_GPIO0_CFG, 0x06);
+			case 1: return axp_clr_bits_sync(axp->dev,AXP20_GPIO1_CFG, 0x06);
+			case 2: return axp_clr_bits_sync(axp->dev,AXP20_GPIO2_CFG, 0x06);
+			case 3: return axp_clr_bits_sync(axp->dev,AXP20_GPIO3_CFG, 0x04);
+			case 4: return axp_set_bits_sync(axp->dev,AXP20_GPIO4_CFG, 0x08);
+#endif
 			default:return -ENXIO;
 		}
 	}
 	else if(mux == 0){//input
 		switch(gpio){
+#if defined(CONFIG_AW_AXP81X) || defined(CONFIG_AW_AXP22)
 			case 0: axp_clr_bits_sync(axp->dev,AXP_GPIO0_CFG,0x05);
 					return axp_set_bits_sync(axp->dev,AXP_GPIO0_CFG,0x02);
 			case 1: axp_clr_bits_sync(axp->dev,AXP_GPIO1_CFG,0x05);
 					return axp_set_bits_sync(axp->dev,AXP_GPIO1_CFG,0x02);
-			case 2:	printk("This IO can not config as an input!");
-				return -EINVAL;
-			case 3:	printk("This IO can not config as an input!");
-				return -EINVAL;
+			case 2: printk("This IO can not config as an input!");
+					return -EINVAL;
+			case 3: printk("This IO can not config as an input!");
+					return -EINVAL;
+#elif defined(CONFIG_AW_AXP20)
+			case 0: return axp_update_sync(axp->dev,AXP20_GPIO0_CFG,0x02,0x7);
+			case 1: return axp_update_sync(axp->dev,AXP20_GPIO1_CFG,0x02,0x7);
+			case 2: return axp_update_sync(axp->dev,AXP20_GPIO2_CFG,0x02,0x7);
+			case 3: return axp_set_bits(axp->dev,AXP20_GPIO3_CFG,0x04);
+			case 4: return -ENXIO;
+#endif
 			default:return -ENXIO;
 		}
 	}
@@ -195,6 +238,8 @@ static int axp_pmx_get(int gpio)
 
 #ifdef CONFIG_AW_AXP22
 	axp = axp_dev_lookup(AXP22);
+#elif defined(CONFIG_AW_AXP20)
+	axp = axp_dev_lookup(AXP20);
 #elif defined(CONFIG_AW_AXP81X)
 	axp = axp_dev_lookup(AXP81X);
 #endif
@@ -205,30 +250,65 @@ static int axp_pmx_get(int gpio)
 	}
 
 	switch(gpio){
-	case 0:
-		axp_read(axp->dev, AXP_GPIO0_CFG, &data);
-		if (0 == (data & 0x06))
-			return 1;
-		else if (0x02 == (data & 0x07))
-			return 0;
-		else
-			return -ENXIO;
-	case 1:
-		axp_read(axp->dev, AXP_GPIO1_CFG, &data);
-		if (0 == (data & 0x06))
-			return 1;
-		else if (0x02 == (data & 0x07))
-			return 0;
-		else
-			return -ENXIO;
-	case 2:
-		return 1;
-	case 3:
-		axp_read(axp->dev, AXP_GPIO3_CFG, &data);
-		if (0 == (data & 0x10))
-			return 1;
-		else
-			return 0;
+#if defined(CONFIG_AW_AXP81X) || defined(CONFIG_AW_AXP22)
+		case 0: axp_read(axp->dev, AXP_GPIO0_CFG, &data);
+			if (0 == (data & 0x06))
+				return 1;
+			else if (0x02 == (data & 0x07))
+				return 0;
+			else
+				return -ENXIO;
+		case 1: axp_read(axp->dev, AXP_GPIO1_CFG, &data);
+			if (0 == (data & 0x06))
+				return 1;
+			else if (0x02 == (data & 0x07))
+				return 0;
+			else
+				return -ENXIO;
+		case 2: return 1;
+		case 3: axp_read(axp->dev, AXP_GPIO3_CFG, &data);
+			if (0 == (data & 0x10))
+				return 1;
+			else
+				return 0;
+#elif defined(CONFIG_AW_AXP20)
+		case 0: axp_read(axp->dev,AXP20_GPIO0_CFG,&data);data &= 0x07;
+			if (data < 0x02)
+				return 1;
+			else if (data == 0x02)
+				return 0;
+			else
+				return -EIO;
+			break;
+		case 1: axp_read(axp->dev,AXP20_GPIO1_CFG,&data);data &= 0x07;
+			if (data < 0x02)
+				return 1;
+			else if (data == 0x02)
+				return 0;
+			else
+				return -EIO;
+			break;
+		case 2: axp_read(axp->dev,AXP20_GPIO2_CFG,&data);data &= 0x07;
+			if (data < 0x02)
+				return 1;
+			else if (data == 0x02)
+				return 0;
+			else
+				return -EIO;
+			break;
+		case 3: axp_read(axp->dev,AXP20_GPIO3_CFG,&data);data &= 0x04;
+			if (data == 0x0)
+				return 1;
+			else
+				return 0;
+			break;
+		case 4: axp_read(axp->dev,AXP20_GPIO4_CFG,&data);data &= 0x08;
+			if (data == 0x0)
+				return 0;
+			else
+				return 1;
+			break;
+#endif
 	default:return -ENXIO;
 	}
 	return -ENXIO;

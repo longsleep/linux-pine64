@@ -52,12 +52,6 @@ struct isp_pix_fmt {
 	u16	flags;
 };
 
-
-struct isp_platform_data
-{
-	unsigned int isp_sel;
-}; 
-
 struct isp_yuv_size_addr_info
 {
 	unsigned int isp_byte_size;
@@ -96,10 +90,10 @@ struct isp_fmt_cfg
 };
 struct isp_dev
 {
-	unsigned int  isp_sel;
 	int use_cnt;
 	struct v4l2_subdev subdev;
 	struct platform_device  *pdev;
+	struct list_head 	isp_list;	
 	struct sunxi_isp_ctrls ctrls;
 	int vflip;
 	int hflip;
@@ -120,12 +114,11 @@ struct isp_dev
 	int plannar_uv_exchange_flag[ISP_MAX_CH_NUM];
 	struct isp_yuv_size_addr_info isp_yuv_size_addr[ISP_MAX_CH_NUM];
 };
-void sunxi_isp_set_fmt(enum bus_pixeltype type, enum pixel_fmt *fmt);
-void sunxi_isp_set_flip(enum isp_channel ch, enum enable_flag on_off);
+void sunxi_isp_set_fmt(struct isp_dev *isp, enum bus_pixeltype type, enum pixel_fmt *fmt);
+void sunxi_isp_set_flip(struct isp_dev *isp, enum isp_channel ch, enum enable_flag on_off);
 void sunxi_isp_set_mirror(enum isp_channel ch, enum enable_flag on_off);
-
-unsigned int sunxi_isp_set_size(enum pixel_fmt *fmt, struct isp_size_settings *size_settings);
-void sunxi_isp_set_output_addr(unsigned long buf_base_addr);
+unsigned int sunxi_isp_set_size(struct isp_dev *isp, enum pixel_fmt *fmt, struct isp_size_settings *size_settings);
+void sunxi_isp_set_output_addr(struct v4l2_subdev *sd, unsigned long buf_base_addr);
 
 void sunxi_isp_dump_regs(struct v4l2_subdev *sd);
 int sunxi_isp_get_subdev(struct v4l2_subdev **sd, int sel);

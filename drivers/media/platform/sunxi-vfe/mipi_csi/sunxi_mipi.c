@@ -29,12 +29,103 @@
 
 #define IS_FLAG(x,y) (((x)&(y)) == y)
 
-struct mipi_dev *mipi_gbl;
+static LIST_HEAD(mipi_drv_list);
 
-static void mipi_release(struct device *dev)
-{
-	vfe_print("mipi_device_release\n");
+static char * clk_name[MIPI_CLK_NUM] = {
+	"mipi_csi_clk",
+	"mipi_dphy_clk",
+	"mipi_csi_clk_src",
+	"mipi_dphy_clk_src",
 };
+
+static int mipi_clk_get(struct mipi_dev *dev)
+{
+#ifdef VFE_CLK
+	int i;
+	int clk_index[MIPI_CLK_NUM];
+	struct device_node *np = dev->pdev->dev.of_node;
+	of_property_read_u32_array(np, "clocks-index", clk_index, MIPI_CLK_NUM);
+	for(i = 0; i < MIPI_CLK_NUM; i++)
+	{
+		if(clk_index[i] != NOCLK){
+			dev->clock[i] = of_clk_get(np, clk_index[i]);
+			if(IS_ERR_OR_NULL(dev->clock[i]))
+				vfe_warn("Get clk Index:%d , Name:%s is NULL!\n", (int)clk_index[i], clk_name[i]);
+			vfe_dbg(0,"Get clk Name:%s !\n", dev->clock[i]->name);
+		}
+	}
+#endif
+	return 0;
+}
+
+static int mipi_dphy_clk_set(struct mipi_dev *dev, unsigned long freq)
+{
+#ifdef VFE_CLK
+	if(dev->clock[MIPI_DPHY_CLK] && dev->clock[MIPI_DPHY_CLK_SRC]) {
+		if(clk_set_parent(dev->clock[MIPI_DPHY_CLK], dev->clock[MIPI_DPHY_CLK_SRC])) {
+			vfe_err("set vfe dphy clock source failed \n");
+			return -1;
+		}
+		if(clk_set_rate(dev->clock[MIPI_DPHY_CLK], freq)) {
+			vfe_err("set mipi%d dphy clock error\n",dev->id);
+			return -1;
+		}
+	} else {
+		vfe_warn("vfe dphy clock is null\n");
+		return -1;
+	}
+#endif  
+  return 0;
+}
+
+static int mipi_clk_enable(struct mipi_dev *dev)
+{
+	int ret = 0;
+#ifdef VFE_CLK
+	int i;
+	for(i = 0; i < MIPI_CSI_CLK_SRC; i++)
+	{
+		if(dev->clock[i]) {
+			if(clk_prepare_enable(dev->clock[i])) {
+				vfe_err("%s enable error\n",clk_name[i]);
+				ret = -1;
+			}			
+		} else {
+			vfe_dbg(0,"%s is null\n",clk_name[i]);
+			ret = -1;
+		}
+	}
+#endif
+	return ret;
+}
+
+static void mipi_clk_disable(struct mipi_dev *dev)
+{
+#ifdef VFE_CLK
+	int i;
+	for(i = 0; i < MIPI_CSI_CLK_SRC; i++)
+	{
+		if(dev->clock[i])
+			clk_disable_unprepare(dev->clock[i]);
+		else 
+			vfe_dbg(0,"%s is null\n",clk_name[i]);
+	}
+#endif  
+}
+
+static void mipi_clk_release(struct mipi_dev *dev)
+{
+#ifdef VFE_CLK
+	int i;
+	for(i = 0; i < MIPI_CLK_NUM; i++)
+	{
+		if(dev->clock[i])
+			clk_put(dev->clock[i]);
+		else
+			vfe_dbg(0,"%s is null\n",clk_name[i]);
+	}
+#endif
+}
 
 static enum pkt_fmt get_pkt_fmt(enum bus_pixelcode bus_pix_code)
 {
@@ -71,6 +162,13 @@ static enum pkt_fmt get_pkt_fmt(enum bus_pixelcode bus_pix_code)
 
 static int sunxi_mipi_subdev_s_power(struct v4l2_subdev *sd, int enable)
 {
+	struct mipi_dev *mipi = v4l2_get_subdevdata(sd);
+	if(enable) {
+		mipi_dphy_clk_set(mipi, DPHY_CLK);
+		mipi_clk_enable(mipi);
+	} else {
+		mipi_clk_disable(mipi);
+	}
 	return 0;
 }
 static int sunxi_mipi_subdev_s_stream(struct v4l2_subdev *sd, int enable)
@@ -105,12 +203,12 @@ static int sunxi_mipi_subdev_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_
 		mipi->mipi_fmt.field[i] = field_fmt_v4l2_to_common(fmt->format.field);
 		mipi->mipi_fmt.vc[i] = i;
 	}
-	bsp_mipi_csi_dphy_init(mipi->mipi_sel);
-	bsp_mipi_csi_set_para(mipi->mipi_sel, &mipi->mipi_para);
-	bsp_mipi_csi_set_fmt(mipi->mipi_sel, mipi->mipi_para.total_rx_ch, &mipi->mipi_fmt);
+	bsp_mipi_csi_dphy_init(mipi->id);
+	bsp_mipi_csi_set_para(mipi->id, &mipi->mipi_para);
+	bsp_mipi_csi_set_fmt(mipi->id, mipi->mipi_para.total_rx_ch, &mipi->mipi_fmt);
 	
 	//for dphy clock async
-	bsp_mipi_csi_dphy_disable(mipi->mipi_sel);
+	bsp_mipi_csi_dphy_disable(mipi->id);
 
 	return 0;
 }
@@ -188,66 +286,64 @@ static int sunxi_mipi_subdev_init(struct mipi_dev *mipi)
 
 	v4l2_subdev_init(sd, &sunxi_mipi_subdev_ops);
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	snprintf(sd->name, sizeof(sd->name), "sunxi_mipi.%u", mipi->mipi_sel);
+	snprintf(sd->name, sizeof(sd->name), "sunxi_mipi.%u", mipi->id);
 
 	v4l2_set_subdevdata(sd, mipi);
 	return 0;
 }
+
 static int mipi_probe(struct platform_device *pdev)
 {
+    struct device_node *np = pdev->dev.of_node;
 	struct mipi_dev *mipi = NULL;
-	struct resource *res = NULL;
-	struct mipi_platform_data *pdata = NULL;
 	int ret = 0;
-	if(pdev->dev.platform_data == NULL)
+	
+	if(np == NULL)
 	{
+		vfe_err("MIPI failed to get of node\n");
 		return -ENODEV;
 	}
-	pdata = pdev->dev.platform_data;
-	vfe_print("mipi probe start mipi_sel = %d!\n",pdata->mipi_sel);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-
-	if (!request_mem_region(res->start, resource_size(res), res->name)) {
-		return -ENOMEM;
-	}
 	mipi = kzalloc(sizeof(struct mipi_dev), GFP_KERNEL);
 	if (!mipi) {
 		ret = -ENOMEM;
 		goto ekzalloc;
 	}
-	mipi->mipi_sel = pdata->mipi_sel;
 	
-	spin_lock_init(&mipi->slock);
-	init_waitqueue_head(&mipi->wait);
-	mipi->base = ioremap(res->start, resource_size(res));
+	pdev->id = of_alias_get_id(np, "mipi");
+	if (pdev->id < 0) {
+		vfe_err("MIPI failed to get alias id\n");
+		ret = -EINVAL;
+		goto freedev;
+	}
+	
+	mipi->base = of_iomap(np, 0);
 	if (!mipi->base) {
 		ret = -EIO;
 		goto freedev;
 	}
+	mipi->id = pdev->id;
+	mipi->pdev = pdev;
 
-#if defined(CONFIG_ARCH_SUN8IW7P1)
+	spin_lock_init(&mipi->slock);
+	init_waitqueue_head(&mipi->wait);
 
-#else
-	if(mipi->mipi_sel == 0) {
-#if defined (CONFIG_ARCH_SUN8IW6P1)
-		bsp_mipi_csi_set_base_addr(mipi->mipi_sel, (unsigned long)mipi->base);
-		bsp_mipi_dphy_set_base_addr(mipi->mipi_sel, (unsigned long)mipi->base + 0x1000);
-#else
-		ret = bsp_mipi_csi_set_base_addr(mipi->mipi_sel, 0);
-		if(ret < 0)
-			goto ehwinit;
-		ret = bsp_mipi_dphy_set_base_addr(mipi->mipi_sel, 0);
-		if(ret < 0)
-			goto ehwinit;
-#endif
+	ret = bsp_mipi_csi_set_base_addr(mipi->id, (unsigned long)mipi->base);
+	ret = bsp_mipi_dphy_set_base_addr(mipi->id, (unsigned long)mipi->base + 0x1000);
+	if(ret < 0)
+		goto ehwinit;
+	
+	if (mipi_clk_get(mipi)) {
+		vfe_err("mipi clock get failed!\n");
+		return -ENXIO;
 	}
-#endif
-	mipi_gbl = mipi;
+//	mipi_clk_enable(mipi);
+
+	list_add_tail(&mipi->mipi_list, &mipi_drv_list);
 	sunxi_mipi_subdev_init(mipi);
 
 	platform_set_drvdata(pdev, mipi);
-	vfe_print("mipi probe end mipi_sel = %d!\n",pdata->mipi_sel);
+	vfe_print("mipi %d probe end!\n",mipi->id);
 	return 0;
 
 ehwinit:
@@ -266,37 +362,14 @@ static int mipi_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	if(mipi->base)
 		iounmap(mipi->base);
+	mipi_clk_release(mipi);
 	kfree(mipi);
 	return 0;
 }
 
-static struct resource mipi0_resource[] = 
-{
-	[0] = {
-		.name	= "mipi",
-		.start  = MIPI_CSI0_REGS_BASE,
-		.end    = MIPI_CSI0_REGS_BASE + MIPI_CSI_REG_SIZE -1,
-		.flags  = IORESOURCE_MEM,
-	},
-};
-
-static struct mipi_platform_data mipi0_pdata[] = {
-	{
-		.mipi_sel  = 0,
-	},
-};
-
-static struct platform_device mipi_device[] = {
-	[0] = {
-		.name  = MIPI_MODULE_NAME,
-		.id = 0,
-		.num_resources = ARRAY_SIZE(mipi0_resource),
-		.resource = mipi0_resource,
-		.dev = {
-			.platform_data  = mipi0_pdata,
-			.release        = mipi_release,
-		},
-	},
+static const struct of_device_id sunxi_mipi_match[] = {
+	{ .compatible = "allwinner,sunxi-mipi", },
+	{},
 };
 
 static struct platform_driver mipi_platform_driver = {
@@ -305,41 +378,45 @@ static struct platform_driver mipi_platform_driver = {
 	.driver = {
 		.name   = MIPI_MODULE_NAME,
 		.owner  = THIS_MODULE,
+		.of_match_table = sunxi_mipi_match,
 	}
 };
 
-
 int sunxi_mipi_register_subdev(struct v4l2_device *v4l2_dev, struct v4l2_subdev *sd)
 {
+	if(sd == NULL)
+		return -ENODEV;
 	return v4l2_device_register_subdev(v4l2_dev, sd);
 }
 
 void sunxi_mipi_unregister_subdev(struct v4l2_subdev *sd)
 {
+	if(sd == NULL)
+		return;
 	v4l2_device_unregister_subdev(sd);
 	v4l2_set_subdevdata(sd, NULL);
 }
 
 int sunxi_mipi_get_subdev(struct v4l2_subdev **sd, int sel)
 {
-	*sd = &mipi_gbl->subdev;
-	return (mipi_gbl->use_cnt++);
+	struct mipi_dev *mipi;
+	list_for_each_entry(mipi, &mipi_drv_list, mipi_list) {
+		if(mipi->id == sel) {
+			*sd = &mipi->subdev;
+			return 0;
+		}
+	}
+	return -1;
 }
 int sunxi_mipi_put_subdev(struct v4l2_subdev **sd, int sel)
 {
 	*sd = NULL;
-	return (mipi_gbl->use_cnt--);
+	return 0;
 }
 
 int sunxi_mipi_platform_register(void)
 {
-	int ret,i;
-	for(i=0; i<ARRAY_SIZE(mipi_device); i++) 
-	{
-		ret = platform_device_register(&mipi_device[i]);
-		if (ret)
-			vfe_err("mipi device %d register failed\n",i);
-	}
+	int ret;
 	ret = platform_driver_register(&mipi_platform_driver);
 	if (ret) {
 		vfe_err("platform driver register failed\n");
@@ -351,12 +428,7 @@ int sunxi_mipi_platform_register(void)
 
 void sunxi_mipi_platform_unregister(void)
 {
-	int i;
 	vfe_print("mipi_exit start\n");
-	for(i=0; i<ARRAY_SIZE(mipi_device); i++)
-	{
-		platform_device_unregister(&mipi_device[i]);
-	}
 	platform_driver_unregister(&mipi_platform_driver);
 	vfe_print("mipi_exit end\n");
 }

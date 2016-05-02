@@ -15,13 +15,31 @@ config FB_CONSOLE_SUNXI
 
 config DISP2_SUNXI
   tristate "DISP Driver Support(sunxi-disp2)"
-  depends on (ARCH_SUN50I)
+  depends on (ARCH_SUNXI)
   default n
   ---help---
 
 config HDMI_DISP2_SUNXI
 	tristate "HDMI Driver Support(sunxi-disp2)"
 	depends on (DISP2_SUNXI)
+	default n
+	---help---
+
+config TV_DISP2_SUNXI
+  tristate "TV Driver Support(sunxi-disp2)"
+  depends on (DISP2_SUNXI)
+  default n
+  ---help---
+
+config DISP2_TV_GM7121
+  tristate "GM7121 TV module Support(sunxi-disp2)"
+  depends on (DISP2_SUNXI && TV_DISP2_SUNXI)
+  default n
+  ---help---
+
+config DISP2_TV_AC200
+  tristate "AC200 TV module Support(sunxi-disp2)"
+  depends on (DISP2_SUNXI && TV_DISP2_SUNXI && MFD_ACX00)
 	default n
 	---help---
 

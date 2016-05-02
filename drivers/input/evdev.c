@@ -91,15 +91,29 @@ static void __pass_event(struct evdev_client *client,
 
 static void evdev_pass_values(struct evdev_client *client,
 			const struct input_value *vals, unsigned int count,
-			ktime_t mono, ktime_t real)
+			ktime_t time_mono, ktime_t time_boot, ktime_t time_real)
 {
 	struct evdev *evdev = client->evdev;
 	const struct input_value *v;
 	struct input_event event;
 	bool wakeup = false;
+	int clockid;
 
-	event.time = ktime_to_timeval(client->clkid == CLOCK_MONOTONIC ?
-				      mono : real);
+	clockid = client->clkid;
+	switch (clockid){
+
+		case CLOCK_MONOTONIC:
+			event.time = ktime_to_timeval(time_mono);
+			break;
+
+		case CLOCK_BOOTTIME:
+			event.time = ktime_to_timeval(time_boot);
+			break;
+
+		case CLOCK_REALTIME:
+		default:
+			event.time = ktime_to_timeval(time_real);
+	}
 
 	/* Interrupts are disabled, just acquire the lock. */
 	spin_lock(&client->buffer_lock);
@@ -127,21 +141,23 @@ static void evdev_events(struct input_handle *handle,
 {
 	struct evdev *evdev = handle->private;
 	struct evdev_client *client;
-	ktime_t time_mono, time_real;
+	ktime_t time_mono, time_boot, time_real;
 
 	time_mono = ktime_get();
-	time_real = ktime_sub(time_mono, ktime_get_monotonic_offset());
+	time_boot = ktime_get_boottime();
+	time_real = ktime_sub(time_boot, ktime_get_monotonic_offset());
 
 	rcu_read_lock();
 
 	client = rcu_dereference(evdev->grab);
 
 	if (client)
-		evdev_pass_values(client, vals, count, time_mono, time_real);
+		evdev_pass_values(client, vals, count, time_mono,
+			time_boot, time_real);
 	else
 		list_for_each_entry_rcu(client, &evdev->client_list, node)
-			evdev_pass_values(client, vals, count,
-					  time_mono, time_real);
+		evdev_pass_values(client, vals, count, time_mono,
+			time_boot, time_real);
 
 	rcu_read_unlock();
 }
@@ -791,8 +807,11 @@ static long evdev_do_ioctl(struct file *file, unsigned int cmd,
 	case EVIOCSCLOCKID:
 		if (copy_from_user(&i, p, sizeof(unsigned int)))
 			return -EFAULT;
-		if (i != CLOCK_MONOTONIC && i != CLOCK_REALTIME)
+
+		if (i > CLOCK_TAI){
+			pr_warning("CLOCKID = %d is invalid !!!\n",i);
 			return -EINVAL;
+		}
 		client->clkid = i;
 		return 0;
 

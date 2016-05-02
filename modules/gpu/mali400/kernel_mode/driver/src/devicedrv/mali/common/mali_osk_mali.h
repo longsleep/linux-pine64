@@ -53,11 +53,15 @@ _mali_osk_errcode_t _mali_osk_resource_find(u32 addr, _mali_osk_resource_t *res)
  */
 uintptr_t _mali_osk_resource_base_address(void);
 
-/** @brief Find the number of L2 cache cores.
+/** @brief Find the specific GPU resource.
  *
- * @return return the number of l2 cache cores we find in device resources.
+ * @return value
+ * 0x400 if Mali 400 specific GPU resource identified
+ * 0x450 if Mali 450 specific GPU resource identified
+ * 0x470 if Mali 470 specific GPU resource identified
+ *
  */
-u32 _mali_osk_l2_resource_count(void);
+u32 _mali_osk_identify_gpu_resource(void);
 
 /** @brief Retrieve the Mali GPU specific data
  *
