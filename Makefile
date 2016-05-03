@@ -1,7 +1,7 @@
 VERSION = 3
 PATCHLEVEL = 10
 SUBLEVEL = 65
-EXTRAVERSION = -8-pine64
+EXTRAVERSION = -8-pine64-experimental
 NAME = Pine64 longsleep TOSSUG Baby Fish
 
 # *DOCUMENTATION*
