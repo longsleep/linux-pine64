@@ -155,7 +155,7 @@ static int sunxi_mmc_init_host(struct mmc_host *mmc)
 	if(sunxi_mmc_reset_dmactl(host)){
 		return -EIO;
 	}
-				
+
 	mmc_writel(host, REG_FTRGL, host->dma_tl?host->dma_tl:0x20070008);
 	dev_dbg(mmc_dev(host->mmc), "REG_FTRGL %x\n",mmc_readl(host,REG_FTRGL));
 	mmc_writel(host, REG_TMOUT, 0xffffffff);
@@ -432,16 +432,16 @@ static irqreturn_t sunxi_mmc_irq(int irq, void *dev_id)
 	if(host->dat3_imask){
 		if(msk_int & SDXC_CARD_INSERT){
 			mmc_writel(host, REG_RINTR, SDXC_CARD_INSERT);
-			mmc_detect_change(host->mmc,msecs_to_jiffies(500));	
+			mmc_detect_change(host->mmc,msecs_to_jiffies(500));
 			goto out;
 		}
 		if(msk_int & SDXC_CARD_REMOVE){
 			mmc_writel(host, REG_RINTR, SDXC_CARD_REMOVE);
-			mmc_detect_change(host->mmc,msecs_to_jiffies(50));	
+			mmc_detect_change(host->mmc,msecs_to_jiffies(50));
 			goto out;
-		}		
+		}
 	}
-	
+
 
 	mrq = host->mrq;
 	if (mrq) {
@@ -572,9 +572,9 @@ static irqreturn_t sunxi_mmc_handle_bottom_half(int irq, void *dev_id)
 		sunxi_check_r1_ready_may_sleep(host);
     	spin_lock_irqsave(&host->lock, iflags);				
 		host->mrq_busy = NULL;
-    	spin_unlock_irqrestore(&host->lock, iflags);				
+    	spin_unlock_irqrestore(&host->lock, iflags);
 		mmc_request_done(host->mmc, mrq_busy);
-		return IRQ_HANDLED;		
+		return IRQ_HANDLED;
     }else{
 		dev_dbg(mmc_dev(host->mmc), "no request for busy\n");
 	}
@@ -813,8 +813,8 @@ static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		if(!host->power_on||host->dat3_imask){
 			break;
 		}
-		
-		disable_irq(host->irq);		
+
+		disable_irq(host->irq);
 		sunxi_mmc_reset_host(host);
 
 		clk_disable_unprepare(host->clk_mmc);
@@ -837,7 +837,7 @@ static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			if(rval){
 				dev_err(mmc_dev(mmc), "Could not disable vqmmc\n");
 				return;
-			}	
+			}
 		}
 
 		if (!IS_ERR(mmc->supply.vmmc)){
@@ -1106,7 +1106,7 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		rval = mmc_readl(host,REG_GCTRL);
 		rval &= ~SDXC_DEBOUNCE_ENABLE_BIT;
 		mmc_writel(host, REG_GCTRL, rval);
-	}	
+	}
 	mmc_writel(host, REG_IMASK, host->sdio_imask | host->dat3_imask | imask);
 	mmc_writel(host, REG_CARG, cmd->arg);
 	mmc_writel(host, REG_CMDR, cmd_val);
@@ -1159,7 +1159,7 @@ static int sunxi_mmc_regulator_get_supply(struct mmc_host *mmc)
 	/*Because our regulator driver does not support binding to device tree,so we can not binding it to our dev(for example regulator_get(dev, reg_str[0]) or devm_regulator_get(dev, reg_str[0]) )*/
 	//mmc->supply.vmmc = (reg_str[0]== NULL)?(ERR_PTR(-ENODEV)):devm_regulator_get(NULL, reg_str[0]);
 	//mmc->supply.vqmmc = (reg_str[1]== NULL)?(ERR_PTR(-ENODEV)):devm_regulator_get(NULL, reg_str[1]);
-	//mmc->supply.vdmmc = (reg_str[2]== NULL)?(ERR_PTR(-ENODEV)):devm_regulator_get(NULL, reg_str[2]);	
+	//mmc->supply.vdmmc = (reg_str[2]== NULL)?(ERR_PTR(-ENODEV)):devm_regulator_get(NULL, reg_str[2]);
 	mmc->supply.vmmc = regulator_get(NULL, reg_str[0]);
 	mmc->supply.vqmmc = regulator_get(NULL, reg_str[1]);
 	mmc->supply.vdmmc = regulator_get(NULL, reg_str[2]);
@@ -1208,7 +1208,7 @@ static const struct of_device_id sunxi_mmc_of_match[] = {
 	{ .compatible = "allwinner,sun5i-a13-mmc", },
 	{ .compatible = "allwinner,sun8iw10p1-sdmmc3", },
 	{ .compatible = "allwinner,sun8iw10p1-sdmmc1", },
-	{ .compatible = "allwinner,sun8iw10p1-sdmmc0", },	
+	{ .compatible = "allwinner,sun8iw10p1-sdmmc0", },
 	{ .compatible = "allwinner,sun50i-sdmmc2", },
 	{ .compatible = "allwinner,sun50i-sdmmc1", },
 	{ .compatible = "allwinner,sun50i-sdmmc0", },
@@ -1231,7 +1231,7 @@ static struct mmc_host_ops sunxi_mmc_ops = {
 void disable_card2_dat_det(void)
 {
 	void __iomem *card2_int_sg_en=  ioremap(0x1c0f000+0x1000*2+0x38, 0x100);
-	writel(0,card2_int_sg_en);	
+	writel(0,card2_int_sg_en);
 	iounmap(card2_int_sg_en);
 }
 
@@ -1365,7 +1365,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown3;
 		host->phy_index = 3;//2;
  	}
-	#if defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)	
+	#if defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)
 	enable_card3();	//
 	#endif 	/*defined(MMC_FPGA) && defined(CONFIG_ARCH_SUN8IW10P1)*/
 
@@ -1489,7 +1489,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 	if (IS_ERR(host->clk_ahb)) {
 		dev_err(&pdev->dev, "Could not get ahb clock\n");
 		ret =  PTR_ERR(host->clk_ahb);
-		goto error_disable_regulator;		
+		goto error_disable_regulator;
 	}
 
 	host->clk_mmc = devm_clk_get(&pdev->dev, "mmc");
@@ -1591,7 +1591,7 @@ error_disable_regulator:
 	if (!IS_ERR(host->mmc->supply.vdmmc))
 			regulator_disable(host->mmc->supply.vdmmc);
 	sunxi_mmc_regulator_release_supply(host->mmc);
-	
+
 	return ret;
 }
 
@@ -1666,7 +1666,7 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "create sys fs failed\n");
 		goto error_free_dma;
 	}
-	
+
 	dev_info(&pdev->dev, "base:0x%p irq:%u\n", host->reg_base, host->irq);
 	platform_set_drvdata(pdev, mmc);
 	return 0;
@@ -1799,7 +1799,7 @@ static int sunxi_mmc_suspend(struct device *dev)
 					return ret;
 				}
 				dev_info(mmc_dev(mmc),"dat3_imask %x\n",host->dat3_imask);
-				//dump_reg(host);	
+				//dump_reg(host);
 			}
 		}
       }
@@ -1812,7 +1812,7 @@ static int sunxi_mmc_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mmc_host *mmc = platform_get_drvdata(pdev);
-	struct sunxi_mmc_host *host = mmc_priv(mmc);	
+	struct sunxi_mmc_host *host = mmc_priv(mmc);
 	int ret = 0;
 
 	if (mmc) {
@@ -1822,7 +1822,7 @@ static int sunxi_mmc_resume(struct device *dev)
 				if(ret)
 					return ret;
 			}
-			
+
 			if (!IS_ERR(mmc->supply.vqmmc)) {
 				ret = regulator_enable(mmc->supply.vqmmc);
 				if (ret < 0){
@@ -1831,13 +1831,13 @@ static int sunxi_mmc_resume(struct device *dev)
                     return ret;
                 }
 			}
-			
+
 			ret = pinctrl_select_state(host->pinctrl, host->pins_default);
 			if (ret){
 				dev_err(mmc_dev(mmc), "could not set default pins in resume\n");
 				return ret;
 			}
-			
+
 #if 0
 			if (!IS_ERR(host->reset)) {
 					ret = reset_control_deassert(host->reset);
@@ -1845,7 +1845,7 @@ static int sunxi_mmc_resume(struct device *dev)
 						dev_err(mmc_dev(mmc), "reset err %d\n", ret);
 						return ret;
 					}
-			}			
+			}
 #else
 			if (!IS_ERR(host->clk_rst)) {
 				ret = clk_prepare_enable(host->clk_rst);
@@ -1870,7 +1870,7 @@ static int sunxi_mmc_resume(struct device *dev)
 			host->ferror = sunxi_mmc_init_host(mmc);
 			if (host->ferror)
 				return -1;
-		
+
 			sunxi_mmc_regs_restore(host);
 			host->ferror = sunxi_mmc_update_clk(host);
 			if (host->ferror)
@@ -1878,7 +1878,7 @@ static int sunxi_mmc_resume(struct device *dev)
 
 			enable_irq(host->irq);
 			dev_info(mmc_dev(mmc),"dat3_imask %x\n",host->dat3_imask);
-			//dump_reg(host);					
+			//dump_reg(host);
 		}
 
 		//enable card detect pin power
@@ -1913,8 +1913,8 @@ static const struct dev_pm_ops sunxi_mmc_pm = {
 void sunxi_shutdown_mmc(struct platform_device * pdev)
 {
 	struct mmc_host	*mmc = platform_get_drvdata(pdev);
-	struct sunxi_mmc_host *host = mmc_priv(mmc);	
-	
+	struct sunxi_mmc_host *host = mmc_priv(mmc);
+
 	if(host->sunxi_mmc_shutdown){
 		host->sunxi_mmc_shutdown(pdev);
 	}
