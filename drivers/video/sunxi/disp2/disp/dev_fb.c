@@ -812,7 +812,7 @@ static int sunxi_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long a
 
 	case FBIO_WAITFORVSYNC:
 	{
-		//ret = fb_wait_for_vsync(info);
+		ret = fb_wait_for_vsync(info);
 		break;
 	}
 
