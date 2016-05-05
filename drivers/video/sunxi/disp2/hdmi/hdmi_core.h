@@ -25,6 +25,7 @@
 #define HDMI3840_2160P_25   (2+0x100)
 #define HDMI3840_2160P_24   (3+0x100)
 #define HDMI_EDID_LEN 1024
+#define HDMI_EDID 511
 
 #define HDMI_State_Idle 			 0x00
 #define HDMI_State_Wait_Hpd			 0x02
