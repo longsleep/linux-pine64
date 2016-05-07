@@ -196,7 +196,7 @@ int au_dcsub_pages_rev(struct au_dcsub_pages *dpages, struct dentry *dentry,
 		goto out;
 
 	/*
-	 * vfsmount_lock is unnecessary since this is a traverse in a single
+	 * RCU for vfsmount is unnecessary since this is a traverse in a single
 	 * mount
 	 */
 	while (!IS_ROOT(dentry)) {
