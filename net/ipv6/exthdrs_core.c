@@ -253,14 +253,15 @@ int ipv6_find_hdr(const struct sk_buff *skb, unsigned int *offset,
 				if (target < 0 &&
 				    ((!ipv6_ext_hdr(hp->nexthdr)) ||
 				     hp->nexthdr == NEXTHDR_NONE)) {
-					if (fragoff) {
+					if (fragoff)
 						*fragoff = _frag_off;
-						return hp->nexthdr;
-					} else {
-						return -EINVAL;
-					}
+					return hp->nexthdr;
 				}
-				return -ENOENT;
+				if (!found)
+					return -ENOENT;
+				if (fragoff)
+					*fragoff = _frag_off;
+				break;
 			}
 			hdrlen = 8;
 		} else if (nexthdr == NEXTHDR_AUTH) {
