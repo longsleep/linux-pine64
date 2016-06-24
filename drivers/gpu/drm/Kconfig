@@ -220,3 +220,6 @@ source "drivers/gpu/drm/omapdrm/Kconfig"
 source "drivers/gpu/drm/tilcdc/Kconfig"
 
 source "drivers/gpu/drm/qxl/Kconfig"
+
+source "drivers/gpu/drm/sunxi/Kconfig"
+
