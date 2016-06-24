@@ -24,9 +24,6 @@
 #include <linux/miscdevice.h>
 #include <linux/bug.h>
 #include <linux/of.h>
-#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
-#include <linux/sunxi_dramfreq.h>
-#endif
 
 #include <linux/mali/mali_utgard.h>
 #include "mali_kernel_common.h"
@@ -177,6 +174,11 @@ extern int mali_platform_device_unregister(void);
 #ifndef CONFIG_MALI_DT
 extern int aw_mali_platform_device_register(void);
 #endif
+
+#ifdef CONFIG_SUNXI_GPU_COOLING
+extern int gpu_thermal_cool(int freq /* MHz */);
+extern int gpu_thermal_cool_register(int (*cool) (int));
+#endif /* CONFIG_SUNXI_GPU_COOLING */
 
 /* Linux power management operations provided by the Mali device driver */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
@@ -428,6 +430,10 @@ int mali_module_init(void)
 				      0, 0, 0);
 #endif
 
+#ifdef CONFIG_SUNXI_GPU_COOLING
+	gpu_thermal_cool_register(gpu_thermal_cool);
+#endif /* CONFIG_SUNXI_GPU_COOLING */
+
 	MALI_PRINT(("Mali device driver loaded\n"));
 
 	return 0; /* Success */
@@ -604,8 +610,8 @@ static int mali_driver_runtime_suspend(struct device *dev)
 					      0,
 					      0, 0, 0);
 		disable_gpu_clk();
-#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
-		dramfreq_master_access(MASTER_GPU, false);
+#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_GPU_NOTIFY
+		dramfreq_gpu_access(false);
 #endif
 
 		return 0;
@@ -616,8 +622,8 @@ static int mali_driver_runtime_suspend(struct device *dev)
 
 static int mali_driver_runtime_resume(struct device *dev)
 {
-#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
-	dramfreq_master_access(MASTER_GPU, true);
+#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_GPU_NOTIFY
+	dramfreq_gpu_access(true);
 #endif
 	enable_gpu_clk();
 	/* Tracing the frequency and voltage after mali is resumed */

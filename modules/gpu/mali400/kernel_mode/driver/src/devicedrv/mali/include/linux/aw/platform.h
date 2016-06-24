@@ -104,6 +104,8 @@ struct aw_private_data
 #include "sun8i/sun8iw7p1.h"
 #elif defined CONFIG_ARCH_SUN50IW1P1
 #include "sun50i/sun50iw1p1.h"
+#elif defined CONFIG_ARCH_SUN8IW11P1
+#include "sun8i/sun8iw11p1.h"
 #else
 #error "please select a platform\n"
 #endif
