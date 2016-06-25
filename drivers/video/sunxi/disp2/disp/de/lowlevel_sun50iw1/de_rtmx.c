@@ -576,8 +576,8 @@ int de_rtmx_set_lay_haddr(unsigned int sel, unsigned int chno, unsigned int layn
 // return         :
 //                  success
 //*********************************************************************************************************************
-int de_rtmx_set_lay_laddr(unsigned int sel, unsigned int chno, unsigned int layno, unsigned char fmt,de_rect crop,
-                          unsigned int *size, unsigned int *align, de_3d_in_mode trdinmode, unsigned int *addr, unsigned char *haddr)
+int de_rtmx_set_lay_laddr(unsigned int sel, unsigned int chno, unsigned int layno, unsigned char fmt, de_rect crop,
+                           unsigned int *size, unsigned int *align, de_3d_in_mode trdinmode, unsigned int *addr, unsigned char *haddr)
 {
 	long long addr_off[3];
 	unsigned int pitch[3];
@@ -792,7 +792,7 @@ int de_rtmx_get_3d_in(unsigned char fmt, de_rect crop, de_fb *size, unsigned int
 	{
 		if ((trdinmode == DE_3D_SRC_MODE_FP))
 		{
-			pitchr[0]=pitch[0] = DISPALIGN(size[0].w,align[0]);
+			pitchr[0]=pitch[0] = DISPALIGN(size[0].w * ycnt,align[0]) / ycnt;
 			pitchr[1]=pitch[1] = 0;
 			pitchr[2]=pitch[2] = 0;
 
@@ -802,7 +802,7 @@ int de_rtmx_get_3d_in(unsigned char fmt, de_rect crop, de_fb *size, unsigned int
 		}
 		else if ((trdinmode == DE_3D_SRC_MODE_TB))
 		{
-			pitchr[0]=pitch[0] = DISPALIGN(size[0].w,align[0]);
+			pitchr[0]=pitch[0] = DISPALIGN(size[0].w * ycnt,align[0]) / ycnt;
 			pitchr[1]=pitch[1] = 0;
 			pitchr[2]=pitch[2] = 0;
 
@@ -812,8 +812,7 @@ int de_rtmx_get_3d_in(unsigned char fmt, de_rect crop, de_fb *size, unsigned int
 		}
 		else if ((trdinmode == DE_3D_SRC_MODE_SSF)||(trdinmode == DE_3D_SRC_MODE_SSH))
 		{
-
-			pitchr[0]=pitch[0] = DISPALIGN(size[0].w,align[0]);
+			pitchr[0]=pitch[0] = DISPALIGN(size[0].w * ycnt,align[0]) / ycnt;
 			pitchr[1]=pitch[1] = 0;
 			pitchr[2]=pitch[2] = 0;
 
@@ -1062,8 +1061,26 @@ static int de_rtmx_get_coarse_fac(unsigned int sel, unsigned int ovl_w, unsigned
 	ovl_h = ovl_h & (~((1<<hshift)-1));
 
 	status = 0x0;
+
 	//horizontal Y channel
-	if (ovl_w > 8*vsu_outw)
+	if(ovl_w > 4096)
+	{
+		tmpyhn = ovl_w>>1;
+		tmpyhn = tmpyhn & (~((1<<wshift)-1));
+		tmpyhm = ovl_w;
+		*yhm   = tmpyhm;
+		*yhn   = tmpyhn;
+		*chm   = *yhm;
+		*chn   = *yhn;
+
+		//actually fetch horizontal pixel Y channel
+		*midyw = tmpyhn;
+
+		//actually fetch horizontal pixel C channel
+		*midcw = tmpyhn>>wshift;
+		status = 0x1;
+	}
+	else if(ovl_w > 8*vsu_outw)
 	{
 		tmpyhn = 8*vsu_outw;
 		tmpyhn = tmpyhn & (~((1<<wshift)-1));
@@ -1080,9 +1097,9 @@ static int de_rtmx_get_coarse_fac(unsigned int sel, unsigned int ovl_w, unsigned
 		*midcw = tmpyhn>>wshift;
 		status = 0x1;
 	}
-	/* Because the linebuffer of disp1 is only 2048 pixels,
-	 * so if the width of input buffer is larger than the 2048 pixles,
-	 * we should fetch only 2048 well-balancedly.
+	/* Because the linebuffer of disp1 is only 4096 pixels,
+	 * so if the width of input buffer is larger than the 4096 pixles,
+	 * we should fetch only 4096 well-balancedly.
 	 */
 	else if ((sel == 1) && (ovl_w > 2048))
 	{
@@ -1252,7 +1269,6 @@ int de_rtmx_set_pipe_cfg(unsigned int sel, unsigned char pno, unsigned int color
 	 * when ab = 0, the result is	( Cs );
 	 *  when 1, the result is ( Cs * as ), this is what we want.
 	 */
-	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].fcolor.dwval = 0xff000000;
 	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].insize.bits.width = bldrc.w==0?0:bldrc.w-1;
 	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].insize.bits.height = bldrc.h==0?0:bldrc.h-1;
 	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].offset.bits.coorx = bldrc.x;

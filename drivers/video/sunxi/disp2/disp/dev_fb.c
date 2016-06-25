@@ -41,7 +41,11 @@ static int bootlogo_sz = 0;
 
 extern disp_drv_info g_disp_drv;
 
+#define FBHANDTOID(handle)  ((handle) - 100)
+#define FBIDTOHAND(ID)  ((ID) + 100)
+
 static struct __fb_addr_para g_fb_addr;
+
 
 s32 sunxi_get_fb_addr_para(struct __fb_addr_para *fb_addr_para)
 {
@@ -163,6 +167,29 @@ static void *Fb_map_kernel(unsigned long phys_addr, unsigned long size)
 		*(tmp++) = cur_page++;
 
 	pgprot = pgprot_noncached(PAGE_KERNEL);
+	vaddr = vmap(pages, npages, VM_MAP, pgprot);
+
+	vfree(pages);
+	return vaddr;
+}
+
+static void *Fb_map_kernel_cache(unsigned long phys_addr, unsigned long size)
+{
+	int npages = PAGE_ALIGN(size) / PAGE_SIZE;
+	struct page **pages = vmalloc(sizeof(struct page *) * npages);
+	struct page **tmp = pages;
+	struct page *cur_page = phys_to_page(phys_addr);
+	pgprot_t pgprot;
+	void *vaddr = NULL;
+	int i;
+
+	if (!pages)
+		return NULL;
+
+	for (i = 0; i < npages; i++)
+		*(tmp++) = cur_page++;
+
+	pgprot = PAGE_KERNEL;
 	vaddr = vmap(pages, npages, VM_MAP, pgprot);
 
 	vfree(pages);
@@ -509,6 +536,8 @@ static int sunxi_fb_pan_display(struct fb_var_screeninfo *var,struct fb_info *in
 
 	for (sel = 0; sel < num_screens; sel++) {
 		if (sel==g_fbi.fb_mode[info->node]) {
+			u32 buffer_num = 1;
+			u32 y_offset = 0;
 			s32 chan = g_fbi.layer_hdl[info->node][0];
 			s32 layer_id = g_fbi.layer_hdl[info->node][1];
 			struct disp_layer_config config;
@@ -522,10 +551,10 @@ static int sunxi_fb_pan_display(struct fb_var_screeninfo *var,struct fb_info *in
 					__wrn("fb %d, get_layer_config(%d,%d,%d) fail\n", info->node, sel, chan, layer_id);
 					return -1;
 				}
-				config.info.fb.crop.x = ((long long)(var->xoffset)) << 32;
-				config.info.fb.crop.y = ((long long)(var->yoffset)) << 32;
-				config.info.fb.crop.width = ((long long)(var->xres)) << 32;
-				config.info.fb.crop.height = ((long long)(var->yres)) << 32;
+				config.info.fb.crop.x = ((long long)var->xoffset) << 32;
+				config.info.fb.crop.y = ((unsigned long long)(var->yoffset + y_offset)) << 32;;
+				config.info.fb.crop.width = ((long long)var->xres) << 32;
+				config.info.fb.crop.height = ((long long)(var->yres / buffer_num)) << 32;
 				if (0 != mgr->set_layer_config(mgr, &config, 1)) {
 					__wrn("fb %d, set_layer_config(%d,%d,%d) fail\n", info->node, sel, chan, layer_id);
 					return -1;
@@ -587,25 +616,25 @@ static int sunxi_fb_set_par(struct fb_info *info)
 		if (sel==g_fbi.fb_mode[info->node]) {
 			struct fb_var_screeninfo *var = &info->var;
 			struct fb_fix_screeninfo * fix = &info->fix;
+			u32 buffer_num = 1;
+			u32 y_offset = 0;
 			s32 chan = g_fbi.layer_hdl[info->node][0];
 			s32 layer_id = g_fbi.layer_hdl[info->node][1];
 			struct disp_layer_config config;
 			struct disp_manager *mgr = g_disp_drv.mgr[sel];
 
-			if (mgr && mgr->get_layer_config) {
+			if (mgr && mgr->get_layer_config && mgr->set_layer_config) {
 				config.channel = chan;
 				config.layer_id = layer_id;
 				mgr->get_layer_config(mgr, &config, 1);
 			}
 
 			var_to_disp_fb(&(config.info.fb), var, fix);
-			config.info.fb.crop.x = ((long long)(var->xoffset)) << 32;
-			config.info.fb.crop.y = ((long long)(var->yoffset)) << 32;
-			config.info.fb.crop.width = ((long long)(var->xres)) << 32;
-			config.info.fb.crop.height = ((long long)(var->yres)) << 32;
-			config.info.screen_win.width = var->xres;
-			config.info.screen_win.height = var->yres;
-			if (mgr && mgr->set_layer_config)
+			config.info.fb.crop.x = var->xoffset;
+			config.info.fb.crop.y = var->yoffset + y_offset;
+			config.info.fb.crop.width = var->xres;
+			config.info.fb.crop.height = var->yres / buffer_num;
+			if (mgr && mgr->get_layer_config && mgr->set_layer_config)
 				mgr->set_layer_config(mgr, &config, 1);
 		}
 	}
@@ -812,7 +841,7 @@ static int sunxi_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long a
 
 	case FBIO_WAITFORVSYNC:
 	{
-		ret = fb_wait_for_vsync(info);
+		//ret = fb_wait_for_vsync(info);
 		break;
 	}
 
@@ -868,7 +897,7 @@ static int Fb_map_kernel_logo(u32 sel, struct fb_info *info)
 
 	/* parser bmp header */
 	offset = paddr & ~PAGE_MASK;
-	vaddr = (void *)Fb_map_kernel(paddr, sizeof(bmp_header_t));
+	vaddr = (void *)Fb_map_kernel_cache(paddr, sizeof(bmp_header_t));
 	if (NULL == vaddr) {
 		__wrn("fb_map_kernel failed, paddr=0x%p,size=0x%x\n", (void*)paddr, (unsigned int)sizeof(bmp_header_t));
 		return -1;
@@ -915,7 +944,7 @@ static int Fb_map_kernel_logo(u32 sel, struct fb_info *info)
 	Fb_unmap_kernel(vaddr);
 
 	/* map the total bmp buffer */
-	vaddr = (void *)Fb_map_kernel(paddr, x * y * bmp_bpix + sizeof(bmp_header_t));
+	vaddr = (void *)Fb_map_kernel_cache(paddr, x * y * bmp_bpix + sizeof(bmp_header_t));
 	if (NULL == vaddr) {
 		__wrn("fb_map_kernel failed, paddr=0x%p,size=0x%x\n", (void*)paddr, (unsigned int)(x * y * bmp_bpix + sizeof(bmp_header_t)));
 		return -1;
@@ -999,7 +1028,7 @@ static s32 display_fb_request(u32 fb_id, struct disp_fb_create_info *fb_para)
 
 	for (sel = 0; sel < num_screens; sel++) {
 		if (sel == fb_para->fb_mode)	{
-			u32 src_width = xres, src_height = yres;
+			u32 y_offset = 0, src_width = xres, src_height = yres;
 			struct disp_video_timings tt;
 			struct disp_manager *mgr = NULL;
 			mgr = g_disp_drv.mgr[sel];
@@ -1031,13 +1060,13 @@ static s32 display_fb_request(u32 fb_id, struct disp_fb_create_info *fb_para)
 			}
 
 			config.info.screen_win.width = (0 == fb_para->output_width)? src_width:fb_para->output_width;
-			config.info.screen_win.height = (0 == fb_para->output_height)? src_height:fb_para->output_height;
+			config.info.screen_win.height = (0 == fb_para->output_height)? src_width:fb_para->output_height;
 
 			config.info.mode = LAYER_MODE_BUFFER;
 			config.info.alpha_mode = 1;
 			config.info.alpha_value = 0xff;
-			config.info.fb.crop.x = 0LL;
-			config.info.fb.crop.y = 0LL;
+			config.info.fb.crop.x = ((long long)0) << 32;
+			config.info.fb.crop.y = ((long long)y_offset) << 32;
 			config.info.fb.crop.width = ((long long)src_width) << 32;
 			config.info.fb.crop.height = ((long long)src_height) << 32;
 			config.info.screen_win.x = 0;
@@ -1269,7 +1298,7 @@ s32 fb_exit(void)
 
 	for (fb_id=0; fb_id<FB_MAX; fb_id++) {
 		if (g_fbi.fbinfo[fb_id] != NULL) {
-			display_fb_release(fb_id);
+			display_fb_release(FBIDTOHAND(fb_id));
 		}
 	}
 

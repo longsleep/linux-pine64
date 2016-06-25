@@ -35,18 +35,24 @@ static struct device *display_dev;
 
 static unsigned int g_disp = 0, g_enhance_mode = 0, g_cvbs_enhance_mode = 0;
 static u32 DISP_print = 0xffff;   //print cmd which eq DISP_print
-static bool g_pm_runtime_enable = 0; //when open the CONFIG_PM_RUNTIME,this bool can also control if use the PM_RUNTIME.
+static bool g_pm_runtime_enable = 1; //when open the CONFIG_PM_RUNTIME,this bool can also control if use the PM_RUNTIME.
+/* FIXME:
+ * use this counter to record the pm_runtime_get/pm_runtime_put,
+ * because surfaceflinger only call blank(off) when display device plug in,
+ * but do not call blank(on) when display device plug out
+ */
+static int runtime_ref = 0;
 #ifndef CONFIG_OF
 static struct sunxi_disp_mod disp_mod[] = {
 	{DISP_MOD_DE      ,    "de"   },
 	{DISP_MOD_LCD0    ,    "lcd0" },
 	{DISP_MOD_DSI0    ,    "dsi0" },
-#ifdef DISP_DEVICE_NUM
-	#if DISP_DEVICE_NUM == 2
+#ifdef DISP_SCREEN_NUM
+	#if DISP_SCREEN_NUM == 2
 	{DISP_MOD_LCD1    ,    "lcd1" }
 	#endif
 #else
-#	error "DEVICE_NUM undefined!"
+#	error "DISP_SCREEN_NUM undefined!"
 #endif
 };
 
@@ -280,12 +286,27 @@ static ssize_t disp_runtime_enable_store(struct device *dev,
 static DEVICE_ATTR(runtime_enable, S_IRUGO|S_IWUGO,
     disp_runtime_enable_show, disp_runtime_enable_store);
 
+
+static ssize_t disp_boot_para_show(struct device *dev,
+    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "disp_para=%x init_disp=%x tv_vdid=%x fb_base=0x%x\n",
+		disp_boot_para_parse("boot_disp"),
+		disp_boot_para_parse("init_disp"),
+		disp_boot_para_parse("tv_vdid"),
+		disp_boot_para_parse("fb_base"));
+}
+
+static DEVICE_ATTR(boot_para, S_IRUGO|S_IWUGO,
+    disp_boot_para_show, NULL);
+
 static struct attribute *disp_attributes[] = {
     &dev_attr_sys.attr,
     &dev_attr_disp.attr,
     &dev_attr_enhance_mode.attr,
     &dev_attr_cvbs_enhacne_mode.attr,
     &dev_attr_runtime_enable.attr,
+    &dev_attr_boot_para.attr,
     NULL
 };
 
@@ -382,7 +403,7 @@ static s32 parser_disp_init_para(const struct device_node *np, disp_init_para * 
 	    || init_para->output_type[1] == DISP_OUTPUT_TYPE_VGA) {
 		init_para->output_mode[1]= value;
 	}
-
+#if 0
 	//screen2
 	if (of_property_read_u32(np, "screen2_output_type", &value) < 0)	{
 		__inf("of_property_read disp_init.screen2_output_type fail\n");
@@ -408,7 +429,7 @@ static s32 parser_disp_init_para(const struct device_node *np, disp_init_para * 
 	    || init_para->output_type[2] == DISP_OUTPUT_TYPE_VGA) {
 		init_para->output_mode[2]= value;
 	}
-
+#endif
 	//fb0
 	init_para->buffer_num[0]= 2;
 
@@ -448,6 +469,14 @@ static s32 parser_disp_init_para(const struct device_node *np, disp_init_para * 
 	}
 	init_para->fb_height[1]= value;
 
+	value = (int)disp_boot_para_parse("init_disp");
+	if((value & 0xFF00) == (init_para->output_type[0] << 8)) {
+		init_para->output_mode[0] = value & 0xFF;
+	}
+	if((value & 0xFF000000) == (init_para->output_type[1] << 24)) {
+		init_para->output_mode[1] = (value >> 16) & 0xFF;
+	}
+#if 0
 	//fb2
 	init_para->buffer_num[2]= 2;
 
@@ -465,7 +494,7 @@ static s32 parser_disp_init_para(const struct device_node *np, disp_init_para * 
 		__inf("of_property_read disp_init.fb2_height fail\n");
 	}
 	init_para->fb_height[2]= value;
-
+#endif
 	__inf("====display init para begin====\n");
 	__inf("b_init:%d\n", init_para->b_init);
 	__inf("disp_mode:%d\n\n", init_para->disp_mode);
@@ -556,11 +585,6 @@ static void resume_work_0(struct work_struct *work)
 static void resume_work_1(struct work_struct *work)
 {
 	resume_proc(1);
-}
-
-static void resume_work_2(struct work_struct *work)
-{
-	resume_proc(2);
 }
 
 static void start_work(struct work_struct *work)
@@ -780,6 +804,7 @@ s32 disp_unregister_compat_ioctl_func(unsigned int cmd)
 	return -1;
 }
 
+#ifdef CONFIG_COMPAT
 static s32 disp_compat_ioctl_extend(unsigned int cmd, unsigned long arg)
 {
 	struct ioctl_list *ptr;
@@ -791,6 +816,7 @@ static s32 disp_compat_ioctl_extend(unsigned int cmd, unsigned long arg)
 
 	return -1;
 }
+#endif
 
 s32 disp_register_standby_func(int (*suspend)(void), int (*resume)(void))
 {
@@ -857,7 +883,7 @@ static s32 disp_init(struct platform_device *pdev)
 
 	INIT_WORK(&g_disp_drv.resume_work[0], resume_work_0);
 	INIT_WORK(&g_disp_drv.resume_work[1], resume_work_1);
-	INIT_WORK(&g_disp_drv.resume_work[2], resume_work_2);
+	//INIT_WORK(&g_disp_drv.resume_work[2], resume_work_2);
 	INIT_WORK(&g_disp_drv.start_work, start_work);
 	INIT_LIST_HEAD(&g_disp_drv.sync_proc_list.list);
 	INIT_LIST_HEAD(&g_disp_drv.sync_finish_proc_list.list);
@@ -1062,6 +1088,7 @@ static int disp_probe(struct platform_device *pdev)
 {
 	int i;
 	int ret;
+	int counter = 0;
 
 	__inf("[DISP]disp_probe\n");
 	memset(&g_disp_drv, 0, sizeof(disp_drv_info));
@@ -1069,66 +1096,100 @@ static int disp_probe(struct platform_device *pdev)
 	g_disp_drv.dev = &pdev->dev;
 
 	/* iomap */
-	g_disp_drv.reg_base[DISP_MOD_DE] = (uintptr_t __force)of_iomap(pdev->dev.of_node, 0);
+	/* de - [device(tcon-top)] - lcd0/1/2.. - dsi */
+	counter = 0;
+	g_disp_drv.reg_base[DISP_MOD_DE] = (uintptr_t __force)of_iomap(pdev->dev.of_node, counter);
 	if (!g_disp_drv.reg_base[DISP_MOD_DE]) {
 		dev_err(&pdev->dev, "unable to map de registers\n");
 		ret = -EINVAL;
-		goto err_iomap1;
+		goto err_iomap;
 	}
+	counter ++;
 
-	g_disp_drv.reg_base[DISP_MOD_LCD0] = (uintptr_t __force)of_iomap(pdev->dev.of_node, 1);
-	if (!g_disp_drv.reg_base[DISP_MOD_LCD0]) {
-		dev_err(&pdev->dev, "unable to map lcd registers\n");
+#if defined(HAVE_DEVICE_COMMON_MODULE)
+	g_disp_drv.reg_base[DISP_MOD_DEVICE] = (uintptr_t __force)of_iomap(pdev->dev.of_node, counter);
+	if (!g_disp_drv.reg_base[DISP_MOD_DEVICE]) {
+		dev_err(&pdev->dev, "unable to map device common module registers\n");
 		ret = -EINVAL;
-		goto err_iomap2;
+		goto err_iomap;
+	}
+	counter ++;
+#endif
+
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		g_disp_drv.reg_base[DISP_MOD_LCD0 + i] = (uintptr_t __force)of_iomap(pdev->dev.of_node, counter);
+		if (!g_disp_drv.reg_base[DISP_MOD_LCD0 + i]) {
+			dev_err(&pdev->dev, "unable to map timing controller %d registers\n", i);
+			ret = -EINVAL;
+			goto err_iomap;
+		}
+		counter ++;
 	}
 
-	g_disp_drv.reg_base[DISP_MOD_DSI0] = (uintptr_t __force)of_iomap(pdev->dev.of_node, 2);
+#if defined(SUPPORT_DSI)
+	g_disp_drv.reg_base[DISP_MOD_DSI0] = (uintptr_t __force)of_iomap(pdev->dev.of_node, counter);
 	if (!g_disp_drv.reg_base[DISP_MOD_DSI0]) {
 		dev_err(&pdev->dev, "unable to map dsi registers\n");
 		ret = -EINVAL;
-		goto err_iomap2;
+		goto err_iomap;
 	}
+	counter ++;
+#endif
 
 	/* parse and map irq */
-	for (i=0; i<DEVICE_NUM; i++) {
-		g_disp_drv.irq_no[DISP_MOD_LCD0 + i] = irq_of_parse_and_map(pdev->dev.of_node, i);
+	/* lcd0/1/2.. - dsi */
+	counter = 0;
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		g_disp_drv.irq_no[DISP_MOD_LCD0 + i] = irq_of_parse_and_map(pdev->dev.of_node, counter);
 		if (!g_disp_drv.irq_no[DISP_MOD_LCD0 + i]) {
-			dev_err(&pdev->dev, "irq_of_parse_and_map irq %d fail for lcd%d\n", i, i);
+			dev_err(&pdev->dev, "irq_of_parse_and_map irq %d fail for timing controller%d\n", counter, i);
 		}
+		counter ++;
 	}
-	g_disp_drv.irq_no[DISP_MOD_DSI0] = irq_of_parse_and_map(pdev->dev.of_node, i);
+
+#if defined(SUPPORT_DSI)
+	g_disp_drv.irq_no[DISP_MOD_DSI0] = irq_of_parse_and_map(pdev->dev.of_node, counter);
 	if (!g_disp_drv.irq_no[DISP_MOD_DSI0]) {
 		dev_err(&pdev->dev, "irq_of_parse_and_map irq %d fail for dsi\n", i);
 	}
+	counter ++;
+#endif
 
 	/* get clk */
-	g_disp_drv.mclk[DISP_MOD_DE] = of_clk_get(pdev->dev.of_node, 0);
+	/* de - [device(tcon-top)] - lcd0/1/2.. - lvds - dsi */
+	counter = 0;
+	g_disp_drv.mclk[DISP_MOD_DE] = of_clk_get(pdev->dev.of_node, counter);
 	if (IS_ERR(g_disp_drv.mclk[DISP_MOD_DE])) {
 		dev_err(&pdev->dev, "fail to get clk for de\n");
 	}
-	g_disp_drv.mclk[DISP_MOD_LCD0] = of_clk_get(pdev->dev.of_node, 1);
-	if (IS_ERR(g_disp_drv.mclk[DISP_MOD_LCD0])) {
-		dev_err(&pdev->dev, "fail to get clk for lcd0\n");
+	counter ++;
+
+#if defined(HAVE_DEVICE_COMMON_MODULE)
+	g_disp_drv.mclk[DISP_MOD_DEVICE] = of_clk_get(pdev->dev.of_node, counter);
+	if (IS_ERR(g_disp_drv.mclk[DISP_MOD_DEVICE])) {
+		dev_err(&pdev->dev, "fail to get clk for device common module\n");
 	}
-	g_disp_drv.mclk[DISP_MOD_LVDS] = of_clk_get(pdev->dev.of_node, 2);
+	counter ++;
+#endif
+
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		g_disp_drv.mclk[DISP_MOD_LCD0 + i] = of_clk_get(pdev->dev.of_node, counter);
+		if (IS_ERR(g_disp_drv.mclk[DISP_MOD_LCD0 + i])) {
+			dev_err(&pdev->dev, "fail to get clk for timing controller%d\n", i);
+		}
+		counter ++;
+	}
+	g_disp_drv.mclk[DISP_MOD_LVDS] = of_clk_get(pdev->dev.of_node, counter);
 	if (IS_ERR(g_disp_drv.mclk[DISP_MOD_LVDS])) {
 		dev_err(&pdev->dev, "fail to get clk for lvds\n");
 	}
-	g_disp_drv.mclk[DISP_MOD_DSI0] = of_clk_get(pdev->dev.of_node, 3);
+	counter ++;
+#if defined(SUPPORT_DSI)
+	g_disp_drv.mclk[DISP_MOD_DSI0] = of_clk_get(pdev->dev.of_node, counter);
 	if (IS_ERR(g_disp_drv.mclk[DISP_MOD_DSI0])) {
 		dev_err(&pdev->dev, "fail to get clk for dsi\n");
 	}
-
-#ifdef DISP_DEVICE_NUM
-	#if (DISP_DEVICE_NUM == 2)
-	g_disp_drv.mclk[DISP_MOD_LCD1] = of_clk_get(pdev->dev.of_node, 4);
-	if (IS_ERR(g_disp_drv.mclk[DISP_MOD_LCD1])) {
-		dev_err(&pdev->dev, "fail to get clk for lcd1\n");
-	}
-	#endif
-#else
-#	error "DEVICE_NUM undefined!"
+	counter ++;
 #endif
 
 	disp_init(pdev);
@@ -1141,17 +1202,20 @@ static int disp_probe(struct platform_device *pdev)
 #if defined(CONFIG_PM_RUNTIME)
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_get_noresume(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 5000);
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 2000);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
+	runtime_ref++;
 #endif
 	__inf("[DISP]disp_probe finish\n");
 
 	return ret;
 
-err_iomap2:
-	iounmap((char __iomem *)g_disp_drv.reg_base[DISP_MOD_DE]);
-err_iomap1:
+err_iomap:
+	for (i=0; i<DISP_DEVICE_NUM; i++) {
+		if (g_disp_drv.reg_base[i])
+			iounmap((char __iomem *)g_disp_drv.reg_base[i]);
+	}
 
 	return ret;
 }
@@ -1635,20 +1699,26 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (ubuffer[1]) {
 #if defined(CONFIG_PM_RUNTIME)
-			if (g_disp_drv.dev)
+			if (runtime_ref<=0) break;
+			if (g_disp_drv.dev) {
 				pm_runtime_put(g_disp_drv.dev);
+				runtime_ref--;
+				printk("pm runtime put: %d\n", runtime_ref);
+			}
 			else
 				pr_warn("%s, display device is null\n", __func__);
 #endif
 			suspend_status |= DISPLAY_BLANK;
 			disp_blank(true);
 		} else {
+			if (runtime_ref!=0) break;
+#if 0
 			if (power_status_init) {
 				/* avoid first unblank, because device is ready when driver init */
 				power_status_init = 0;
 				break;
 			}
-
+#endif
 			disp_blank(false);
 			suspend_status &= ~DISPLAY_BLANK;
 #if defined(CONFIG_PM_RUNTIME)
@@ -1658,6 +1728,8 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				pm_runtime_set_suspended(g_disp_drv.dev);
 				pm_runtime_enable(g_disp_drv.dev);
 				pm_runtime_get_sync(g_disp_drv.dev);
+				runtime_ref++;
+				printk("pm runtime get: %d\n", runtime_ref);
 			}
 			else
 				pr_warn("%s, display device is null\n", __func__);
