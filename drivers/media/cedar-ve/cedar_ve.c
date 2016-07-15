@@ -752,27 +752,6 @@ static long compat_cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned 
 			{
 				return 0;
 			}
-		case IOCTL_READ_REG:
-			{
-				struct cedarv_regop reg_para;
-				if(copy_from_user(&reg_para, (void __user*)arg, sizeof(struct cedarv_regop)))
-				{
-					return -EFAULT;
-				}
-				return readl((void*)reg_para.addr);
-			}
-
-		case IOCTL_WRITE_REG:
-			{
-				struct cedarv_regop reg_para;
-				if(copy_from_user(&reg_para, (void __user*)arg, sizeof(struct cedarv_regop)))
-				{
-					return -EFAULT;
-				}
-				writel(reg_para.value, (void*)reg_para.addr);
-				break;
-			}
-			break;
 		case IOCTL_SET_REFCOUNT:
 			cedar_devp->ref_count = (int)arg;
 			printk("ycy IOCTL_SET_REFCOUNT the ref_count is %d\n",cedar_devp->ref_count);
