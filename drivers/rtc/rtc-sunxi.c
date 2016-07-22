@@ -49,9 +49,7 @@
  */
 //#define SUNXI_ALARM1_USED
 
-#if (defined CONFIG_ARCH_SUN50IW1P1) \
-	|| (defined CONFIG_ARCH_SUN8IW10P1) \
-	|| (defined CONFIG_ARCH_SUN8IW11P1)
+#if (defined CONFIG_ARCH_SUN50IW1P1) || (defined CONFIG_ARCH_SUN8IW10P1)
 #define SUNXI_RTC_YMD				0x0010
 
 #define SUNXI_RTC_HMS				0x0014
@@ -180,10 +178,9 @@ struct sunxi_rtc_data_year {
 	unsigned int mask;		/* mask for the year field */
 	unsigned char leap_shift;	/* bit shift to get the leap year */
 };
-
 static struct sunxi_rtc_data_year data_year_param[] = {
 	[0] = {
-		.min		= 2010,
+		.min		= 2015,
 		.max		= 2073,
 		.mask		= 0x3f,
 		.leap_shift	= 22,
@@ -214,6 +211,28 @@ struct sunxi_rtc_dev {
 static int alarm_in_booting = 0;
 module_param_named(alarm_in_booting, alarm_in_booting, int, S_IRUGO | S_IWUSR);
 #endif
+
+unsigned int sunxi_rtc_atoi(unsigned char* s)
+{
+
+        int num=0,flag=0;
+        int i;
+        for(i=0;i<=strlen(s);i++)
+        {
+          if(s[i] >= '0' && s[i] <= '9')
+                 num = num * 10 + s[i] -'0';
+          else if(s[0] == '-' && i==0)
+                 flag =1;
+          else
+                  break;
+         }
+
+        if(flag == 1)
+           num = num * -1;
+
+         return(num);
+
+}
 
 static irqreturn_t sunxi_rtc_alarmirq(int irq, void *id)
 {
@@ -583,9 +602,8 @@ static int sunxi_rtc_probe(struct platform_device *pdev)
 	/* Enable the clock/module so that we can access the registers */
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
-
 	chip->data_year = (struct sunxi_rtc_data_year *) of_id->data;
-
+	chip->data_year->min = sunxi_rtc_atoi(__DATE__ + (strlen(__DATE__) - 4));
 #ifdef CONFIG_RTC_SHUTDOWN_ALARM
 	/*
 	 * when alarm irq occur at boot0~rtc_driver.probe() process in shutdown
@@ -697,4 +715,4 @@ module_platform_driver(sunxi_rtc_driver);
 
 MODULE_DESCRIPTION("sunxi RTC driver");
 MODULE_AUTHOR("Carlo Caione <carlo.caione@gmail.com>");
-MODULE_LICENSE("Dual BSD/GPL");
+MODULE_LICENSE("GPL V2");

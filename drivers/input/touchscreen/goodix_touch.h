@@ -19,7 +19,7 @@
 
 #define GOODIX_I2C_NAME "Goodix-TS"
 #define GUITAR_GT80X
-#define TOUCH_MAX_HEIGHT 	7680	
+#define TOUCH_MAX_HEIGHT 	7680
 #define TOUCH_MAX_WIDTH	 	5120
 
 #define GTP_HAVE_TOUCH_KEY    0
@@ -44,7 +44,7 @@
 	#elif MAX_FINGER_NUM == 5
 	#define READ_BYTES_NUM 1+34
 	#endif
-#else	
+#else
 	#define READ_BYTES_NUM 1+34
 #endif
 
@@ -84,8 +84,8 @@ struct ts_event {
 
 /* Notice: This definition used by platform_data.
  * It should be move this struct info to platform head file such as plat/ts.h.
- * If not used in client, it will be NULL in function of goodix_ts_probe. 
- */ 
+ * If not used in client, it will be NULL in function of goodix_ts_probe.
+ */
 struct goodix_i2c_platform_data {
 	uint32_t gpio_irq;			//IRQ port, use macro such as "gpio_to_irq" to get Interrupt Number.
 	uint32_t irq_cfg;			//IRQ port config, must refer to master's Datasheet.
@@ -93,6 +93,6 @@ struct goodix_i2c_platform_data {
 	uint32_t shutdown_cfg;		        //Shutdown port config
 	uint32_t screen_width;		        //screen width
 	uint32_t screen_height;		        //screen height
-}; 
+};
 
 #endif /* _LINUX_GOODIX_TOUCH_H */

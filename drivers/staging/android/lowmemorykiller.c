@@ -57,11 +57,6 @@ static int lowmem_minfree[6] = {
 };
 static int lowmem_minfree_size = 4;
 
-static const char unkillable_app[][TASK_COMM_LEN] = {
-    "d.process.media", /*android.process.media*/
-    "tutu.ABenchMark", /*android.process.media*/
-};
-
 static unsigned long lowmem_deathpending_timeout;
 
 #define lowmem_print(level, x...)			\
@@ -69,18 +64,6 @@ static unsigned long lowmem_deathpending_timeout;
 		if (lowmem_debug_level >= (level))	\
 			pr_info(x);			\
 	} while (0)
-
-static int inline is_app_unkillable(struct task_struct *p)
-{
-    int i;
-    for (i = 0; i < ARRAY_SIZE(unkillable_app); i++) {
-        if (strstr(p->comm, unkillable_app[i])) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
 
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
@@ -158,8 +141,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			    tasksize <= selected_tasksize)
 				continue;
 		}
-        if (is_app_unkillable(p))
-            continue;
 		selected = p;
 		selected_tasksize = tasksize;
 		selected_oom_score_adj = oom_score_adj;

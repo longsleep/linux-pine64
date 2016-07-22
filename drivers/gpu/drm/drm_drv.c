@@ -384,7 +384,7 @@ long drm_ioctl(struct file *filp,
 	unsigned int usize, asize;
 
 	dev = file_priv->minor->dev;
-
+    DRM_INFO("########%d  %d\n",cmd,nr);
 	if (drm_device_is_unplugged(dev))
 		return -ENODEV;
 
@@ -419,7 +419,7 @@ long drm_ioctl(struct file *filp,
 	} else
 		goto err_i1;
 
-	DRM_DEBUG("pid=%d, dev=0x%lx, auth=%d, %s\n",
+	DRM_INFO("pid=%d, dev=0x%lx, auth=%d, %s\n",
 		  task_pid_nr(current),
 		  (long)old_encode_dev(file_priv->minor->device),
 		  file_priv->authenticated, ioctl->name);

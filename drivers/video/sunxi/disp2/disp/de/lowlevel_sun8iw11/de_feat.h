@@ -11,16 +11,13 @@
 #define LAYER_MAX_NUM_PER_CHN 4
 #define VEP_NUM  1
 
-#define SUPPORT_DSI
 #define SUPPORT_SMBL
 #define SUPPORT_HDMI
 //#define SUPPORT_DSI
 #define DSI_VERSION_40
 #define HAVE_DEVICE_COMMON_MODULE
-#define SUPPORT_TV
-#define SUPPORT_VGA
+//#define SUPPORT_TV
 //#define LVDS_REVERT
-#define SUPPORT_LVDS
 
 struct de_feat {
 	const int num_screens;//indicate layer manager number

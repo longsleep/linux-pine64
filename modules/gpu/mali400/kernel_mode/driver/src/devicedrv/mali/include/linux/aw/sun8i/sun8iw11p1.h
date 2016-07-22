@@ -16,14 +16,12 @@
 #ifndef _MALI_SUN8I_W11P1_H_
 #define _MALI_SUN8I_W11P1_H_
 
-static struct aw_freq_data freq_data =
-{
+static struct aw_freq_data freq_data = {
 	.normal_freq  = 384,
 	.extreme_freq = 384,
 };
 
-static struct aw_private_data private_data =
-{
+static struct aw_private_data private_data = {
 	.clk_status        = 0,
 	.scene_ctrl_status = 0,
 	.sensor_num        = 1,
@@ -32,14 +30,12 @@ static struct aw_private_data private_data =
 #endif
 	.regulator         = NULL,
 	.regulator_id      = NULL,
-	.tempctrl_data     =
-	{
+	.tempctrl_data     = {
 		.temp_ctrl_status = 1,
 	},
 };
 
-static struct aw_clk_data clk_data[] =
-{
+static struct aw_clk_data clk_data[] = {
 	{
 		.clk_name   = "pll",
 		.clk_handle = NULL,

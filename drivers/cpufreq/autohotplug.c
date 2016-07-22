@@ -143,27 +143,21 @@ int do_cpu_down(unsigned int cpu)
 			cur_c1_online++;
 	}
 
-	if (cpumask_test_cpu(cpu, c0_mask) && cur_c0_online <= cluster0_min_online) {
-		trace_autohotplug_roomage(0, "min", cur_c0_online, cluster0_min_online);
+	if (cpumask_test_cpu(cpu, c0_mask) && cur_c0_online <= cluster0_min_online)
 		return 0;
-	}
 
-	if (cpumask_test_cpu(cpu, c1_mask) && cur_c1_online <= cluster1_min_online) {
-		trace_autohotplug_roomage(1, "min", cur_c1_online, cluster1_min_online);
+	if (cpumask_test_cpu(cpu, c1_mask) && cur_c1_online <= cluster1_min_online)
 		return 0;
-	}
 #endif
 
 	if (cpu == cpu_up_lastcpu && time_before(jiffies,
-				cpu_up_lasttime + usecs_to_jiffies(cpu_up_last_hold_us))) {
-		trace_autohotplug_notyet("down", cpu);
+				cpu_up_lasttime + usecs_to_jiffies(cpu_up_last_hold_us)))
 		return 0;
-	}
 
 	if (cpu_down(cpu))
 		return 0;
 
-	trace_autohotplug_operate(cpu, "down");
+	trace_autohotplug_operate(cpu, 0);
 
 	return 1;
 }
@@ -193,15 +187,11 @@ int do_cpu_up(unsigned int cpu)
 			cur_c1_online++;
 	}
 
-	if (cpumask_test_cpu(cpu, c0_mask) && cur_c0_online >= cluster0_max_online) {
-		trace_autohotplug_roomage(0, "max", cur_c0_online, cluster0_max_online);
+	if (cpumask_test_cpu(cpu, c0_mask) && cur_c0_online >= cluster0_max_online)
 		return 0;
-	}
 
-	if (cpumask_test_cpu(cpu, c1_mask) && cur_c1_online >= cluster1_max_online) {
-		trace_autohotplug_roomage(1, "max", cur_c1_online, cluster1_max_online);
+	if (cpumask_test_cpu(cpu, c1_mask) && cur_c1_online >= cluster1_max_online)
 		return 0;
-	}
 #endif
 
 	if (cpu_up(cpu))
@@ -210,7 +200,7 @@ int do_cpu_up(unsigned int cpu)
 	cpu_up_lastcpu = cpu;
 	cpu_up_lasttime = jiffies;
 
-	trace_autohotplug_operate(cpu, "up");
+	trace_autohotplug_operate(cpu, 1);
 
 	return 1;
 }
@@ -272,7 +262,6 @@ int get_cpus_under(struct autohotplug_loadinfo *load,
 		}
 	}
 
-	trace_autohotplug_under(level, count);
 	return count;
 }
 
@@ -349,12 +338,10 @@ int try_up_little(void)
 		}
 	}
 
-	if (found < total_nr_cpus && cpu_possible(found)) {
+	if (found < total_nr_cpus && cpu_possible(found))
 		return do_cpu_up(found);
-	} else {
-		trace_autohotplug_notyet("up", found);
+	else
 		return 0;
-	}
 }
 
 static int autohotplug_try_any_up(void)
@@ -520,7 +507,6 @@ static int autohotplug_thread_task(void *data)
 	int i, hotplug_lock, try_attemp = 0; // 0: no success 1: up success 2: down success
 	unsigned long flags;
 	struct autohotplug_loadinfo load;
-	int ret;
 
 	set_freezable();
 	while (1) {
@@ -568,20 +554,14 @@ static int autohotplug_thread_task(void *data)
 				if (hotplug_lock) {
 					autohotplug_try_lock_up(hotplug_lock);
 				} else {
-					trace_autohotplug_try("up");
-					ret = cur_governor->try_up(&load);
-					if (ret) {
+					if (cur_governor->try_up(&load)) {
 						try_attemp = 1;
 						if (cur_governor->try_freq_limit)
 							cur_governor->try_freq_limit();
-					} else {
-						trace_autohotplug_try("down");
-						ret = cur_governor->try_down(&load);
-						if (ret) {
-							try_attemp = 2;
-							if (cur_governor->try_freq_limit)
-								cur_governor->try_freq_limit();
-						}
+					} else if (cur_governor->try_down(&load)) {
+						try_attemp = 2;
+						if (cur_governor->try_freq_limit)
+							cur_governor->try_freq_limit();
 					}
 				}
 			}

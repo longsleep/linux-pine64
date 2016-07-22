@@ -57,8 +57,8 @@ int wl_cfgp2p_if_stop(struct net_device *net);
 #if defined(WL_ENABLE_P2P_IF)
 static int wl_cfgp2p_start_xmit(struct sk_buff *skb, struct net_device *ndev);
 static int wl_cfgp2p_do_ioctl(struct net_device *net, struct ifreq *ifr, int cmd);
-static int wl_cfgp2p_if_open(struct net_device *net);
-static int wl_cfgp2p_if_stop(struct net_device *net);
+int wl_cfgp2p_if_open(struct net_device *net);
+int wl_cfgp2p_if_stop(struct net_device *net);
 
 static const struct net_device_ops wl_cfgp2p_if_ops = {
 	.ndo_open       = wl_cfgp2p_if_open,
@@ -2719,10 +2719,11 @@ static int wl_cfgp2p_do_ioctl(struct net_device *net, struct ifreq *ifr, int cmd
 #endif /* WL_ENABLE_P2P_IF || WL_NEWCFG_PRIVCMD_SUPPORT || defined(P2PONEINT) */
 
 #if defined(WL_ENABLE_P2P_IF) || defined(P2PONEINT)
+int
 #ifdef  P2PONEINT
-int wl_cfgp2p_if_open(struct net_device *net)
+wl_cfgp2p_if_open(struct net_device *net)
 #else
-static int wl_cfgp2p_if_open(struct net_device *net)
+wl_cfgp2p_if_open(struct net_device *net)
 #endif
 {
 	struct wireless_dev *wdev = net->ieee80211_ptr;
@@ -2745,10 +2746,11 @@ static int wl_cfgp2p_if_open(struct net_device *net)
 	return 0;
 }
 
+int
 #ifdef  P2PONEINT
-int wl_cfgp2p_if_stop(struct net_device *net)
+wl_cfgp2p_if_stop(struct net_device *net)
 #else
-static int wl_cfgp2p_if_stop(struct net_device *net)
+wl_cfgp2p_if_stop(struct net_device *net)
 #endif
 {
 	struct wireless_dev *wdev = net->ieee80211_ptr;

@@ -13,10 +13,8 @@
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-mediabus.h>
 #include <linux/io.h>
-
-
 #include "camera.h"
-
+#include "sensor_helper.h"
 
 MODULE_AUTHOR("raymonxiu");
 MODULE_DESCRIPTION("A low-level driver for hm5065 sensors");
@@ -24,7 +22,7 @@ MODULE_LICENSE("GPL");
 
 #define AF_WIN_NEW_COORD
 //for internel driver debug
-#define DEV_DBG_EN      1
+#define DEV_DBG_EN      0
 #if(DEV_DBG_EN == 1)    
 #define vfe_dev_dbg(x,arg...) printk("[HM5065]"x,##arg)
 #else
@@ -49,22 +47,7 @@ MODULE_LICENSE("GPL");
 #define CLK_POL           V4L2_MBUS_PCLK_SAMPLE_RISING
 #define V4L2_IDENT_SENSOR 0x039E
 
-//define the voltage level of control signal
-#define CSI_STBY_ON     0
-#define CSI_STBY_OFF    1
-#define CSI_RST_ON      0
-#define CSI_RST_OFF     1
-#define CSI_PWR_ON      1
-#define CSI_PWR_OFF     0
-#define CSI_AF_PWR_ON   1
-#define CSI_AF_PWR_OFF  0
-
 #define SENSOR_NAME "hm5065"
-#define regval_list reg_list_a16_d8
-
-#define REG_TERM 0xfffe
-#define VAL_TERM 0xfe
-#define REG_DLY  0xfffe
 
 #define CONTINUEOUS_AF
 //#define AUTO_FPS
@@ -80,7 +63,6 @@ MODULE_LICENSE("GPL");
 #endif
 
 static bool single_af = false;
-static unsigned char af_pos_h,af_pos_l;
 
 /*
  * Our nominal (default) frame rate.
@@ -1165,13 +1147,13 @@ static struct regval_list sensor_default_regs[] = {
 	{0xA44A,0x8F},
 	{0xA44B,0xE0},
 	{0xA44C,0x94},
-	{0xA44D,0x00},//80
+	{0xA44D,0x80},
 	{0xA44E,0x90},
 	{0xA44F,0x0B},
 	{0xA450,0x8E},
 	{0xA451,0xE0},
 	{0xA452,0x94},
-	{0xA453,0x41},//44
+	{0xA453,0x44},
 	{0xA454,0x40},
 	{0xA455,0x22},
 	{0xA456,0x90},
@@ -1179,13 +1161,13 @@ static struct regval_list sensor_default_regs[] = {
 	{0xA458,0x91},
 	{0xA459,0xE0},
 	{0xA45A,0x94},
-	{0xA45B,0x00},//80
+	{0xA45B,0x80},
 	{0xA45C,0x90},
 	{0xA45D,0x0B},
 	{0xA45E,0x90},
 	{0xA45F,0xE0},
 	{0xA460,0x94},
-	{0xA461,0x41}, //44
+	{0xA461,0x44},
 	{0xA462,0x40},
 	{0xA463,0x14},
 	{0xA464,0x90},
@@ -1193,13 +1175,13 @@ static struct regval_list sensor_default_regs[] = {
 	{0xA466,0x93},
 	{0xA467,0xE0},
 	{0xA468,0x94},
-	{0xA469,0x00}, //80
+	{0xA469,0x80},
 	{0xA46A,0x90},
 	{0xA46B,0x0B},
 	{0xA46C,0x92},
 	{0xA46D,0xE0},
 	{0xA46E,0x94},
-	{0xA46F,0x41}, //44
+	{0xA46F,0x44},
 	{0xA470,0x40},
 	{0xA471,0x06},
 	{0xA472,0x90},
@@ -1650,8 +1632,8 @@ static struct regval_list sensor_default_regs[] = {
 	{0x0060,0x00},
 	{0x0061,0x00},
 	{0x0066,0x02},
-	//{0x0083,0x00},
-	//{0x0084,0x00},
+	{0x0083,0x00},
+	{0x0084,0x01},
 	//{0x0085,0x02},
 	{0x00B2,0x4f}, 
 	{0x00B3,0x70},
@@ -1690,7 +1672,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x019D,0xC0},   
 	{0x0129,0x00},   
 	{0x0130,0xFF},   
-	{0x0083,0x00},   
+	{0x0083,0x01},   
 	{0x0084,0x00},   
 	{0x01A1,0x80},   
 	{0x01A2,0x80},   
@@ -1714,7 +1696,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x5200,0x01},   
 	{0x7000,0x0C},   
 	{0x02C2,0x00},   
-	{0x02C3,0xC0}, 
+	{0x02C3,0xC0},
 	{0x015E,0x40},
 	{0x015F,0x00},   
 	{0x0390,0x01},   	
@@ -1756,7 +1738,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x03D5,0x49},   	
 	{0x03D6,0x34},   	
 	{0x03D7,0xD1},   	
-	{0x004C,0x0A}, //08  	
+	{0x004C,0x08},   	
 	{0x006C,0x08},   	
 	{0x0350,0x00},   	
 	{0x0351,0x5A},   	
@@ -1774,10 +1756,10 @@ static struct regval_list sensor_default_regs[] = {
 	{0x035D,0x49},   	
 	{0x035E,0x39},   	
 	{0x035F,0x85},   	
-	{0x0049,0x16},
-	{0x004A,0x0E},
+	{0x0049,0x14},
+	{0x004A,0x0D},
 	{0x0069,0x14},
-	{0x006A,0x0E},
+	{0x006A,0x0D},
 	{0x0090,0x5A},
 	{0x0091,0xEE},
 	{0x0092,0x3E},
@@ -1786,7 +1768,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x0095,0x49},
 	{0x0096,0x39},
 	{0x0097,0xCF},
-	{0x0098,0x01},
+	{0x0098,0x00},
 	{0x00A0,0x5A},
 	{0x00A1,0xEE},
 	{0x00A2,0x3E},
@@ -1795,9 +1777,8 @@ static struct regval_list sensor_default_regs[] = {
 	{0x00A5,0x49},
 	{0x00A6,0x3B},
 	{0x00A7,0x80},
-	{0x00A8,0x01},
-  #if 0
-	{0x0420,0x00},  //lsc start
+	{0x00A8,0x00},
+	{0x0420,0x00},
 	{0x0421,0x09},
 	{0x0422,0xff},
 	{0x0423,0x9e},
@@ -2006,7 +1987,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x04ee,0x00},
 	{0x04ef,0x00},
 	{0x04F0,0xff},    
-	{0x04f1,0xe0}, //lsc3 start
+	{0x04f1,0xe0},
 	{0x04F2,0xff},    
 	{0x04f3,0x95},
 	{0x04F4,0x00},    
@@ -2064,280 +2045,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x0328,0x3b},    
 	{0x0329,0x0A},
 	{0x032A,0x3b},    
-	{0x032B,0x62}, //END
-  #endif
-  
-  	#if 1
-
-	{0x0420,0x00},	 //C0_GreenRed_X
-	{0x0421,0x1E},	 //C0_GreenRed_X LSB
-	{0x0422,0xFF},	 //C0_GreenRed_Y
-	{0x0423,0xF3},	 //C0_GreenRed_Y LSB
-	{0x0424,0x00},	 //C0_GreenRed_X2
-	{0x0425,0x6E},	 //C0_GreenRed_X2 LSB
-	{0x0426,0x00},	 //C0_GreenRed_Y2
-	{0x0427,0x96},	 //C0_GreenRed_Y2 LSB
-	{0x0428,0x00},	 //C0_GreenRed_XY
-	{0x0429,0x40},	 //C0_GreenRed_XY LSB
-	{0x042A,0x00},	 //C0_GreenRed_X2Y
-	{0x042B,0x3F},	 //C0_GreenRed_X2Y LSB
-	{0x042C,0x00},	 //C0_GreenRed_XY2
-	{0x042D,0x99},	 //C0_GreenRed_XY2 LSB
-	{0x042E,0xFF},	 //C0_GreenRed_X2Y2
-	{0x042F,0xCD},	 //C0_GreenRed_X2Y2 LSB
-	{0x0430,0xFF},	 //C0_Red_X
-	{0x0431,0xC1},	 //C0_Red_X LSB
-	{0x0432,0xFF},	 //C0_Red_Y
-	{0x0433,0x8C},	 //C0_Red_Y LSB
-	{0x0434,0x00},	 //C0_Red_X2
-	{0x0435,0xD1},	 //C0_Red_X2 LSB
-	{0x0436,0x00},	 //C0_Red_Y2
-	{0x0437,0xF9},	 //C0_Red_Y2 LSB
-	{0x0438,0xFF},	 //C0_Red_XY
-	{0x0439,0xD0},	 //C0_Red_XY LSB
-	{0x043A,0xFF},	 //C0_Red_X2Y
-	{0x043B,0xD4},	 //C0_Red_X2Y LSB
-	{0x043C,0x00},	 //C0_Red_XY2
-	{0x043D,0x46},	 //C0_Red_XY2 LSB
-	{0x043E,0xFF},	 //C0_Red_X2Y2
-	{0x043F,0x1F},	 //C0_Red_X2Y2 LSB
-	{0x0440,0x00},	 //C0_GreenBlue_X
-	{0x0441,0x00},	 //C0_GreenBlue_X LSB
-	{0x0442,0xFF},	 //C0_GreenBlue_Y
-	{0x0443,0xEC},	 //C0_GreenBlue_Y LSB
-	{0x0444,0x00},	 //C0_GreenBlue_X2
-	{0x0445,0x7D},	 //C0_GreenBlue_X2 LSB
-	{0x0446,0x00},	 //C0_GreenBlue_Y2
-	{0x0447,0x89},	 //C0_GreenBlue_Y2 LSB
-	{0x0448,0x00},	 //C0_GreenBlue_XY
-	{0x0449,0x4A},	 //C0_GreenBlue_XY LSB
-	{0x044A,0x00},	 //C0_GreenBlue_X2Y
-	{0x044B,0x00},	 //C0_GreenBlue_X2Y LSB
-	{0x044C,0x00},	 //C0_GreenBlue_XY2
-	{0x044D,0x6C},	 //C0_GreenBlue_XY2 LSB
-	{0x044E,0xFF},	 //C0_GreenBlue_X2Y2
-	{0x044F,0xB5},	 //C0_GreenBlue_X2Y2 LSB	// C9
-	{0x0450,0x00},	 //C0_Blue_X
-	{0x0451,0x03},	 //C0_Blue_X LSB
-	{0x0452,0xFF},	 //C0_Blue_Y
-	{0x0453,0xC8},	 //C0_Blue_Y LSB
-	{0x0454,0x00},	 //C0_Blue_X2
-	{0x0455,0x5D},	 //C0_Blue_X2 LSB
-	{0x0456,0x00},	 //C0_Blue_Y2
-	{0x0457,0x7F},	 //C0_Blue_Y2 LSB
-	{0x0458,0xFF},	 //C0_Blue_XY
-	{0x0459,0xD0},	 //C0_Blue_XY LSB
-	{0x045A,0x00},	 //C0_Blue_X2Y
-	{0x045B,0x1A},	 //C0_Blue_X2Y LSB
-	{0x045C,0xFF},	 //C0_Blue_XY2
-	{0x045D,0xC8},	 //C0_Blue_XY2 LSB
-	{0x045E,0xFF},	 //C0_Blue_X2Y2
-	{0x045F,0xDA},	 //C0_Blue_X2Y2 LSB
-	{0x0460,0x00},	 //C1_GreenRed_X
-	{0x0461,0x25},	 //C1_GreenRed_X LSB
-	{0x0462,0x00},	 //C1_GreenRed_Y
-	{0x0463,0x00},	 //C1_GreenRed_Y LSB
-	{0x0464,0x00},	 //C1_GreenRed_X2
-	{0x0465,0x65},	 //C1_GreenRed_X2 LSB
-	{0x0466,0x00},	 //C1_GreenRed_Y2
-	{0x0467,0x85},	 //C1_GreenRed_Y2 LSB
-	{0x0468,0x00},	 //C1_GreenRed_XY
-	{0x0469,0x41},	 //C1_GreenRed_XY LSB
-	{0x046A,0x00},	 //C1_GreenRed_X2Y
-	{0x046B,0x42},	 //C1_GreenRed_X2Y LSB
-	{0x046C,0x00},	 //C1_GreenRed_XY2
-	{0x046D,0x91},	 //C1_GreenRed_XY2 LSB
-	{0x046E,0xFF},	 //C1_GreenRed_X2Y2
-	{0x046F,0xDA},	 //C1_GreenRed_X2Y2 LSB // F0
-	{0x0470,0xFF},	 //C1_Red_X
-	{0x0471,0xD7},	 //C1_Red_X LSB
-	{0x0472,0xFF},	 //C1_Red_Y
-	{0x0473,0xA0},	 //C1_Red_Y LSB
-	{0x0474,0x00},	 //C1_Red_X2
-	{0x0475,0x8C},	 //C1_Red_X2 LSB
-	{0x0476,0x00},	 //C1_Red_Y2
-	{0x0477,0xA5},	 //C1_Red_Y2 LSB
-	{0x0478,0xFF},	 //C1_Red_XY
-	{0x0479,0xD6},	 //C1_Red_XY LSB
-	{0x047A,0xFF},	 //C1_Red_X2Y
-	{0x047B,0xDA},	 //C1_Red_X2Y LSB
-	{0x047C,0x00},	 //C1_Red_XY2
-	{0x047D,0x58},	 //C1_Red_XY2 LSB
-	{0x047E,0xFF},	 //C1_Red_X2Y2
-	{0x047F,0xC4},	 //C1_Red_X2Y2 LSB
-	{0x0480,0x00},	 //C1_GreenBlue_X
-	{0x0481,0x04},	 //C1_GreenBlue_X LSB
-	{0x0482,0xFF},	 //C1_GreenBlue_Y
-	{0x0483,0xFA},	 //C1_GreenBlue_Y LSB
-	{0x0484,0x00},	 //C1_GreenBlue_X2
-	{0x0485,0x70},	 //C1_GreenBlue_X2 LSB
-	{0x0486,0x00},	 //C1_GreenBlue_Y2
-	{0x0487,0x7B},	 //C1_GreenBlue_Y2 LSB
-	{0x0488,0x00},	 //C1_GreenBlue_XY
-	{0x0489,0x4E},	 //C1_GreenBlue_XY LSB
-	{0x048A,0x00},	 //C1_GreenBlue_X2Y
-	{0x048B,0x00},	 //C1_GreenBlue_X2Y LSB
-	{0x048C,0x00},	 //C1_GreenBlue_XY2
-	{0x048D,0x8F},	 //C1_GreenBlue_XY2 LSB
-	{0x048E,0xFF},	 //C1_GreenBlue_X2Y2
-	{0x048F,0xEC},	 //C1_GreenBlue_X2Y2 LSB
-	{0x0490,0x00},	 //C1_Blue_X
-	{0x0491,0x08},	 //C1_Blue_X LSB
-	{0x0492,0xFF},	 //C1_Blue_Y
-	{0x0493,0xD0},	 //C1_Blue_Y LSB
-	{0x0494,0x00},	 //C1_Blue_X2
-	{0x0495,0x55},	 //C1_Blue_X2 LSB
-	{0x0496,0x00},	 //C1_Blue_Y2
-	{0x0497,0x70},	 //C1_Blue_Y2 LSB
-	{0x0498,0xFF},	 //C1_Blue_XY
-	{0x0499,0xC4},	 //C1_Blue_XY LSB
-	{0x049A,0x00},	 //C1_Blue_X2Y
-	{0x049B,0x03},	 //C1_Blue_X2Y LSB
-	{0x049C,0xFF},	 //C1_Blue_XY2
-	{0x049D,0xD2},	 //C1_Blue_XY2 LSB
-	{0x049E,0x00},	 //C1_Blue_X2Y2
-	{0x049F,0x04},	 //C1_Blue_X2Y2 LSB
-	{0x04A0,0x00},	 //C2_GreenRed_X
-	{0x04A1,0x28},	 //C2_GreenRed_X LSB
-	{0x04A2,0xFF},	 //C2_GreenRed_Y
-	{0x04A3,0xFA},	 //C2_GreenRed_Y LSB
-	{0x04A4,0x00},	 //C2_GreenRed_X2
-	{0x04A5,0x69},	 //C2_GreenRed_X2 LSB
-	{0x04A6,0x00},	 //C2_GreenRed_Y2
-	{0x04A7,0x88},	 //C2_GreenRed_Y2 LSB
-	{0x04A8,0x00},	 //C2_GreenRed_XY
-	{0x04A9,0x47},	 //C2_GreenRed_XY LSB
-	{0x04AA,0x00},	 //C2_GreenRed_X2Y
-	{0x04AB,0x46},	 //C2_GreenRed_X2Y LSB
-	{0x04AC,0x00},	 //C2_GreenRed_XY2
-	{0x04AD,0xA2},	 //C2_GreenRed_XY2 LSB
-	{0x04AE,0xFF},	 //C2_GreenRed_X2Y2
-	{0x04AF,0xCF},	 //C2_GreenRed_X2Y2 LSB // EA
-	{0x04B0,0xFF},	 //C2_Red_X
-	{0x04B1,0xDC},	 //C2_Red_X LSB
-	{0x04B2,0xFF},	 //C2_Red_Y
-	{0x04B3,0xA4},	 //C2_Red_Y LSB
-	{0x04B4,0x00},	 //C2_Red_X2
-	{0x04B5,0x93},	 //C2_Red_X2 LSB
-	{0x04B6,0x00},	 //C2_Red_Y2
-	{0x04B7,0xB2},	 //C2_Red_Y2 LSB
-	{0x04B8,0xFF},	 //C2_Red_XY
-	{0x04B9,0xD8},	 //C2_Red_XY LSB
-	{0x04BA,0xFF},	 //C2_Red_X2Y
-	{0x04BB,0xCD},	 //C2_Red_X2Y LSB
-	{0x04BC,0x00},	 //C2_Red_XY2
-	{0x04BD,0x48},	 //C2_Red_XY2 LSB
-	{0x04BE,0xFF},	 //C2_Red_X2Y2
-	{0x04BF,0x9B},	 //C2_Red_X2Y2 LSB
-	{0x04C0,0x00},	 //C2_GreenBlue_X
-	{0x04C1,0x08},	 //C2_GreenBlue_X LSB
-	{0x04C2,0x00},	 //C2_GreenBlue_Y
-	{0x04C3,0x00},	 //C2_GreenBlue_Y LSB
-	{0x04C4,0x00},	 //C2_GreenBlue_X2
-	{0x04C5,0x73},	 //C2_GreenBlue_X2 LSB
-	{0x04C6,0x00},	 //C2_GreenBlue_Y2
-	{0x04C7,0x80},	 //C2_GreenBlue_Y2 LSB
-	{0x04C8,0x00},	 //C2_GreenBlue_XY
-	{0x04C9,0x4F},	 //C2_GreenBlue_XY LSB
-	{0x04CA,0xFF},	 //C2_GreenBlue_X2Y
-	{0x04CB,0xEF},	 //C2_GreenBlue_X2Y LSB
-	{0x04CC,0x00},	 //C2_GreenBlue_XY2
-	{0x04CD,0x89},	 //C2_GreenBlue_XY2 LSB
-	{0x04CE,0xFF},	 //C2_GreenBlue_X2Y2
-	{0x04CF,0xE2},	 //C2_GreenBlue_X2Y2 LSB
-	{0x04D0,0x00},	 //C2_Blue_X
-	{0x04D1,0x0C},	 //C2_Blue_X LSB
-	{0x04D2,0xFF},	 //C2_Blue_Y
-	{0x04D3,0xCE},	 //C2_Blue_Y LSB
-	{0x04D4,0x00},	 //C2_Blue_X2
-	{0x04D5,0x57},	 //C2_Blue_X2 LSB
-	{0x04D6,0x00},	 //C2_Blue_Y2
-	{0x04D7,0x72},	 //C2_Blue_Y2 LSB
-	{0x04D8,0xFF},	 //C2_Blue_XY
-	{0x04D9,0xC4},	 //C2_Blue_XY LSB
-	{0x04DA,0x00},	 //C2_Blue_X2Y
-	{0x04DB,0x09},	 //C2_Blue_X2Y LSB
-	{0x04DC,0xFF},	 //C2_Blue_XY2
-	{0x04DD,0xD2},	 //C2_Blue_XY2 LSB
-	{0x04DE,0xFF},	 //C2_Blue_X2Y2
-	{0x04DF,0xFC},	 //C2_Blue_X2Y2 LSB
-	{0x04E0,0x00},	 //C3_GreenRed_X
-	{0x04E1,0x2C},	 //C3_GreenRed_X LSB
-	{0x04E2,0xFF},	 //C3_GreenRed_Y
-	{0x04E3,0xFB},	 //C3_GreenRed_Y LSB
-	{0x04E4,0x00},	 //C3_GreenRed_X2
-	{0x04E5,0x69},	 //C3_GreenRed_X2 LSB
-	{0x04E6,0x00},	 //C3_GreenRed_Y2
-	{0x04E7,0x87},	 //C3_GreenRed_Y2 LSB
-	{0x04E8,0x00},	 //C3_GreenRed_XY
-	{0x04E9,0x4A},	 //C3_GreenRed_XY LSB
-	{0x04EA,0x00},	 //C3_GreenRed_X2Y
-	{0x04EB,0x56},	 //C3_GreenRed_X2Y LSB
-	{0x04EC,0x00},	 //C3_GreenRed_XY2
-	{0x04ED,0x9A},	 //C3_GreenRed_XY2 LSB
-	{0x04EE,0xFF},	 //C3_GreenRed_X2Y2
-	{0x04EF,0xBE},	 //C3_GreenRed_X2Y2 LSB // DC
-	{0x04F0,0x00},	 //C3_Red_X
-	{0x04F1,0x4A},	 //C3_Red_X LSB  //53ZOE
-	{0x04F2,0xFF},	 //C3_Red_Y
-	{0x04F3,0x9B},	 //C3_Red_Y LSB
-	{0x04F4,0x00},	 //C3_Red_X2
-	{0x04F5,0xA0},	 //C3_Red_X2 LSB   ZOE
-	{0x04F6,0x00},	 //C3_Red_Y2
-	{0x04F7,0xcc},	 //C3_Red_Y2 LSB
-	{0x04F8,0xFF},	 //C3_Red_XY
-	{0x04F9,0xE1},	 //C3_Red_XY LSB
-	{0x04FA,0xFF},	 //C3_Red_X2Y
-	{0x04FB,0xD9},	 //C3_Red_X2Y LSB
-	{0x04FC,0x00},	 //C3_Red_XY2
-	{0x04FD,0x6A},	 //C3_Red_XY2 LSB
-	{0x04FE,0xFF},	 //C3_Red_X2Y2
-	{0x04FF,0x5E},	 //C3_Red_X2Y2 LSB
-	{0x0500,0x00},	 //C3_GreenBlue_X
-	{0x0501,0x06},	 //C3_GreenBlue_X LSB
-	{0x0502,0xFF},	 //C3_GreenBlue_Y
-	{0x0503,0xFC},	 //C3_GreenBlue_Y LSB
-	{0x0504,0x00},	 //C3_GreenBlue_X2
-	{0x0505,0x6F},	 //C3_GreenBlue_X2 LSB
-	{0x0506,0x00},	 //C3_GreenBlue_Y2
-	{0x0507,0x83},	 //C3_GreenBlue_Y2 LSB
-	{0x0508,0x00},	 //C3_GreenBlue_XY
-	{0x0509,0x5A},	 //C3_GreenBlue_XY LSB
-	{0x050A,0xFF},	 //C3_GreenBlue_X2Y
-	{0x050B,0xF7},	 //C3_GreenBlue_X2Y LSB
-	{0x050C,0x00},	 //C3_GreenBlue_XY2
-	{0x050D,0x80},	 //C3_GreenBlue_XY2 LSB
-	{0x050E,0xFF},	 //C3_GreenBlue_X2Y2
-	{0x050F,0xD3},	 //C3_GreenBlue_X2Y2 LSB
-	{0x0510,0x00},	 //C3_Blue_X
-	{0x0511,0x0B},	 //C3_Blue_X LSB
-	{0x0512,0xFF},	 //C3_Blue_Y
-	{0x0513,0xCE},	 //C3_Blue_Y LSB
-	{0x0514,0x00},	 //C3_Blue_X2
-	{0x0515,0x58},	 //C3_Blue_X2 LSB
-	{0x0516,0x00},	 //C3_Blue_Y2
-	{0x0517,0x73},	 //C3_Blue_Y2 LSB
-	{0x0518,0xFF},	 //C3_Blue_XY
-	{0x0519,0xBE},	 //C3_Blue_XY LSB
-	{0x051A,0xFF},	 //C3_Blue_X2Y
-	{0x051B,0xFB},	 //C3_Blue_X2Y LSB
-	{0x051C,0xFF},	 //C3_Blue_XY2
-	{0x051D,0xD2},	 //C3_Blue_XY2 LSB
-	{0x051E,0xFF},	 //C3_Blue_X2Y2
-	{0x051F,0xFA},	 //C3_Blue_X2Y2 LSB
-	{0x0561,0x05},	 //C0 Unity
-	{0x0562,0x01},	 //C1 Unity
-	{0x0563,0x01},	 //C2 Unity
-	{0x0564,0x09},	 //C3 Unity	
-    {0x0324,0x39},
-    {0x0325,0xAE},
-    {0x0326,0x3A},
-    {0x0327,0x29},
-    {0x0328,0x3B},
-    {0x0329,0x0A},
-    {0x032A,0x3B},
-    {0x032B,0x62},
-    	#endif
+	{0x032B,0x62},
 	{0x0320,0x01},    
 	{0x0321,0x04},    
 	{0x0322,0x01},    
@@ -2420,7 +2128,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x0571,0x00},
 	{0x0572,0x42},
 	{0x0573,0x00},
-	{0x0081,0x55}, //6e
+	{0x0081,0x6E},
 	{0x0588,0x00},   	
 	{0x0589,0x5A},   	
 	{0x058A,0xEE},   	
@@ -2428,7 +2136,7 @@ static struct regval_list sensor_default_regs[] = {
 	{0x058C,0x49},   	
 	{0x058D,0x3D},   	
 	{0x058E,0x3D},   	
-	{0x0080,0x6E},  //6C 	   
+	{0x0080,0x6C},   	
 	{0x0082,0x5A}, 
 	//{0x0010,0x01},  
 	//{REG_DLY,200},//mdelay(200)
@@ -2496,29 +2204,9 @@ static struct regval_list sensor_default_regs[] = {
 	{0x5200,0x09},  
 	{0x00B5,0x01}, 
 	{0x0030,0x14}, 
-	{0x01d2,0x37},  //zoe add20150805 
-	{0x01d3,0x33}, 
-  {0x01d4,0x3a}, 
-  {0x01d5,0x00}, 
-  {0x01d6,0x3a}, 
-  {0x01d7,0x00},  //zoe add20150805 
-  
-	#if 1
-	// 1280*960
-	{0x0040,0x01}, 
-	{0x0041,0x0a},  
-	
-	{0x0042,0x05}, 	// 1280
-	{0x0043,0x00},	
-	{0x0044,0x02}, // 960
-	{0x0045,0xc0},	
-	{0x00B4,0x01},  
-	#else
-    // vga
 	{0x0040,0x01}, 
 	{0x0041,0x04},  
 	{0x00B4,0x01},  
-    #endif
 
 	{0x0010,0x01},  
 	{REG_DLY,100},//mdelay(200)
@@ -2547,7 +2235,7 @@ static struct regval_list sensor_qsxga_regs[] = { //qsxga: 2592*1936
 
 static struct regval_list sensor_qxga_regs[] = { //qxga: 2048*1536
   //capture 3Mega 7.5fps
-//	{0x0010,0x02},	  
+	{0x0010,0x02},	  
 	{0x7000,0x08},
 	{0x5200,0x09},
 	{0x00ED,0x05},  
@@ -2562,7 +2250,7 @@ static struct regval_list sensor_qxga_regs[] = { //qxga: 2048*1536
 	{0x0044,0x06},
 	{0x0045,0x00},
 	{0x00B4,0x01},
-//	{0x0010,0x01},    
+	{0x0010,0x01},    
 };                                      
 
 static struct regval_list sensor_uxga_regs[] = { //UXGA: 1600*1200
@@ -2640,24 +2328,6 @@ static struct regval_list sensor_1080p_regs[] = { //1080: 1920*1080
 	{0x0010,0x01},
 };
 
-static struct regval_list sensor_1280x960_regs[] = { //1280*960
-	{0x0010,0x02},	 
-	{0x7000,0x08},
-	{0x00ED,0x0A},//fps
-	{0x5200,0x09},
-	{0x0030,0x12},
-	{0x0040,0x01},
-	{0x0041,0x0a},
-	{0x0042,0x05},
-	{0x0043,0x00},
-	{0x0044,0x02},
-	{0x0045,0xc0},
-
-	{0x00B4,0x01},
-	{0x0010,0x01},
-};
-
-
 static struct regval_list sensor_720p_regs[] = { //1280*720
 	{0x0010,0x02},	 
 	{0x7000,0x08},
@@ -2707,15 +2377,272 @@ static struct regval_list sensor_vga_regs[] = { //VGA:  640*480
 	//{0x00B2,0x50},//50
 	//{0x00B3,0xB0},//b0
 	//{0x00B5,0x02},//02
-	{0x0030,0x12},//11
+	{0x0030,0x14},//11
 	{0x0040,0x01},
 	{0x0041,0x04},
 	{0x00B4,0x01},
-	{0x0010,0x01},	
+	//{0x0010,0x01},	
 	//{0x070A,0x01},
 
 
 
+};
+static char sensor_af_fw_regs[] = {
+	0x02, 0x0f, 0xd6, 0x02, 0x0a, 0x39, 0xc2, 0x01, 0x22, 0x22, 0x00, 0x02, 0x0f, 0xb2, 0xe5, 0x1f, //0x8000,
+	0x70, 0x72, 0xf5, 0x1e, 0xd2, 0x35, 0xff, 0xef, 0x25, 0xe0, 0x24, 0x4e, 0xf8, 0xe4, 0xf6, 0x08, //0x8010,
+	0xf6, 0x0f, 0xbf, 0x34, 0xf2, 0x90, 0x0e, 0x93, 0xe4, 0x93, 0xff, 0xe5, 0x4b, 0xc3, 0x9f, 0x50, //0x8020,
+	0x04, 0x7f, 0x05, 0x80, 0x02, 0x7f, 0xfb, 0x78, 0xbd, 0xa6, 0x07, 0x12, 0x0f, 0x04, 0x40, 0x04, //0x8030,
+	0x7f, 0x03, 0x80, 0x02, 0x7f, 0x30, 0x78, 0xbc, 0xa6, 0x07, 0xe6, 0x18, 0xf6, 0x08, 0xe6, 0x78, //0x8040,
+	0xb9, 0xf6, 0x78, 0xbc, 0xe6, 0x78, 0xba, 0xf6, 0x78, 0xbf, 0x76, 0x33, 0xe4, 0x08, 0xf6, 0x78, //0x8050,
+	0xb8, 0x76, 0x01, 0x75, 0x4a, 0x02, 0x78, 0xb6, 0xf6, 0x08, 0xf6, 0x74, 0xff, 0x78, 0xc1, 0xf6, //0x8060,
+	0x08, 0xf6, 0x75, 0x1f, 0x01, 0x78, 0xbc, 0xe6, 0x75, 0xf0, 0x05, 0xa4, 0xf5, 0x4b, 0x12, 0x0a, //0x8070,
+	0xff, 0xc2, 0x37, 0x22, 0x78, 0xb8, 0xe6, 0xd3, 0x94, 0x00, 0x40, 0x02, 0x16, 0x22, 0xe5, 0x1f, //0x8080,
+	0xb4, 0x05, 0x23, 0xe4, 0xf5, 0x1f, 0xc2, 0x01, 0x78, 0xb6, 0xe6, 0xfe, 0x08, 0xe6, 0xff, 0x78, //0x8090,
+	0x4e, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0xa2, 0x37, 0xe4, 0x33, 0xf5, 0x3c, 0x90, 0x30, 0x28, 0xf0, //0x80a0,
+	0x75, 0x1e, 0x10, 0xd2, 0x35, 0x22, 0xe5, 0x4b, 0x75, 0xf0, 0x05, 0x84, 0x78, 0xbc, 0xf6, 0x90, //0x80b0,
+	0x0e, 0x8c, 0xe4, 0x93, 0xff, 0x25, 0xe0, 0x24, 0x0a, 0xf8, 0xe6, 0xfc, 0x08, 0xe6, 0xfd, 0x78, //0x80c0,
+	0xbc, 0xe6, 0x25, 0xe0, 0x24, 0x4e, 0xf8, 0xa6, 0x04, 0x08, 0xa6, 0x05, 0xef, 0x12, 0x0f, 0x0b, //0x80d0,
+	0xd3, 0x78, 0xb7, 0x96, 0xee, 0x18, 0x96, 0x40, 0x0d, 0x78, 0xbc, 0xe6, 0x78, 0xb9, 0xf6, 0x78, //0x80e0,
+	0xb6, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0x90, 0x0e, 0x8c, 0xe4, 0x93, 0x12, 0x0f, 0x0b, 0xc3, 0x78, //0x80f0,
+	0xc2, 0x96, 0xee, 0x18, 0x96, 0x50, 0x0d, 0x78, 0xbc, 0xe6, 0x78, 0xba, 0xf6, 0x78, 0xc1, 0xa6, //0x8100,
+	0x06, 0x08, 0xa6, 0x07, 0x78, 0xb6, 0xe6, 0xfe, 0x08, 0xe6, 0xc3, 0x78, 0xc2, 0x96, 0xff, 0xee, //0x8110,
+	0x18, 0x96, 0x78, 0xc3, 0xf6, 0x08, 0xa6, 0x07, 0x90, 0x0e, 0x95, 0xe4, 0x18, 0x12, 0x0e, 0xe9, //0x8120,
+	0x40, 0x02, 0xd2, 0x37, 0x78, 0xbc, 0xe6, 0x08, 0x26, 0x08, 0xf6, 0xe5, 0x1f, 0x64, 0x01, 0x70, //0x8130,
+	0x4a, 0xe6, 0xc3, 0x78, 0xc0, 0x12, 0x0e, 0xdf, 0x40, 0x05, 0x12, 0x0e, 0xda, 0x40, 0x39, 0x12, //0x8140,
+	0x0f, 0x02, 0x40, 0x04, 0x7f, 0xfe, 0x80, 0x02, 0x7f, 0x02, 0x78, 0xbd, 0xa6, 0x07, 0x78, 0xb9, //0x8150,
+	0xe6, 0x24, 0x03, 0x78, 0xbf, 0xf6, 0x78, 0xb9, 0xe6, 0x24, 0xfd, 0x78, 0xc0, 0xf6, 0x12, 0x0f, //0x8160,
+	0x02, 0x40, 0x06, 0x78, 0xc0, 0xe6, 0xff, 0x80, 0x04, 0x78, 0xbf, 0xe6, 0xff, 0x78, 0xbe, 0xa6, //0x8170,
+	0x07, 0x75, 0x1f, 0x02, 0x78, 0xb8, 0x76, 0x01, 0x02, 0x02, 0x4a, 0xe5, 0x1f, 0x64, 0x02, 0x60, //0x8180,
+	0x03, 0x02, 0x02, 0x2a, 0x78, 0xbe, 0xe6, 0xff, 0xc3, 0x78, 0xc0, 0x12, 0x0e, 0xe0, 0x40, 0x08, //0x8190,
+	0x12, 0x0e, 0xda, 0x50, 0x03, 0x02, 0x02, 0x28, 0x12, 0x0f, 0x02, 0x40, 0x04, 0x7f, 0xff, 0x80, //0x81a0,
+	0x02, 0x7f, 0x01, 0x78, 0xbd, 0xa6, 0x07, 0x78, 0xb9, 0xe6, 0x04, 0x78, 0xbf, 0xf6, 0x78, 0xb9, //0x81b0,
+	0xe6, 0x14, 0x78, 0xc0, 0xf6, 0x18, 0x12, 0x0f, 0x04, 0x40, 0x04, 0xe6, 0xff, 0x80, 0x02, 0x7f, //0x81c0,
+	0x00, 0x78, 0xbf, 0xa6, 0x07, 0xd3, 0x08, 0xe6, 0x64, 0x80, 0x94, 0x80, 0x40, 0x04, 0xe6, 0xff, //0x81d0,
+	0x80, 0x02, 0x7f, 0x00, 0x78, 0xc0, 0xa6, 0x07, 0xc3, 0x18, 0xe6, 0x64, 0x80, 0x94, 0xb3, 0x50, //0x81e0,
+	0x04, 0xe6, 0xff, 0x80, 0x02, 0x7f, 0x33, 0x78, 0xbf, 0xa6, 0x07, 0xc3, 0x08, 0xe6, 0x64, 0x80, //0x81f0,
+	0x94, 0xb3, 0x50, 0x04, 0xe6, 0xff, 0x80, 0x02, 0x7f, 0x33, 0x78, 0xc0, 0xa6, 0x07, 0x12, 0x0f, //0x8200,
+	0x02, 0x40, 0x06, 0x78, 0xc0, 0xe6, 0xff, 0x80, 0x04, 0x78, 0xbf, 0xe6, 0xff, 0x78, 0xbe, 0xa6, //0x8210,
+	0x07, 0x75, 0x1f, 0x03, 0x78, 0xb8, 0x76, 0x01, 0x80, 0x20, 0xe5, 0x1f, 0x64, 0x03, 0x70, 0x26, //0x8220,
+	0x78, 0xbe, 0xe6, 0xff, 0xc3, 0x78, 0xc0, 0x12, 0x0e, 0xe0, 0x40, 0x05, 0x12, 0x0e, 0xda, 0x40, //0x8230,
+	0x09, 0x78, 0xb9, 0xe6, 0x78, 0xbe, 0xf6, 0x75, 0x1f, 0x04, 0x78, 0xbe, 0xe6, 0x75, 0xf0, 0x05, //0x8240,
+	0xa4, 0xf5, 0x4b, 0x02, 0x0a, 0xff, 0xe5, 0x1f, 0xb4, 0x04, 0x10, 0x90, 0x0e, 0x94, 0xe4, 0x78, //0x8250,
+	0xc3, 0x12, 0x0e, 0xe9, 0x40, 0x02, 0xd2, 0x37, 0x75, 0x1f, 0x05, 0x22, 0x30, 0x01, 0x03, 0x02, //0x8260,
+	0x04, 0xc0, 0x30, 0x02, 0x03, 0x02, 0x04, 0xc0, 0x90, 0x51, 0xa5, 0xe0, 0x78, 0x93, 0xf6, 0xa3, //0x8270,
+	0xe0, 0x08, 0xf6, 0xa3, 0xe0, 0x08, 0xf6, 0xe5, 0x1f, 0x70, 0x3c, 0x75, 0x1e, 0x20, 0xd2, 0x35, //0x8280,
+	0x12, 0x0c, 0x7a, 0x78, 0x7e, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0x78, 0x8b, 0xa6, 0x09, 0x18, 0x76, //0x8290,
+	0x01, 0x12, 0x0c, 0x5b, 0x78, 0x4e, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0x78, 0x8b, 0xe6, 0x78, 0x6e, //0x82a0,
+	0xf6, 0x75, 0x1f, 0x01, 0x78, 0x93, 0xe6, 0x78, 0x90, 0xf6, 0x78, 0x94, 0xe6, 0x78, 0x91, 0xf6, //0x82b0,
+	0x78, 0x95, 0xe6, 0x78, 0x92, 0xf6, 0x22, 0x79, 0x90, 0xe7, 0xd3, 0x78, 0x93, 0x96, 0x40, 0x05, //0x82c0,
+	0xe7, 0x96, 0xff, 0x80, 0x08, 0xc3, 0x79, 0x93, 0xe7, 0x78, 0x90, 0x96, 0xff, 0x78, 0x88, 0x76, //0x82d0,
+	0x00, 0x08, 0xa6, 0x07, 0x79, 0x91, 0xe7, 0xd3, 0x78, 0x94, 0x96, 0x40, 0x05, 0xe7, 0x96, 0xff, //0x82e0,
+	0x80, 0x08, 0xc3, 0x79, 0x94, 0xe7, 0x78, 0x91, 0x96, 0xff, 0x12, 0x0c, 0x8e, 0x79, 0x92, 0xe7, //0x82f0,
+	0xd3, 0x78, 0x95, 0x96, 0x40, 0x05, 0xe7, 0x96, 0xff, 0x80, 0x08, 0xc3, 0x79, 0x95, 0xe7, 0x78, //0x8300,
+	0x92, 0x96, 0xff, 0x12, 0x0c, 0x8e, 0x12, 0x0c, 0x5b, 0x78, 0x8a, 0xe6, 0x25, 0xe0, 0x24, 0x4e, //0x8310,
+	0xf8, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0x78, 0x8a, 0xe6, 0x24, 0x6e, 0xf8, 0xa6, 0x09, 0x78, 0x8a, //0x8320,
+	0xe6, 0x24, 0x01, 0xff, 0xe4, 0x33, 0xfe, 0xd3, 0xef, 0x94, 0x0f, 0xee, 0x64, 0x80, 0x94, 0x80, //0x8330,
+	0x40, 0x04, 0x7f, 0x00, 0x80, 0x05, 0x78, 0x8a, 0xe6, 0x04, 0xff, 0x78, 0x8a, 0xa6, 0x07, 0xe5, //0x8340,
+	0x1f, 0xb4, 0x01, 0x0a, 0xe6, 0x60, 0x03, 0x02, 0x04, 0xc0, 0x75, 0x1f, 0x02, 0x22, 0x12, 0x0c, //0x8350,
+	0x7a, 0x78, 0x80, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0x12, 0x0c, 0x7a, 0x78, 0x82, 0xa6, 0x06, 0x08, //0x8360,
+	0xa6, 0x07, 0x78, 0x6e, 0xe6, 0x78, 0x8c, 0xf6, 0x78, 0x6e, 0xe6, 0x78, 0x8d, 0xf6, 0x7f, 0x01, //0x8370,
+	0xef, 0x25, 0xe0, 0x24, 0x4f, 0xf9, 0xc3, 0x78, 0x81, 0xe6, 0x97, 0x18, 0xe6, 0x19, 0x97, 0x50, //0x8380,
+	0x0a, 0x12, 0x0c, 0x82, 0x78, 0x80, 0xa6, 0x04, 0x08, 0xa6, 0x05, 0x74, 0x6e, 0x2f, 0xf9, 0x78, //0x8390,
+	0x8c, 0xe6, 0xc3, 0x97, 0x50, 0x08, 0x74, 0x6e, 0x2f, 0xf8, 0xe6, 0x78, 0x8c, 0xf6, 0xef, 0x25, //0x83a0,
+	0xe0, 0x24, 0x4f, 0xf9, 0xd3, 0x78, 0x83, 0xe6, 0x97, 0x18, 0xe6, 0x19, 0x97, 0x40, 0x0a, 0x12, //0x83b0,
+	0x0c, 0x82, 0x78, 0x82, 0xa6, 0x04, 0x08, 0xa6, 0x05, 0x74, 0x6e, 0x2f, 0xf9, 0x78, 0x8d, 0xe6, //0x83c0,
+	0xd3, 0x97, 0x40, 0x08, 0x74, 0x6e, 0x2f, 0xf8, 0xe6, 0x78, 0x8d, 0xf6, 0x0f, 0xef, 0x64, 0x10, //0x83d0,
+	0x70, 0x9e, 0xc3, 0x79, 0x81, 0xe7, 0x78, 0x83, 0x96, 0xff, 0x19, 0xe7, 0x18, 0x96, 0x78, 0x84, //0x83e0,
+	0xf6, 0x08, 0xa6, 0x07, 0xc3, 0x79, 0x8c, 0xe7, 0x78, 0x8d, 0x96, 0x08, 0xf6, 0xd3, 0x79, 0x81, //0x83f0,
+	0xe7, 0x78, 0x7f, 0x96, 0x19, 0xe7, 0x18, 0x96, 0x40, 0x05, 0x09, 0xe7, 0x08, 0x80, 0x06, 0xc3, //0x8400,
+	0x79, 0x7f, 0xe7, 0x78, 0x81, 0x96, 0xff, 0x19, 0xe7, 0x18, 0x96, 0xfe, 0x78, 0x86, 0xa6, 0x06, //0x8410,
+	0x08, 0xa6, 0x07, 0x79, 0x8c, 0xe7, 0xd3, 0x78, 0x8b, 0x96, 0x40, 0x05, 0xe7, 0x96, 0xff, 0x80, //0x8420,
+	0x08, 0xc3, 0x79, 0x8b, 0xe7, 0x78, 0x8c, 0x96, 0xff, 0x78, 0x8f, 0xa6, 0x07, 0xe5, 0x1f, 0x64, //0x8430,
+	0x02, 0x70, 0x69, 0x90, 0x0e, 0x91, 0x93, 0xff, 0x18, 0xe6, 0xc3, 0x9f, 0x50, 0x72, 0x12, 0x0c, //0x8440,
+	0x4a, 0x12, 0x0c, 0x2f, 0x90, 0x0e, 0x8e, 0x12, 0x0c, 0x38, 0x78, 0x80, 0x12, 0x0c, 0x6b, 0x7b, //0x8450,
+	0x04, 0x12, 0x0c, 0x1d, 0xc3, 0x12, 0x06, 0x45, 0x50, 0x56, 0x90, 0x0e, 0x92, 0xe4, 0x93, 0xff, //0x8460,
+	0x78, 0x8f, 0xe6, 0x9f, 0x40, 0x02, 0x80, 0x11, 0x90, 0x0e, 0x90, 0xe4, 0x93, 0xff, 0xd3, 0x78, //0x8470,
+	0x89, 0xe6, 0x9f, 0x18, 0xe6, 0x94, 0x00, 0x40, 0x03, 0x75, 0x1f, 0x05, 0x12, 0x0c, 0x4a, 0x12, //0x8480,
+	0x0c, 0x2f, 0x90, 0x0e, 0x8f, 0x12, 0x0c, 0x38, 0x78, 0x7e, 0x12, 0x0c, 0x6b, 0x7b, 0x40, 0x12, //0x8490,
+	0x0c, 0x1d, 0xd3, 0x12, 0x06, 0x45, 0x40, 0x18, 0x75, 0x1f, 0x05, 0x22, 0xe5, 0x1f, 0xb4, 0x05, //0x84a0,
+	0x0f, 0xd2, 0x01, 0xc2, 0x02, 0xe4, 0xf5, 0x1f, 0xf5, 0x1e, 0xd2, 0x35, 0xd2, 0x33, 0xd2, 0x36, //0x84b0,
+	0x22, 0xef, 0x8d, 0xf0, 0xa4, 0xa8, 0xf0, 0xcf, 0x8c, 0xf0, 0xa4, 0x28, 0xce, 0x8d, 0xf0, 0xa4, //0x84c0,
+	0x2e, 0xfe, 0x22, 0xbc, 0x00, 0x0b, 0xbe, 0x00, 0x29, 0xef, 0x8d, 0xf0, 0x84, 0xff, 0xad, 0xf0, //0x84d0,
+	0x22, 0xe4, 0xcc, 0xf8, 0x75, 0xf0, 0x08, 0xef, 0x2f, 0xff, 0xee, 0x33, 0xfe, 0xec, 0x33, 0xfc, //0x84e0,
+	0xee, 0x9d, 0xec, 0x98, 0x40, 0x05, 0xfc, 0xee, 0x9d, 0xfe, 0x0f, 0xd5, 0xf0, 0xe9, 0xe4, 0xce, //0x84f0,
+	0xfd, 0x22, 0xed, 0xf8, 0xf5, 0xf0, 0xee, 0x84, 0x20, 0xd2, 0x1c, 0xfe, 0xad, 0xf0, 0x75, 0xf0, //0x8500,
+	0x08, 0xef, 0x2f, 0xff, 0xed, 0x33, 0xfd, 0x40, 0x07, 0x98, 0x50, 0x06, 0xd5, 0xf0, 0xf2, 0x22, //0x8510,
+	0xc3, 0x98, 0xfd, 0x0f, 0xd5, 0xf0, 0xea, 0x22, 0xe8, 0x8f, 0xf0, 0xa4, 0xcc, 0x8b, 0xf0, 0xa4, //0x8520,
+	0x2c, 0xfc, 0xe9, 0x8e, 0xf0, 0xa4, 0x2c, 0xfc, 0x8a, 0xf0, 0xed, 0xa4, 0x2c, 0xfc, 0xea, 0x8e, //0x8530,
+	0xf0, 0xa4, 0xcd, 0xa8, 0xf0, 0x8b, 0xf0, 0xa4, 0x2d, 0xcc, 0x38, 0x25, 0xf0, 0xfd, 0xe9, 0x8f, //0x8540,
+	0xf0, 0xa4, 0x2c, 0xcd, 0x35, 0xf0, 0xfc, 0xeb, 0x8e, 0xf0, 0xa4, 0xfe, 0xa9, 0xf0, 0xeb, 0x8f, //0x8550,
+	0xf0, 0xa4, 0xcf, 0xc5, 0xf0, 0x2e, 0xcd, 0x39, 0xfe, 0xe4, 0x3c, 0xfc, 0xea, 0xa4, 0x2d, 0xce, //0x8560,
+	0x35, 0xf0, 0xfd, 0xe4, 0x3c, 0xfc, 0x22, 0x75, 0xf0, 0x08, 0x75, 0x82, 0x00, 0xef, 0x2f, 0xff, //0x8570,
+	0xee, 0x33, 0xfe, 0xcd, 0x33, 0xcd, 0xcc, 0x33, 0xcc, 0xc5, 0x82, 0x33, 0xc5, 0x82, 0x9b, 0xed, //0x8580,
+	0x9a, 0xec, 0x99, 0xe5, 0x82, 0x98, 0x40, 0x0c, 0xf5, 0x82, 0xee, 0x9b, 0xfe, 0xed, 0x9a, 0xfd, //0x8590,
+	0xec, 0x99, 0xfc, 0x0f, 0xd5, 0xf0, 0xd6, 0xe4, 0xce, 0xfb, 0xe4, 0xcd, 0xfa, 0xe4, 0xcc, 0xf9, //0x85a0,
+	0xa8, 0x82, 0x22, 0xb8, 0x00, 0xc1, 0xb9, 0x00, 0x59, 0xba, 0x00, 0x2d, 0xec, 0x8b, 0xf0, 0x84, //0x85b0,
+	0xcf, 0xce, 0xcd, 0xfc, 0xe5, 0xf0, 0xcb, 0xf9, 0x78, 0x18, 0xef, 0x2f, 0xff, 0xee, 0x33, 0xfe, //0x85c0,
+	0xed, 0x33, 0xfd, 0xec, 0x33, 0xfc, 0xeb, 0x33, 0xfb, 0x10, 0xd7, 0x03, 0x99, 0x40, 0x04, 0xeb, //0x85d0,
+	0x99, 0xfb, 0x0f, 0xd8, 0xe5, 0xe4, 0xf9, 0xfa, 0x22, 0x78, 0x18, 0xef, 0x2f, 0xff, 0xee, 0x33, //0x85e0,
+	0xfe, 0xed, 0x33, 0xfd, 0xec, 0x33, 0xfc, 0xc9, 0x33, 0xc9, 0x10, 0xd7, 0x05, 0x9b, 0xe9, 0x9a, //0x85f0,
+	0x40, 0x07, 0xec, 0x9b, 0xfc, 0xe9, 0x9a, 0xf9, 0x0f, 0xd8, 0xe0, 0xe4, 0xc9, 0xfa, 0xe4, 0xcc, //0x8600,
+	0xfb, 0x22, 0x75, 0xf0, 0x10, 0xef, 0x2f, 0xff, 0xee, 0x33, 0xfe, 0xed, 0x33, 0xfd, 0xcc, 0x33, //0x8610,
+	0xcc, 0xc8, 0x33, 0xc8, 0x10, 0xd7, 0x07, 0x9b, 0xec, 0x9a, 0xe8, 0x99, 0x40, 0x0a, 0xed, 0x9b, //0x8620,
+	0xfd, 0xec, 0x9a, 0xfc, 0xe8, 0x99, 0xf8, 0x0f, 0xd5, 0xf0, 0xda, 0xe4, 0xcd, 0xfb, 0xe4, 0xcc, //0x8630,
+	0xfa, 0xe4, 0xc8, 0xf9, 0x22, 0xeb, 0x9f, 0xf5, 0xf0, 0xea, 0x9e, 0x42, 0xf0, 0xe9, 0x9d, 0x42, //0x8640,
+	0xf0, 0xe8, 0x9c, 0x45, 0xf0, 0x22, 0xe8, 0x60, 0x0f, 0xec, 0xc3, 0x13, 0xfc, 0xed, 0x13, 0xfd, //0x8650,
+	0xee, 0x13, 0xfe, 0xef, 0x13, 0xff, 0xd8, 0xf1, 0x22, 0xe8, 0x60, 0x0f, 0xef, 0xc3, 0x33, 0xff, //0x8660,
+	0xee, 0x33, 0xfe, 0xed, 0x33, 0xfd, 0xec, 0x33, 0xfc, 0xd8, 0xf1, 0x22, 0xe4, 0x93, 0xfc, 0x74, //0x8670,
+	0x01, 0x93, 0xfd, 0x74, 0x02, 0x93, 0xfe, 0x74, 0x03, 0x93, 0xff, 0x22, 0xe6, 0xfb, 0x08, 0xe6, //0x8680,
+	0xf9, 0x08, 0xe6, 0xfa, 0x08, 0xe6, 0xcb, 0xf8, 0x22, 0xec, 0xf6, 0x08, 0xed, 0xf6, 0x08, 0xee, //0x8690,
+	0xf6, 0x08, 0xef, 0xf6, 0x22, 0xa4, 0x25, 0x82, 0xf5, 0x82, 0xe5, 0xf0, 0x35, 0x83, 0xf5, 0x83, //0x86a0,
+	0x22, 0xd0, 0x83, 0xd0, 0x82, 0xf8, 0xe4, 0x93, 0x70, 0x12, 0x74, 0x01, 0x93, 0x70, 0x0d, 0xa3, //0x86b0,
+	0xa3, 0x93, 0xf8, 0x74, 0x01, 0x93, 0xf5, 0x82, 0x88, 0x83, 0xe4, 0x73, 0x74, 0x02, 0x93, 0x68, //0x86c0,
+	0x60, 0xef, 0xa3, 0xa3, 0xa3, 0x80, 0xdf, 0x90, 0x38, 0x04, 0x78, 0x52, 0x12, 0x0b, 0xfd, 0x90, //0x86d0,
+	0x38, 0x00, 0xe0, 0xfe, 0xa3, 0xe0, 0xfd, 0xed, 0xff, 0xc3, 0x12, 0x0b, 0x9e, 0x90, 0x38, 0x10, //0x86e0,
+	0x12, 0x0b, 0x92, 0x90, 0x38, 0x06, 0x78, 0x54, 0x12, 0x0b, 0xfd, 0x90, 0x38, 0x02, 0xe0, 0xfe, //0x86f0,
+	0xa3, 0xe0, 0xfd, 0xed, 0xff, 0xc3, 0x12, 0x0b, 0x9e, 0x90, 0x38, 0x12, 0x12, 0x0b, 0x92, 0xa3, //0x8700,
+	0xe0, 0xb4, 0x31, 0x07, 0x78, 0x52, 0x79, 0x52, 0x12, 0x0c, 0x13, 0x90, 0x38, 0x14, 0xe0, 0xb4, //0x8710,
+	0x71, 0x15, 0x78, 0x52, 0xe6, 0xfe, 0x08, 0xe6, 0x78, 0x02, 0xce, 0xc3, 0x13, 0xce, 0x13, 0xd8, //0x8720,
+	0xf9, 0x79, 0x53, 0xf7, 0xee, 0x19, 0xf7, 0x90, 0x38, 0x15, 0xe0, 0xb4, 0x31, 0x07, 0x78, 0x54, //0x8730,
+	0x79, 0x54, 0x12, 0x0c, 0x13, 0x90, 0x38, 0x15, 0xe0, 0xb4, 0x71, 0x15, 0x78, 0x54, 0xe6, 0xfe, //0x8740,
+	0x08, 0xe6, 0x78, 0x02, 0xce, 0xc3, 0x13, 0xce, 0x13, 0xd8, 0xf9, 0x79, 0x55, 0xf7, 0xee, 0x19, //0x8750,
+	0xf7, 0x79, 0x52, 0x12, 0x0b, 0xd9, 0x09, 0x12, 0x0b, 0xd9, 0xaf, 0x47, 0x12, 0x0b, 0xb2, 0xe5, //0x8760,
+	0x44, 0xfb, 0x7a, 0x00, 0xfd, 0x7c, 0x00, 0x12, 0x04, 0xd3, 0x78, 0x5a, 0xa6, 0x06, 0x08, 0xa6, //0x8770,
+	0x07, 0xaf, 0x45, 0x12, 0x0b, 0xb2, 0xad, 0x03, 0x7c, 0x00, 0x12, 0x04, 0xd3, 0x78, 0x56, 0xa6, //0x8780,
+	0x06, 0x08, 0xa6, 0x07, 0xaf, 0x48, 0x78, 0x54, 0x12, 0x0b, 0xb4, 0xe5, 0x43, 0xfb, 0xfd, 0x7c, //0x8790,
+	0x00, 0x12, 0x04, 0xd3, 0x78, 0x5c, 0xa6, 0x06, 0x08, 0xa6, 0x07, 0xaf, 0x46, 0x7e, 0x00, 0x78, //0x87a0,
+	0x54, 0x12, 0x0b, 0xb6, 0xad, 0x03, 0x7c, 0x00, 0x12, 0x04, 0xd3, 0x78, 0x58, 0xa6, 0x06, 0x08, //0x87b0,
+	0xa6, 0x07, 0xc3, 0x78, 0x5b, 0xe6, 0x94, 0x08, 0x18, 0xe6, 0x94, 0x00, 0x50, 0x05, 0x76, 0x00, //0x87c0,
+	0x08, 0x76, 0x08, 0xc3, 0x78, 0x5d, 0xe6, 0x94, 0x08, 0x18, 0xe6, 0x94, 0x00, 0x50, 0x05, 0x76, //0x87d0,
+	0x00, 0x08, 0x76, 0x08, 0x78, 0x5a, 0x12, 0x0b, 0xc6, 0xff, 0xd3, 0x78, 0x57, 0xe6, 0x9f, 0x18, //0x87e0,
+	0xe6, 0x9e, 0x40, 0x0e, 0x78, 0x5a, 0xe6, 0x13, 0xfe, 0x08, 0xe6, 0x78, 0x57, 0x12, 0x0c, 0x08, //0x87f0,
+	0x80, 0x04, 0x7e, 0x00, 0x7f, 0x00, 0x78, 0x5e, 0x12, 0x0b, 0xbe, 0xff, 0xd3, 0x78, 0x59, 0xe6, //0x8800,
+	0x9f, 0x18, 0xe6, 0x9e, 0x40, 0x0e, 0x78, 0x5c, 0xe6, 0x13, 0xfe, 0x08, 0xe6, 0x78, 0x59, 0x12, //0x8810,
+	0x0c, 0x08, 0x80, 0x04, 0x7e, 0x00, 0x7f, 0x00, 0xe4, 0xfc, 0xfd, 0x78, 0x62, 0x12, 0x06, 0x99, //0x8820,
+	0x78, 0x5a, 0x12, 0x0b, 0xc6, 0x78, 0x57, 0x26, 0xff, 0xee, 0x18, 0x36, 0xfe, 0x78, 0x66, 0x12, //0x8830,
+	0x0b, 0xbe, 0x78, 0x59, 0x26, 0xff, 0xee, 0x18, 0x36, 0xfe, 0xe4, 0xfc, 0xfd, 0x78, 0x6a, 0x12, //0x8840,
+	0x06, 0x99, 0x12, 0x0b, 0xce, 0x78, 0x66, 0x12, 0x06, 0x8c, 0xd3, 0x12, 0x06, 0x45, 0x40, 0x08, //0x8850,
+	0x12, 0x0b, 0xce, 0x78, 0x66, 0x12, 0x06, 0x99, 0x78, 0x54, 0x12, 0x0b, 0xd0, 0x78, 0x6a, 0x12, //0x8860,
+	0x06, 0x8c, 0xd3, 0x12, 0x06, 0x45, 0x40, 0x0a, 0x78, 0x54, 0x12, 0x0b, 0xd0, 0x78, 0x6a, 0x12, //0x8870,
+	0x06, 0x99, 0x78, 0x61, 0xe6, 0x90, 0x60, 0x01, 0xf0, 0x78, 0x65, 0xe6, 0xa3, 0xf0, 0x78, 0x69, //0x8880,
+	0xe6, 0xa3, 0xf0, 0x78, 0x55, 0xe6, 0xa3, 0xf0, 0x7d, 0x01, 0x78, 0x61, 0x12, 0x0b, 0xe9, 0x24, //0x8890,
+	0x01, 0x12, 0x0b, 0xa6, 0x78, 0x65, 0x12, 0x0b, 0xe9, 0x24, 0x02, 0x12, 0x0b, 0xa6, 0x78, 0x69, //0x88a0,
+	0x12, 0x0b, 0xe9, 0x24, 0x03, 0x12, 0x0b, 0xa6, 0x78, 0x6d, 0x12, 0x0b, 0xe9, 0x24, 0x04, 0x12, //0x88b0,
+	0x0b, 0xa6, 0x0d, 0xbd, 0x05, 0xd4, 0xc2, 0x0e, 0xc2, 0x06, 0x22, 0x85, 0x08, 0x41, 0x90, 0x30, //0x88c0,
+	0x24, 0xe0, 0xf5, 0x3d, 0xa3, 0xe0, 0xf5, 0x3e, 0xa3, 0xe0, 0xf5, 0x3f, 0xa3, 0xe0, 0xf5, 0x40, //0x88d0,
+	0xa3, 0xe0, 0xf5, 0x3c, 0xd2, 0x34, 0xe5, 0x41, 0x12, 0x06, 0xb1, 0x09, 0x31, 0x03, 0x09, 0x35, //0x88e0,
+	0x04, 0x09, 0x3b, 0x05, 0x09, 0x3e, 0x06, 0x09, 0x41, 0x07, 0x09, 0x4a, 0x08, 0x09, 0x5b, 0x12, //0x88f0,
+	0x09, 0x73, 0x18, 0x09, 0x89, 0x19, 0x09, 0x5e, 0x1a, 0x09, 0x6a, 0x1b, 0x09, 0xad, 0x80, 0x09, //0x8900,
+	0xb2, 0x81, 0x0a, 0x1d, 0x8f, 0x0a, 0x09, 0x90, 0x0a, 0x1d, 0x91, 0x0a, 0x1d, 0x92, 0x0a, 0x1d, //0x8910,
+	0x93, 0x0a, 0x1d, 0x94, 0x0a, 0x1d, 0x98, 0x0a, 0x17, 0x9f, 0x0a, 0x1a, 0xec, 0x00, 0x00, 0x0a, //0x8920,
+	0x38, 0x12, 0x0f, 0x74, 0x22, 0x12, 0x0f, 0x74, 0xd2, 0x03, 0x22, 0xd2, 0x03, 0x22, 0xc2, 0x03, //0x8930,
+	0x22, 0xa2, 0x37, 0xe4, 0x33, 0xf5, 0x3c, 0x02, 0x0a, 0x1d, 0xc2, 0x01, 0xc2, 0x02, 0xc2, 0x03, //0x8940,
+	0x12, 0x0d, 0x0d, 0x75, 0x1e, 0x70, 0xd2, 0x35, 0x02, 0x0a, 0x1d, 0x02, 0x0a, 0x04, 0x85, 0x40, //0x8950,
+	0x4a, 0x85, 0x3c, 0x4b, 0x12, 0x0a, 0xff, 0x02, 0x0a, 0x1d, 0x85, 0x4a, 0x40, 0x85, 0x4b, 0x3c, //0x8960,
+	0x02, 0x0a, 0x1d, 0xe4, 0xf5, 0x22, 0xf5, 0x23, 0x85, 0x40, 0x31, 0x85, 0x3f, 0x30, 0x85, 0x3e, //0x8970,
+	0x2f, 0x85, 0x3d, 0x2e, 0x12, 0x0f, 0x46, 0x80, 0x1f, 0x75, 0x22, 0x00, 0x75, 0x23, 0x01, 0x74, //0x8980,
+	0xff, 0xf5, 0x2d, 0xf5, 0x2c, 0xf5, 0x2b, 0xf5, 0x2a, 0x12, 0x0f, 0x46, 0x85, 0x2d, 0x40, 0x85, //0x8990,
+	0x2c, 0x3f, 0x85, 0x2b, 0x3e, 0x85, 0x2a, 0x3d, 0xe4, 0xf5, 0x3c, 0x80, 0x70, 0x12, 0x0f, 0x16, //0x89a0,
+	0x80, 0x6b, 0x85, 0x3d, 0x45, 0x85, 0x3e, 0x46, 0xe5, 0x47, 0xc3, 0x13, 0xff, 0xe5, 0x45, 0xc3, //0x89b0,
+	0x9f, 0x50, 0x02, 0x8f, 0x45, 0xe5, 0x48, 0xc3, 0x13, 0xff, 0xe5, 0x46, 0xc3, 0x9f, 0x50, 0x02, //0x89c0,
+	0x8f, 0x46, 0xe5, 0x47, 0xc3, 0x13, 0xff, 0xfd, 0xe5, 0x45, 0x2d, 0xfd, 0xe4, 0x33, 0xfc, 0xe5, //0x89d0,
+	0x44, 0x12, 0x0f, 0x90, 0x40, 0x05, 0xe5, 0x44, 0x9f, 0xf5, 0x45, 0xe5, 0x48, 0xc3, 0x13, 0xff, //0x89e0,
+	0xfd, 0xe5, 0x46, 0x2d, 0xfd, 0xe4, 0x33, 0xfc, 0xe5, 0x43, 0x12, 0x0f, 0x90, 0x40, 0x05, 0xe5, //0x89f0,
+	0x43, 0x9f, 0xf5, 0x46, 0x12, 0x06, 0xd7, 0x80, 0x14, 0x85, 0x40, 0x48, 0x85, 0x3f, 0x47, 0x85, //0x8a00,
+	0x3e, 0x46, 0x85, 0x3d, 0x45, 0x80, 0x06, 0x02, 0x06, 0xd7, 0x12, 0x0d, 0x7e, 0x90, 0x30, 0x24, //0x8a10,
+	0xe5, 0x3d, 0xf0, 0xa3, 0xe5, 0x3e, 0xf0, 0xa3, 0xe5, 0x3f, 0xf0, 0xa3, 0xe5, 0x40, 0xf0, 0xa3, //0x8a20,
+	0xe5, 0x3c, 0xf0, 0x90, 0x30, 0x23, 0xe4, 0xf0, 0x22, 0xc0, 0xe0, 0xc0, 0x83, 0xc0, 0x82, 0xc0, //0x8a30,
+	0xd0, 0x90, 0x3f, 0x0c, 0xe0, 0xf5, 0x32, 0xe5, 0x32, 0x30, 0xe3, 0x74, 0x30, 0x36, 0x66, 0x90, //0x8a40,
+	0x60, 0x19, 0xe0, 0xf5, 0x0a, 0xa3, 0xe0, 0xf5, 0x0b, 0x90, 0x60, 0x1d, 0xe0, 0xf5, 0x14, 0xa3, //0x8a50,
+	0xe0, 0xf5, 0x15, 0x90, 0x60, 0x21, 0xe0, 0xf5, 0x0c, 0xa3, 0xe0, 0xf5, 0x0d, 0x90, 0x60, 0x29, //0x8a60,
+	0xe0, 0xf5, 0x0e, 0xa3, 0xe0, 0xf5, 0x0f, 0x90, 0x60, 0x31, 0xe0, 0xf5, 0x10, 0xa3, 0xe0, 0xf5, //0x8a70,
+	0x11, 0x90, 0x60, 0x39, 0xe0, 0xf5, 0x12, 0xa3, 0xe0, 0xf5, 0x13, 0x30, 0x01, 0x06, 0x30, 0x33, //0x8a80,
+	0x03, 0xd3, 0x80, 0x01, 0xc3, 0x92, 0x09, 0x30, 0x02, 0x06, 0x30, 0x33, 0x03, 0xd3, 0x80, 0x01, //0x8a90,
+	0xc3, 0x92, 0x0a, 0x30, 0x33, 0x0c, 0x30, 0x03, 0x09, 0x20, 0x02, 0x06, 0x20, 0x01, 0x03, 0xd3, //0x8aa0,
+	0x80, 0x01, 0xc3, 0x92, 0x0b, 0x90, 0x30, 0x01, 0xe0, 0x44, 0x40, 0xf0, 0xe0, 0x54, 0xbf, 0xf0, //0x8ab0,
+	0xe5, 0x32, 0x30, 0xe1, 0x14, 0x30, 0x34, 0x11, 0x90, 0x30, 0x22, 0xe0, 0xf5, 0x08, 0xe4, 0xf0, //0x8ac0,
+	0x30, 0x00, 0x03, 0xd3, 0x80, 0x01, 0xc3, 0x92, 0x08, 0xe5, 0x32, 0x30, 0xe5, 0x12, 0x90, 0x56, //0x8ad0,
+	0xa1, 0xe0, 0xf5, 0x09, 0x30, 0x31, 0x09, 0x30, 0x05, 0x03, 0xd3, 0x80, 0x01, 0xc3, 0x92, 0x0d, //0x8ae0,
+	0x90, 0x3f, 0x0c, 0xe5, 0x32, 0xf0, 0xd0, 0xd0, 0xd0, 0x82, 0xd0, 0x83, 0xd0, 0xe0, 0x32, 0x90, //0x8af0,
+	0x0e, 0x7e, 0xe4, 0x93, 0xfe, 0x74, 0x01, 0x93, 0xff, 0xc3, 0x90, 0x0e, 0x7c, 0x74, 0x01, 0x93, //0x8b00,
+	0x9f, 0xff, 0xe4, 0x93, 0x9e, 0xfe, 0xe4, 0x8f, 0x3b, 0x8e, 0x3a, 0xf5, 0x39, 0xf5, 0x38, 0xab, //0x8b10,
+	0x3b, 0xaa, 0x3a, 0xa9, 0x39, 0xa8, 0x38, 0xaf, 0x4b, 0xfc, 0xfd, 0xfe, 0x12, 0x05, 0x28, 0x12, //0x8b20,
+	0x0d, 0xe1, 0xe4, 0x7b, 0xff, 0xfa, 0xf9, 0xf8, 0x12, 0x05, 0xb3, 0x12, 0x0d, 0xe1, 0x90, 0x0e, //0x8b30,
+	0x69, 0xe4, 0x12, 0x0d, 0xf6, 0x12, 0x0d, 0xe1, 0xe4, 0x85, 0x4a, 0x37, 0xf5, 0x36, 0xf5, 0x35, //0x8b40,
+	0xf5, 0x34, 0xaf, 0x37, 0xae, 0x36, 0xad, 0x35, 0xac, 0x34, 0xa3, 0x12, 0x0d, 0xf6, 0x8f, 0x37, //0x8b50,
+	0x8e, 0x36, 0x8d, 0x35, 0x8c, 0x34, 0xe5, 0x3b, 0x45, 0x37, 0xf5, 0x3b, 0xe5, 0x3a, 0x45, 0x36, //0x8b60,
+	0xf5, 0x3a, 0xe5, 0x39, 0x45, 0x35, 0xf5, 0x39, 0xe5, 0x38, 0x45, 0x34, 0xf5, 0x38, 0xe4, 0xf5, //0x8b70,
+	0x22, 0xf5, 0x23, 0x85, 0x3b, 0x31, 0x85, 0x3a, 0x30, 0x85, 0x39, 0x2f, 0x85, 0x38, 0x2e, 0x02, //0x8b80,
+	0x0f, 0x46, 0xe0, 0xa3, 0xe0, 0x75, 0xf0, 0x02, 0xa4, 0xff, 0xae, 0xf0, 0xc3, 0x08, 0xe6, 0x9f, //0x8b90,
+	0xf6, 0x18, 0xe6, 0x9e, 0xf6, 0x22, 0xff, 0xe5, 0xf0, 0x34, 0x60, 0x8f, 0x82, 0xf5, 0x83, 0xec, //0x8ba0,
+	0xf0, 0x22, 0x78, 0x52, 0x7e, 0x00, 0xe6, 0xfc, 0x08, 0xe6, 0xfd, 0x02, 0x04, 0xc1, 0xe4, 0xfc, //0x8bb0,
+	0xfd, 0x12, 0x06, 0x99, 0x78, 0x5c, 0xe6, 0xc3, 0x13, 0xfe, 0x08, 0xe6, 0x13, 0x22, 0x78, 0x52, //0x8bc0,
+	0xe6, 0xfe, 0x08, 0xe6, 0xff, 0xe4, 0xfc, 0xfd, 0x22, 0xe7, 0xc4, 0xf8, 0x54, 0xf0, 0xc8, 0x68, //0x8bd0,
+	0xf7, 0x09, 0xe7, 0xc4, 0x54, 0x0f, 0x48, 0xf7, 0x22, 0xe6, 0xfc, 0xed, 0x75, 0xf0, 0x04, 0xa4, //0x8be0,
+	0x22, 0x12, 0x06, 0x7c, 0x8f, 0x48, 0x8e, 0x47, 0x8d, 0x46, 0x8c, 0x45, 0x22, 0xe0, 0xfe, 0xa3, //0x8bf0,
+	0xe0, 0xfd, 0xee, 0xf6, 0xed, 0x08, 0xf6, 0x22, 0x13, 0xff, 0xc3, 0xe6, 0x9f, 0xff, 0x18, 0xe6, //0x8c00,
+	0x9e, 0xfe, 0x22, 0xe6, 0xc3, 0x13, 0xf7, 0x08, 0xe6, 0x13, 0x09, 0xf7, 0x22, 0xad, 0x39, 0xac, //0x8c10,
+	0x38, 0xfa, 0xf9, 0xf8, 0x12, 0x05, 0x28, 0x8f, 0x3b, 0x8e, 0x3a, 0x8d, 0x39, 0x8c, 0x38, 0xab, //0x8c20,
+	0x37, 0xaa, 0x36, 0xa9, 0x35, 0xa8, 0x34, 0x22, 0x93, 0xff, 0xe4, 0xfc, 0xfd, 0xfe, 0x12, 0x05, //0x8c30,
+	0x28, 0x8f, 0x37, 0x8e, 0x36, 0x8d, 0x35, 0x8c, 0x34, 0x22, 0x78, 0x84, 0xe6, 0xfe, 0x08, 0xe6, //0x8c40,
+	0xff, 0xe4, 0x8f, 0x37, 0x8e, 0x36, 0xf5, 0x35, 0xf5, 0x34, 0x22, 0x90, 0x0e, 0x8c, 0xe4, 0x93, //0x8c50,
+	0x25, 0xe0, 0x24, 0x0a, 0xf8, 0xe6, 0xfe, 0x08, 0xe6, 0xff, 0x22, 0xe6, 0xfe, 0x08, 0xe6, 0xff, //0x8c60,
+	0xe4, 0x8f, 0x3b, 0x8e, 0x3a, 0xf5, 0x39, 0xf5, 0x38, 0x22, 0x78, 0x4e, 0xe6, 0xfe, 0x08, 0xe6, //0x8c70,
+	0xff, 0x22, 0xef, 0x25, 0xe0, 0x24, 0x4e, 0xf8, 0xe6, 0xfc, 0x08, 0xe6, 0xfd, 0x22, 0x78, 0x89, //0x8c80,
+	0xef, 0x26, 0xf6, 0x18, 0xe4, 0x36, 0xf6, 0x22, 0x75, 0x89, 0x03, 0x75, 0xa8, 0x01, 0x75, 0xb8, //0x8c90,
+	0x04, 0x75, 0x34, 0xff, 0x75, 0x35, 0x0e, 0x75, 0x36, 0x15, 0x75, 0x37, 0x0d, 0x12, 0x0e, 0x9a, //0x8ca0,
+	0x12, 0x00, 0x09, 0x12, 0x0f, 0x16, 0x12, 0x00, 0x06, 0xd2, 0x00, 0xd2, 0x34, 0xd2, 0xaf, 0x75, //0x8cb0,
+	0x34, 0xff, 0x75, 0x35, 0x0e, 0x75, 0x36, 0x49, 0x75, 0x37, 0x03, 0x12, 0x0e, 0x9a, 0x30, 0x08, //0x8cc0,
+	0x09, 0xc2, 0x34, 0x12, 0x08, 0xcb, 0xc2, 0x08, 0xd2, 0x34, 0x30, 0x0b, 0x09, 0xc2, 0x36, 0x12, //0x8cd0,
+	0x02, 0x6c, 0xc2, 0x0b, 0xd2, 0x36, 0x30, 0x09, 0x09, 0xc2, 0x36, 0x12, 0x00, 0x0e, 0xc2, 0x09, //0x8ce0,
+	0xd2, 0x36, 0x30, 0x0e, 0x03, 0x12, 0x06, 0xd7, 0x30, 0x35, 0xd3, 0x90, 0x30, 0x29, 0xe5, 0x1e, //0x8cf0,
+	0xf0, 0xb4, 0x10, 0x05, 0x90, 0x30, 0x23, 0xe4, 0xf0, 0xc2, 0x35, 0x80, 0xc1, 0xe4, 0xf5, 0x4b, //0x8d00,
+	0x90, 0x0e, 0x7a, 0x93, 0xff, 0xe4, 0x8f, 0x37, 0xf5, 0x36, 0xf5, 0x35, 0xf5, 0x34, 0xaf, 0x37, //0x8d10,
+	0xae, 0x36, 0xad, 0x35, 0xac, 0x34, 0x90, 0x0e, 0x6a, 0x12, 0x0d, 0xf6, 0x8f, 0x37, 0x8e, 0x36, //0x8d20,
+	0x8d, 0x35, 0x8c, 0x34, 0x90, 0x0e, 0x72, 0x12, 0x06, 0x7c, 0xef, 0x45, 0x37, 0xf5, 0x37, 0xee, //0x8d30,
+	0x45, 0x36, 0xf5, 0x36, 0xed, 0x45, 0x35, 0xf5, 0x35, 0xec, 0x45, 0x34, 0xf5, 0x34, 0xe4, 0xf5, //0x8d40,
+	0x22, 0xf5, 0x23, 0x85, 0x37, 0x31, 0x85, 0x36, 0x30, 0x85, 0x35, 0x2f, 0x85, 0x34, 0x2e, 0x12, //0x8d50,
+	0x0f, 0x46, 0xe4, 0xf5, 0x22, 0xf5, 0x23, 0x90, 0x0e, 0x72, 0x12, 0x0d, 0xea, 0x12, 0x0f, 0x46, //0x8d60,
+	0xe4, 0xf5, 0x22, 0xf5, 0x23, 0x90, 0x0e, 0x6e, 0x12, 0x0d, 0xea, 0x02, 0x0f, 0x46, 0xe5, 0x40, //0x8d70,
+	0x24, 0xf2, 0xf5, 0x37, 0xe5, 0x3f, 0x34, 0x43, 0xf5, 0x36, 0xe5, 0x3e, 0x34, 0xa2, 0xf5, 0x35, //0x8d80,
+	0xe5, 0x3d, 0x34, 0x28, 0xf5, 0x34, 0xe5, 0x37, 0xff, 0xe4, 0xfe, 0xfd, 0xfc, 0x78, 0x18, 0x12, //0x8d90,
+	0x06, 0x69, 0x8f, 0x40, 0x8e, 0x3f, 0x8d, 0x3e, 0x8c, 0x3d, 0xe5, 0x37, 0x54, 0xa0, 0xff, 0xe5, //0x8da0,
+	0x36, 0xfe, 0xe4, 0xfd, 0xfc, 0x78, 0x07, 0x12, 0x06, 0x56, 0x78, 0x10, 0x12, 0x0f, 0x9a, 0xe4, //0x8db0,
+	0xff, 0xfe, 0xe5, 0x35, 0xfd, 0xe4, 0xfc, 0x78, 0x0e, 0x12, 0x06, 0x56, 0x12, 0x0f, 0x9d, 0xe4, //0x8dc0,
+	0xff, 0xfe, 0xfd, 0xe5, 0x34, 0xfc, 0x78, 0x18, 0x12, 0x06, 0x56, 0x78, 0x08, 0x12, 0x0f, 0x9a, //0x8dd0,
+	0x22, 0x8f, 0x3b, 0x8e, 0x3a, 0x8d, 0x39, 0x8c, 0x38, 0x22, 0x12, 0x06, 0x7c, 0x8f, 0x31, 0x8e, //0x8de0,
+	0x30, 0x8d, 0x2f, 0x8c, 0x2e, 0x22, 0x93, 0xf9, 0xf8, 0x02, 0x06, 0x69, 0x00, 0x00, 0x00, 0x00, //0x8df0,
+	0x12, 0x01, 0x17, 0x08, 0x31, 0x15, 0x53, 0x54, 0x44, 0x20, 0x20, 0x20, 0x20, 0x20, 0x13, 0x01, //0x8e00,
+	0x10, 0x01, 0x56, 0x40, 0x1a, 0x30, 0x29, 0x7e, 0x00, 0x30, 0x04, 0x20, 0xdf, 0x30, 0x05, 0x40, //0x8e10,
+	0xbf, 0x50, 0x03, 0x00, 0xfd, 0x50, 0x27, 0x01, 0xfe, 0x60, 0x00, 0x11, 0x00, 0x3f, 0x05, 0x30, //0x8e20,
+	0x00, 0x3f, 0x06, 0x22, 0x00, 0x3f, 0x01, 0x2a, 0x00, 0x3f, 0x02, 0x00, 0x00, 0x36, 0x06, 0x07, //0x8e30,
+	0x00, 0x3f, 0x0b, 0x0f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x30, 0x01, 0x40, 0xbf, 0x30, 0x01, 0x00, //0x8e40,
+	0xbf, 0x30, 0x29, 0x70, 0x00, 0x3a, 0x00, 0x00, 0xff, 0x3a, 0x00, 0x00, 0xff, 0x36, 0x03, 0x36, //0x8e50,
+	0x02, 0x41, 0x44, 0x58, 0x20, 0x18, 0x10, 0x0a, 0x04, 0x04, 0x00, 0x03, 0xff, 0x64, 0x00, 0x00, //0x8e60,
+	0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x04, 0x06, 0x06, 0x00, 0x03, 0x51, 0x00, 0x7a, //0x8e70,
+	0x50, 0x3c, 0x28, 0x1e, 0x10, 0x10, 0x50, 0x2d, 0x28, 0x16, 0x10, 0x10, 0x02, 0x00, 0x10, 0x0c, //0x8e80,
+	0x10, 0x04, 0x0c, 0x6e, 0x06, 0x05, 0x00, 0xa5, 0x5a, 0x00, 0xae, 0x35, 0xaf, 0x36, 0xe4, 0xfd, //0x8e90,
+	0xed, 0xc3, 0x95, 0x37, 0x50, 0x33, 0x12, 0x0f, 0xe2, 0xe4, 0x93, 0xf5, 0x38, 0x74, 0x01, 0x93, //0x8ea0,
+	0xf5, 0x39, 0x45, 0x38, 0x60, 0x23, 0x85, 0x39, 0x82, 0x85, 0x38, 0x83, 0xe0, 0xfc, 0x12, 0x0f, //0x8eb0,
+	0xe2, 0x74, 0x03, 0x93, 0x52, 0x04, 0x12, 0x0f, 0xe2, 0x74, 0x02, 0x93, 0x42, 0x04, 0x85, 0x39, //0x8ec0,
+	0x82, 0x85, 0x38, 0x83, 0xec, 0xf0, 0x0d, 0x80, 0xc7, 0x22, 0x78, 0xbe, 0xe6, 0xd3, 0x08, 0xff, //0x8ed0,
+	0xe6, 0x64, 0x80, 0xf8, 0xef, 0x64, 0x80, 0x98, 0x22, 0x93, 0xff, 0x7e, 0x00, 0xe6, 0xfc, 0x08, //0x8ee0,
+	0xe6, 0xfd, 0x12, 0x04, 0xc1, 0x78, 0xc1, 0xe6, 0xfc, 0x08, 0xe6, 0xfd, 0xd3, 0xef, 0x9d, 0xee, //0x8ef0,
+	0x9c, 0x22, 0x78, 0xbd, 0xd3, 0xe6, 0x64, 0x80, 0x94, 0x80, 0x22, 0x25, 0xe0, 0x24, 0x0a, 0xf8, //0x8f00,
+	0xe6, 0xfe, 0x08, 0xe6, 0xff, 0x22, 0xe5, 0x3c, 0xd3, 0x94, 0x00, 0x40, 0x0b, 0x90, 0x0e, 0x88, //0x8f10,
+	0x12, 0x0b, 0xf1, 0x90, 0x0e, 0x86, 0x80, 0x09, 0x90, 0x0e, 0x82, 0x12, 0x0b, 0xf1, 0x90, 0x0e, //0x8f20,
+	0x80, 0xe4, 0x93, 0xf5, 0x44, 0xa3, 0xe4, 0x93, 0xf5, 0x43, 0xd2, 0x06, 0x30, 0x06, 0x03, 0xd3, //0x8f30,
+	0x80, 0x01, 0xc3, 0x92, 0x0e, 0x22, 0xa2, 0xaf, 0x92, 0x32, 0xc2, 0xaf, 0xe5, 0x23, 0x45, 0x22, //0x8f40,
+	0x90, 0x0e, 0x5d, 0x60, 0x0e, 0x12, 0x0f, 0xcb, 0xe0, 0xf5, 0x2c, 0x12, 0x0f, 0xc8, 0xe0, 0xf5, //0x8f50,
+	0x2d, 0x80, 0x0c, 0x12, 0x0f, 0xcb, 0xe5, 0x30, 0xf0, 0x12, 0x0f, 0xc8, 0xe5, 0x31, 0xf0, 0xa2, //0x8f60,
+	0x32, 0x92, 0xaf, 0x22, 0xd2, 0x01, 0xc2, 0x02, 0xe4, 0xf5, 0x1f, 0xf5, 0x1e, 0xd2, 0x35, 0xd2, //0x8f70,
+	0x33, 0xd2, 0x36, 0xd2, 0x01, 0xc2, 0x02, 0xf5, 0x1f, 0xf5, 0x1e, 0xd2, 0x35, 0xd2, 0x33, 0x22, //0x8f80,
+	0xfb, 0xd3, 0xed, 0x9b, 0x74, 0x80, 0xf8, 0x6c, 0x98, 0x22, 0x12, 0x06, 0x69, 0xe5, 0x40, 0x2f, //0x8f90,
+	0xf5, 0x40, 0xe5, 0x3f, 0x3e, 0xf5, 0x3f, 0xe5, 0x3e, 0x3d, 0xf5, 0x3e, 0xe5, 0x3d, 0x3c, 0xf5, //0x8fa0,
+	0x3d, 0x22, 0xc0, 0xe0, 0xc0, 0x83, 0xc0, 0x82, 0x90, 0x3f, 0x0d, 0xe0, 0xf5, 0x33, 0xe5, 0x33, //0x8fb0,
+	0xf0, 0xd0, 0x82, 0xd0, 0x83, 0xd0, 0xe0, 0x32, 0x90, 0x0e, 0x5f, 0xe4, 0x93, 0xfe, 0x74, 0x01, //0x8fc0,
+	0x93, 0xf5, 0x82, 0x8e, 0x83, 0x22, 0x78, 0x7f, 0xe4, 0xf6, 0xd8, 0xfd, 0x75, 0x81, 0xcd, 0x02, //0x8fd0,
+	0x0c, 0x98, 0x8f, 0x82, 0x8e, 0x83, 0x75, 0xf0, 0x04, 0xed, 0x02, 0x06, 0xa5, //0x8fe0
 };
 
 
@@ -3006,275 +2933,193 @@ static struct regval_list sensor_fmt_yuv422_uyvy[] = {
 	{0x0085,0x00},	//UYVY
 };
 
-//static struct regval_list sensor_fmt_raw[] = {
-//	
-//};
-
-
-//static struct regval_list sensor_fmt_raw[] = {
-//  
-//};
-
-/*
- * Low-level register I/O.
- *
- */
-
-
-/*
- * On most platforms, we'd rather do straight i2c I/O.
- */
-static int sensor_read(struct v4l2_subdev *sd, unsigned short reg,
-    unsigned char *value)
-{
-	int ret=0;
-	int cnt=0;
-	
-  ret = cci_read_a16_d8(sd,reg,value);
- // printk("reg=%d\n",reg);
-//  printk("value=%s\n",value);
-  while(ret!=0&&cnt<4)
-  {
-  	ret = cci_read_a16_d8(sd,reg,value);
-  	cnt++;
-  }
-  if(cnt>0)
-  	vfe_dev_dbg("sensor read retry=%d\n",cnt);
-  
-  return ret;
-}
-
-static int sensor_write(struct v4l2_subdev *sd, unsigned short reg,
-    unsigned char value)
-{
-	int ret=0;
-	int cnt=0;
-  
-  ret = cci_write_a16_d8(sd,reg,value);
-  while(ret!=0&&cnt<2)
-  {
-  	ret = cci_write_a16_d8(sd,reg,value);
-  	cnt++;
-  }
-  if(cnt>0)
-  	vfe_dev_dbg("sensor write retry=%d\n",cnt);
-  
-  return ret;
-}
-
-/*
- * Write a list of register settings;
- */
-static int sensor_write_array(struct v4l2_subdev *sd, struct regval_list *regs, int array_size)
-{
-	int i=0;
-	
-  if(!regs)
-  	return -EINVAL;
-  
-  while(i<array_size)
-  {
-    if(regs->addr == REG_DLY) {
-      msleep(regs->data);
-    } 
-    else {  
-    	//printk("write 0x%x=0x%x\n", regs->addr, regs->data);
-      LOG_ERR_RET(sensor_write(sd, regs->addr, regs->data))
-    }
-    i++;
-    regs++;
-  }
-  return 0;
-}
-
 /*
  * Write a list of continuous register setting;
  */
 static int sensor_write_continuous(struct v4l2_subdev *sd, unsigned short addr, unsigned char vals[] , uint size)
 {
-  struct i2c_client *client = v4l2_get_subdevdata(sd);
-  struct i2c_msg msg;
-  unsigned char data[2+32];
-  unsigned char *p = vals;
-  int ret,i;
-  
-  while (size > 0) {
-    int len = size > 32 ? 32 : size;
-    data[0] = (addr&0xff00) >> 8;
-    data[1] = (addr&0x00ff);
-    
-    for(i = 2; i < 2+len; i++)
-      data[i] = *p++;
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct i2c_msg msg;
+	unsigned char data[2+32];
+	unsigned char *p = vals;
+	int ret,i;
 
-    msg.addr = client->addr;
-    msg.flags = 0;  
-    msg.len = 2+len;
-    msg.buf = data;
-  
-    ret = i2c_transfer(client->adapter, &msg, 1);
-    
-    if (ret > 0) {
-      ret = 0;
-    } else if (ret < 0) {
-      vfe_dev_err("sensor_write error!\n");
-    }
-    addr += len;
-    size -= len;
-  }
-  return ret;
+	while (size > 0) {
+		int len = size > 32 ? 32 : size;
+		data[0] = (addr&0xff00) >> 8;
+		data[1] = (addr&0x00ff);
+
+		for(i = 2; i < 2+len; i++)
+			data[i] = *p++;
+
+		msg.addr = client->addr;
+		msg.flags = 0;  
+		msg.len = 2+len;
+		msg.buf = data;
+
+		ret = i2c_transfer(client->adapter, &msg, 1);
+
+		if (ret > 0) {
+			ret = 0;
+		} else if (ret < 0) {
+			vfe_dev_err("sensor_write error!\n");
+		}
+		addr += len;
+		size -= len;
+	}
+	return ret;
 }
-
-
-
-
-
 
 /* stuff about auto focus */
 
 static int sensor_download_af_fw(struct v4l2_subdev *sd)
-{ 
-  int ret,cnt; 
-  unsigned char rdval; 
-		int reload_cnt = 0; 
-//		  struct csi_dev *dev=(struct csi_dev *)dev_get_drvdata(sd->v4l2_dev->dev); 
+{
+	int ret,cnt;
+	data_type rdval;
+	struct regval_list af_fw_reset_reg[] = {
+		{0x3000,0x20},
+	};
+	struct regval_list af_fw_start_reg[] = {
+		{0x3022,0x00},
+		{0x3023,0x00},
+		{0x3024,0x00},
+		{0x3025,0x00},
+		{0x3026,0x00},
+		{0x3027,0x00},
+		{0x3028,0x00},
+		{0x3029,0x7f},
+		{0x3000,0x00},	//start firmware for af
+	};
+	return 0;//gong
+	//reset sensor MCU
+	ret = sensor_write_array(sd, af_fw_reset_reg, ARRAY_SIZE(af_fw_reset_reg));
+	if(ret < 0) {
+		 vfe_dev_err("reset sensor MCU error\n");
+		return ret;
+	}
 		
-  struct regval_list af_fw_reset_reg[] = { 
-	{0x070a,0x00}, 
-	//{REG_TERM,VAL_TERM}, 
-  }; 
-  struct regval_list af_fw_start_reg[] = { 
-		{0x070a,0x01}, 
-  }; 
-  
-  //reset sensor MCU 
-  ret = sensor_write_array(sd, af_fw_reset_reg ,ARRAY_SIZE(af_fw_reset_reg)); 
-  if(ret < 0) { 
-	vfe_dev_err("reset sensor MCU error\n"); 
-	return ret; 
-  } 
+	//download af fw
+	ret =sensor_write_continuous(sd, 0x8000, sensor_af_fw_regs, ARRAY_SIZE(sensor_af_fw_regs));
+	if(ret < 0) {
+		 vfe_dev_err("download af fw error\n");
+		return ret;
+	}
+	//start af firmware
+	ret = sensor_write_array(sd, af_fw_start_reg, ARRAY_SIZE(af_fw_start_reg));
+	if(ret < 0) {
+		 vfe_dev_err("start af firmware error\n");
+		return ret;
+	}
 	
-  //download af fw 
-  if(ret < 0) { 
-	vfe_dev_err("download af fw error\n"); 
-	return ret; 
-  } 
-  vfe_dev_print("sizeof(af_fw_start_reg)=%d\n",sizeof(af_fw_start_reg)); 
-  //start af firmware 
-  ret = sensor_write_array(sd, af_fw_start_reg ,ARRAY_SIZE(af_fw_start_reg)); 
-  if(ret < 0) { 
-	vfe_dev_err("start af firmware error\n"); 
-	return ret; 
-  } 
-  
-  msleep(10); 
-  //Don't need check the af firmware status at HM5065 
-  rdval = 0xff; 
-  cnt = 0; 
-  recheck_af_fw:		 
+	mdelay(10);
+	//check the af firmware status
+	rdval = 0xff;
+	cnt = 0;
+	while(rdval!=0x70) {
+		mdelay(5);
+		ret = sensor_read(sd, 0x3029, &rdval);
+		if (ret < 0)
+		{
+			 vfe_dev_err("sensor check the af firmware status err !\n");
+			return ret;
+		}
+		cnt++;
+		if(cnt > 200) {
+			 vfe_dev_err("AF firmware check status time out !\n");
+			return -EFAULT;
+		}
+	}
+	vfe_dev_print("AF firmware check status complete,0x3029 = 0x%x\n",rdval);
 
-  ret = sensor_read(sd, 0x070A, &rdval); 
-  vfe_dev_print("AF firmware check status complete, 0x070A = 0x%x\n",rdval); 
+#if DEV_DBG_EN == 1	
+	sensor_read(sd, 0x3000, &rdval);
+	vfe_dev_print("0x3000 = 0x%x\n",rdval);
 
-  return 0; 
+	sensor_read(sd, 0x3004, &rdval);
+	vfe_dev_print("0x3004 = 0x%x\n",rdval);
+	
+	sensor_read(sd, 0x3001, &rdval);
+	vfe_dev_print("0x3001 = 0x%x\n",rdval);
+
+	sensor_read(sd, 0x3005, &rdval);
+	vfe_dev_print("0x3005 = 0x%x\n",rdval);
+#endif
+
+  return 0;
 }
-
 
 static int sensor_g_single_af(struct v4l2_subdev *sd)
-{ 
-  unsigned char rdval; 
-  struct sensor_info *info = to_state(sd); 
-  
-	vfe_dev_dbg("sensor_g_single_af\n"); 
-  if(info->focus_status!=1) 
-  return V4L2_AUTO_FOCUS_STATUS_IDLE;		 //0528 
-  
-  rdval = 0xff; 
-  
-  LOG_ERR_RET(sensor_read(sd, 0x07AE, &rdval)) 
-  //vfe_dev_print("sensor_g_single_af function, 0x07AE=0x%x\n",rdval); 
+{
+	data_type rdval;
+	int ret;
+	//vfe_dev_dbg("sensor_g_single_af\n");
+	
+	rdval = 0xff;
+	
+	ret = sensor_read(sd, 0x07ae, &rdval);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor get af focused status err !\n");
+		return ret;
+	}
 
-  if(rdval == 0x01) 
-  { 
-	int ret=0; 
-	info->focus_status = 0; //0-0528		idle 
-	sensor_read(sd, 0x07AE, &rdval); 
-
-		  vfe_dev_dbg("HM5065_Single AF focus ok, idle mode, 0x07AE = 0x%x\n",rdval); 
-		  ret = V4L2_AUTO_FOCUS_STATUS_REACHED; 
-
-	return ret; 
-  } 
-  else if(rdval==0x00) 
-  {   
-		  info->focus_status = 1;		 //1-0528 
-	vfe_dev_print("HM5065_Single AF focus ing, busy mode, 0x07ae = 0x%x\n",rdval); 
-	return V4L2_AUTO_FOCUS_STATUS_BUSY; 	   //V4L2_AUTO_FOCUS_STATUS_BUSY				0528 
-  } 
-  
-//	return V4L2_AUTO_FOCUS_STATUS_BUSY; 
+	if(rdval == 1)
+	{
+		return V4L2_AUTO_FOCUS_STATUS_REACHED;
+	}		
+	
+	return V4L2_AUTO_FOCUS_STATUS_FAILED;
 }
-
 
 static int sensor_g_contin_af(struct v4l2_subdev *sd)
-{ 
-  unsigned char rdval; 
-  struct sensor_info *info = to_state(sd); 
+{
+	data_type rdval;
+	struct sensor_info *info = to_state(sd);
   
-	vfe_dev_dbg("sensor_g_contin_af\n"); 
+	vfe_dev_dbg("sensor_g_contin_af\n");
   
-  rdval = 0xff; 
+	rdval = 0xff;
   
-  LOG_ERR_RET(sensor_read(sd, 0x07AE, &rdval)) 
 
-  if(rdval == 0x01) 
-  { 
-	unsigned char rdval2;
-	LOG_ERR_RET(sensor_read(sd, 0x02d1, &rdval2)); 
-	
-	info->focus_status = 0; //idle 
-				vfe_dev_dbg("Contin AF focus ok, 0x07ae = 0x%x, 0x02d1= 0x%x\n",rdval, rdval2); 
-				  return V4L2_AUTO_FOCUS_STATUS_REACHED; 
-	} 
-			
-  else if(rdval==0x00) 
-  { 
-		  info->focus_status = 1;//busy 
-	vfe_dev_dbg("Contin AF focus ing,0x07ae = 0x%x\n",rdval); 
-	return V4L2_AUTO_FOCUS_STATUS_BUSY; 
-  } 
-  
-  //return V4L2_AUTO_FOCUS_STATUS_BUSY; 
+    info->focus_status = 0; //idle
+    sensor_read(sd, 0x07AE, &rdval);
+    if(rdval==0)
+    {
+	    return V4L2_AUTO_FOCUS_STATUS_FAILED;
+    }
+    else
+    {
+		return V4L2_AUTO_FOCUS_STATUS_REACHED;
+    }
+    	
 }
-
 
 static int sensor_g_af_status(struct v4l2_subdev *sd)
-{ 
-  int ret=0; 
-  struct sensor_info *info = to_state(sd); 
-		
-		if(info->auto_focus==1) 
-				ret = sensor_g_contin_af(sd); 
-		else 
-				ret = sensor_g_single_af(sd); 
-		
-		return ret; 
+{
+	int ret=0;
+	struct sensor_info *info = to_state(sd);
+	
+	if(info->auto_focus==1)
+		ret = sensor_g_contin_af(sd);
+	else
+		ret = sensor_g_single_af(sd);
+	
+	return ret;
 }
-
 
 static int sensor_g_3a_lock(struct v4l2_subdev *sd)
 {
-  //int ret=0;
-  struct sensor_info *info = to_state(sd);
-  return ( (info->auto_focus==0)?V4L2_LOCK_FOCUS:~V4L2_LOCK_FOCUS |
-           (info->autowb==0)?V4L2_LOCK_WHITE_BALANCE:~V4L2_LOCK_WHITE_BALANCE |
-           (~V4L2_LOCK_EXPOSURE)
-         );
+	struct sensor_info *info = to_state(sd);
+	return ( (info->auto_focus==0)?V4L2_LOCK_FOCUS:~V4L2_LOCK_FOCUS |
+	       (info->autowb==0)?V4L2_LOCK_WHITE_BALANCE:~V4L2_LOCK_WHITE_BALANCE |
+	       (~V4L2_LOCK_EXPOSURE)
+	     );
 }
 
 static int sensor_s_init_af(struct v4l2_subdev *sd)
 {
 	int ret;
-  struct sensor_info *info = to_state(sd);
+	struct sensor_info *info = to_state(sd);
 	ret=sensor_download_af_fw(sd);
 	if(ret==0)
 		info->af_first_flag=0;
@@ -3283,205 +3128,125 @@ static int sensor_s_init_af(struct v4l2_subdev *sd)
 }
 
 static int sensor_s_single_af(struct v4l2_subdev *sd)
-{ 
-  int ret; 
-  struct sensor_info *info = to_state(sd); 
-  unsigned char rdval=0xff; 
-  unsigned int cnt=0; 
-  
-  printk("HM5065_sensor_s_single_af\n"); 
-  //trig single af 
-	
-  info->focus_status = 0; //idle   
-  
-  //sensor_write(sd, 0x3023, 0x01); 
-  
-  ret = sensor_write(sd, 0x0751, 0x00); 
-  ret = sensor_write(sd, 0x070A, 0x03); 
-  usleep_range(190000,220000);    //zoemarked 20150806
-  ret = sensor_write(sd, 0x070B, 0x01); 
-  usleep_range(190000,220000); 
-  ret = sensor_write(sd, 0x070B, 0x02); 
-  usleep_range(190000,220000);		  // zoemarked 20150806
-  if (ret < 0) { 
-	vfe_dev_err("sensor tigger single af err !\n"); 
-	return ret; 
-  } 
-  
-//	info->contin_focus=0; 
-  info->focus_status = 1; //busy 
-  info->auto_focus=0; 
-  return 0; 
-}
+{
+	int ret;
+	single_af = true;
+	vfe_dev_print("sensor_s_single_af\n");
+	mdelay(100);
+	ret = sensor_write(sd, 0x070a, 0x03);
+	mdelay(100);
+	ret = sensor_write(sd, 0x070b, 0x01);
+	ret = sensor_write(sd,0x070b, 0x02);
 
+	return 0;
+}
 
 static int sensor_g_autofocus_ctrl(struct v4l2_subdev *sd,
 		struct v4l2_control *ctrl);
 
-static int sensor_s_continueous_af(struct v4l2_subdev *sd, int value) 
-{ 
-  struct sensor_info *info = to_state(sd); 
-  vfe_dev_err("sensor_s_continueous_af[0x%x]\n",value); 
-        if(info->focus_status==1) 
-        { 
-          vfe_dev_print("continous focus not accepted when single focus\n"); 
-          return -1; 
-        } 
- /*       if( (info->auto_focus==value) ) 
-        { 
-          vfe_dev_print("already in same focus mode\n"); 
-          return 0; 
-        } 
-  */      
-        if(value==1) 
-        { 
-          LOG_ERR_RET(sensor_write(sd, 0x070A, 0x01)) 
-           info->auto_focus=1; 
-        } 
-
-  return 0; 
-} 
+static int sensor_s_continueous_af(struct v4l2_subdev *sd)
+{
+	int ret;
+	vfe_dev_print("sensor_s_continueous_af\n");
+	ret = sensor_write(sd, 0x070a, 0x01);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor tigger continueous af err !\n");
+		return ret;
+	}
+	return 0;
+}
 
 static int sensor_s_pause_af(struct v4l2_subdev *sd)
 {
 	int ret;
 	//pause af poisition
+	return 0;//gong
 	vfe_dev_print("sensor_s_pause_af\n");
+	ret = sensor_write(sd, 0x3022, 0x06);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor pause af err !\n");
+		return ret;
+	}
 	mdelay(5);
 	return 0;
 }
 
 static int sensor_s_release_af(struct v4l2_subdev *sd)
-{ 
-  //release focus 
-  vfe_dev_print("sensor_s_release_af\n"); 
-  
-  //release single af 
-  LOG_ERR_RET(sensor_write(sd, 0x0751, 0x01)) 
-  return 0; 
-}
-
-
-static int sensor_s_relaunch_af_zone(struct v4l2_subdev *sd)
 {
-  printk("HM5065_sensor_s_relaunch_af_zone\n");
-
-  usleep_range(5000,6000);
-  return 0;
+	int ret;
+	vfe_dev_print("sensor_s_release_af\n");
+	ret = sensor_write(sd, 0x070a, 0x00);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor tigger single af err !\n");
+		return ret;
+	}
+	//release single af
+	ret = sensor_write(sd, 0x070c, 0x00);
+	if (ret < 0)
+	{
+		 vfe_dev_err("release focus err !\n");
+		return ret;
+	}
+	ret = sensor_write(sd, 0x070c, 0x03);
+	if (ret < 0)
+	{
+		 vfe_dev_err("release focus err !\n");
+		return ret;
+	}
+	return 0;
 }
 
-
-static int sensor_s_af_zone(struct v4l2_subdev *sd,
-														struct v4l2_win_coordinate * win_c)
+static int sensor_s_af_zone(struct v4l2_subdev *sd, unsigned int xc, unsigned int yc)
 {
-  struct sensor_info *info = to_state(sd);
-  int ret;
-  
-  int x1,y1,x2,y2;
-  unsigned int xc1,yc1,xc2,yc2;
-  unsigned int prv_x,prv_y;
-   unsigned int tmp_x,tmp_y;
-  
-  printk("zzzzzzzzzzz------sensor_s_af_zone\n");
-  
-  if(info->width == 0 || info->height == 0) {
-	vfe_dev_err("current width or height is zero!\n");
-	return -EINVAL;
-  }
-  
-  prv_x=(int)info->width;
-  prv_y=(int)info->height;
-  
-  x1=win_c->x1;
-  y1=win_c->y1;
-  x2=win_c->x2;
-  y2=win_c->y2;
-  
-#ifdef AF_WIN_NEW_COORD
-  //xc=(prv_x*((unsigned int)(2000+x1+x2)/2)/2000);
-//  yc=(prv_y*((unsigned int)(2000+y1+y2)/2)/2000);
-
-   xc1 = prv_x*x1/1280;
-   yc1 = prv_y*y1/800;
-   
-   xc2 = prv_x*x2/1280;
-   yc2 = prv_y*y2/800;
-  
-#else
-
-#endif
-
-
-  ret = sensor_write(sd, 0x0808, 0x01); 	//0528
-  ret = sensor_write(sd, 0x0809, 0x00);
-  ret = sensor_write(sd, 0x080A, 0x00);
-  ret = sensor_write(sd, 0x080B, 0x00);
-  ret = sensor_write(sd, 0x080C, 0x00);
-  ret = sensor_write(sd, 0x080D, 0x00);
-  ret = sensor_write(sd, 0x080E, 0x00);
-  ret = sensor_write(sd, 0x0751, 0x00);
-  ret = sensor_write(sd, 0x0714, 0x00);
-  usleep_range(5000,6000);     // zoemarked 20150806
-
-
-  ret = sensor_write(sd, 0x0715, xc1>>8);		//0528
-  ret = sensor_write(sd, 0x0716, xc1&0xFF);		//0528
-  if (ret < 0)
-  {
-	vfe_dev_err("sensor_s_af_zone_xc error!\n");
-	return ret;
-  }
-  //set y center
-  ret = sensor_write(sd, 0x0719, yc1>>8);		//0528
-  ret = sensor_write(sd, 0x071A, yc1&0xFF);		//0528
-  if (ret < 0)
-  {
-	vfe_dev_err("sensor_s_af_zone_yc error!\n");
-	return ret;
-  }
-  ret = sensor_write(sd, 0x0717, (xc2-xc1)>>8); 	//0528
-  ret = sensor_write(sd, 0x0718, (xc2-xc1)&0xff); 	//0528
-  ret = sensor_write(sd, 0x071B, (yc2-yc1)>>8); 	//0528
-  ret = sensor_write(sd, 0x071C, (yc2-yc1)&0xff); 	//0528		
-
-  if (ret < 0)
-  {
-	vfe_dev_err("sensor_s_af_zone error!\n");
-	return ret;
-  }
-  //printk("af zone input xc=%d,yc=%d\n",xc,yc);
-  //printk("af zone input x1=%d,y1=%d\n",x1,y1);
-  //printk("af zone input x2=%d,y2=%d\n",x2,y2);
-  
-  unsigned char rdval_tmp;
-  LOG_ERR_RET(sensor_read(sd, 0x0717, &rdval_tmp))
-  printk("0x0717=%d\n",rdval_tmp);
-  LOG_ERR_RET(sensor_read(sd, 0x0718, &rdval_tmp))
-  printk("0x0718=%d\n",rdval_tmp);  
-  LOG_ERR_RET(sensor_read(sd, 0x071B, &rdval_tmp)) 
-  printk("0x071B=%d\n",rdval_tmp);  
-  LOG_ERR_RET(sensor_read(sd, 0x071C, &rdval_tmp)) 
-  printk("0x071C=%d\n",rdval_tmp);
-  
-  sensor_s_relaunch_af_zone(sd);
-  
-  return 0;
+	struct sensor_info *info = to_state(sd);
+	int ret;
+	
+	vfe_dev_print("sensor_s_af_zone\n");
+	vfe_dev_dbg("af zone input xc=%d,yc=%d\n",xc,yc);
+	return 0;//gong
+	if(info->width == 0 || info->height == 0) {
+		vfe_dev_err("current width or height is zero!\n");
+		return -EINVAL;
+	}
+	
+	xc = xc * 80 / info->width;
+	if((info->width == HD720_WIDTH && info->height == HD720_HEIGHT) || \
+			(info->width == HD1080_WIDTH && info->height == HD1080_HEIGHT)) {
+		yc = yc * 45 / info->height;
+	} else {
+		yc = yc * 60 / info->height;
+	}
+	
+	vfe_dev_dbg("af zone after xc=%d,yc=%d\n",xc,yc);
+		
+	//set x center
+	ret = sensor_write(sd,0x3024, xc);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor_s_af_zone_xc error!\n");
+		return ret;
+	}
+	//set y center
+	ret = sensor_write(sd, 0x3025, yc);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor_s_af_zone_yc error!\n");
+		return ret;
+	}
+	
+	//set af zone	
+	ret = sensor_write(sd, 0x3022, 0x81);
+	if (ret < 0)
+	{
+		vfe_dev_err("sensor_s_af_zone error!\n");
+		return ret;
+	}
+	mdelay(5);
+	return 0;
 }
-
-static int sensor_s_3a_lock(struct v4l2_subdev *sd, int value) 
-{ 
-  //struct sensor_info *info = to_state(sd); 
-  int ret; 
-  
-  vfe_dev_dbg("sensor_s_3a_lock=0x%x\n", value); 
-  value=!((value&V4L2_LOCK_FOCUS)>>2); 
-  if(value==0) 
-    ret=sensor_s_pause_af(sd); 
-  else 
-    ret=sensor_s_relaunch_af_zone(sd);        //0528 
-  
-  return ret; 
-} 
 
 
 /* *********************************************begin of ******************************************** */
@@ -3489,44 +3254,44 @@ static int sensor_s_3a_lock(struct v4l2_subdev *sd, int value)
 
 static int sensor_g_hflip(struct v4l2_subdev *sd, __s32 *value)
 {
-	/*struct sensor_info *info = to_state(sd);
-	 unsigned char rdval;
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
 	
-        LOG_ERR_RET(sensor_read(sd, 0x0083, &rdval))
+	LOG_ERR_RET(sensor_read(sd, 0x0083, &rdval))
 	rdval&= 0x01;
 		
 	*value = rdval;
 
-	info->hflip = *value;*/
+	info->hflip = *value;
 	return 0;
 }
 
 static int sensor_s_hflip(struct v4l2_subdev *sd, int value)
 {
-	/*struct sensor_info *info = to_state(sd);
-	unsigned char rdval;
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
 	
 	if(info->hflip == value)
   		  return 0;
-	  LOG_ERR_RET(sensor_read(sd, 0x0083, &rdval))
+	LOG_ERR_RET(sensor_read(sd, 0x0083, &rdval))
 
 
-	  switch (value) {
-	    case 0:
-	      rdval &= 0xfe;
-	      break;
-	    case 1:
-	      rdval |= 0x01;
-	      break;
-	    default:
-	      return -EINVAL;
-	  }
+	switch (value) {
+	case 0:
+		rdval &= 0xfe;
+		break;
+	case 1:
+		rdval |= 0x01;
+		break;
+	default:
+		return -EINVAL;
+	}
 
- 	 LOG_ERR_RET(sensor_write(sd, 0x0083, rdval))
+	LOG_ERR_RET(sensor_write(sd, 0x0083, rdval))
 
 	mdelay(10);
 
-	info->hflip = value;*/
+	info->hflip = value;
 	
 	return 0;
 	
@@ -3534,8 +3299,8 @@ static int sensor_s_hflip(struct v4l2_subdev *sd, int value)
 
 static int sensor_g_vflip(struct v4l2_subdev *sd, __s32 *value)
 {
-	/*struct sensor_info *info = to_state(sd);
-	  unsigned char rdval;
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
 	
 	LOG_ERR_RET(sensor_read(sd, 0x0084, &rdval))
 
@@ -3544,20 +3309,20 @@ static int sensor_g_vflip(struct v4l2_subdev *sd, __s32 *value)
 		
 	*value = rdval;
 	
-	info->vflip = *value;*/
+	info->vflip = *value;
 	
 	return 0;
 }
 
 static int sensor_s_vflip(struct v4l2_subdev *sd, int value)
 {
-  	/*struct sensor_info *info = to_state(sd);
- 	 unsigned char rdval;
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
   
-	  if(info->vflip == value)
-	    return 0;
+	if(info->vflip == value)
+		return 0;
   
- 	 LOG_ERR_RET(sensor_read(sd, 0x0084, &rdval))
+	LOG_ERR_RET(sensor_read(sd, 0x0084, &rdval))
 
 	switch (value) {
 		case 0:
@@ -3573,7 +3338,7 @@ static int sensor_s_vflip(struct v4l2_subdev *sd, int value)
   	LOG_ERR_RET(sensor_write(sd, 0x0084, rdval))
   
   	mdelay(10);
-  	info->vflip = value;*/
+  	info->vflip = value;
   	return 0;
 }
 
@@ -3645,171 +3410,107 @@ static int sensor_s_exp(struct v4l2_subdev *sd, int value)
 
 static int sensor_g_autoexp(struct v4l2_subdev *sd, __s32 *value)
 {
-	/*
-	int ret;
-	struct sensor_info *info = to_state(sd);
-	struct regval_list regs;
-	
-	regs.reg_num[0] = 0x30;
-	regs.reg_num[1] = 0x13;
-	ret = sensor_read(sd, regs.reg_num, regs.value);
-	if (ret < 0) {
-		 vfe_dev_err("sensor_read err at sensor_g_autoexp!\n");
-		return ret;
-	}
-
-	regs.value[0] &= 0x01;
-	if (regs.value[0] == 0x01) {
-		*value = V4L2_EXPOSURE_AUTO;
-	}
-	else
-	{
-		*value = V4L2_EXPOSURE_MANUAL;
-	}
-	
-	info->autoexp = *value;
-	*/
 	return 0;
 }
 
 static int sensor_s_autoexp(struct v4l2_subdev *sd,
 		enum v4l2_exposure_auto_type value)
 {
-	/*
-	int ret;
-	struct sensor_info *info = to_state(sd);
-	struct regval_list regs;
-	
-	regs.reg_num[0] = 0x30;
-	regs.reg_num[1] = 0x13;
-	ret = sensor_read(sd, regs.reg_num, regs.value);
-	if (ret < 0) {
-		 vfe_dev_err("sensor_read err at sensor_s_autoexp!\n");
-		return ret;
-	}
-
-	switch (value) {
-		case V4L2_EXPOSURE_AUTO:
-		  regs.value[0] |= 0x01;
-			break;
-		case V4L2_EXPOSURE_MANUAL:
-			regs.value[0] &= 0xfe;
-			break;
-		case V4L2_EXPOSURE_SHUTTER_PRIORITY:
-			return -EINVAL;    
-		case V4L2_EXPOSURE_APERTURE_PRIORITY:
-			return -EINVAL;
-		default:
-			return -EINVAL;
-	}
-		
-	ret = sensor_write(sd, regs.reg_num, regs.value);
-	if (ret < 0) {
-		 vfe_dev_err("sensor_write err at sensor_s_autoexp!\n");
-		return ret;
-	}
-	mdelay(100);
-	info->autoexp = value;
-	*/
 	return 0;
 }
 
 static int sensor_g_autowb(struct v4l2_subdev *sd, int *value)
 {
-	  struct sensor_info *info = to_state(sd);
-	  unsigned char rdval;
-	  
-	  LOG_ERR_RET(sensor_read(sd, 0x01a0, &rdval))
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
 
-	  rdval &= 0x01;
-	  rdval = rdval>>1;   //0x3406 bit0 is awb enable
+	LOG_ERR_RET(sensor_read(sd, 0x01a0, &rdval))
 	    
-	  *value = (rdval == 1)?0:1;
-	  info->autowb = *value;
-	  return 0;
+	rdval &= 0x01;
+	rdval = rdval>>1;   //0x3406 bit0 is awb enable
   
+	*value = (rdval == 1)?0:1;
+	info->autowb = *value;
+	return 0;
 }
-
-
-
 
 static int sensor_g_hue(struct v4l2_subdev *sd, __s32 *value)
 {
-  return -EINVAL;
+	return -EINVAL;
 }
 
 static int sensor_s_hue(struct v4l2_subdev *sd, int value)
 {
-  return -EINVAL;
+	return -EINVAL;
 }
 
 static int sensor_g_gain(struct v4l2_subdev *sd, __s32 *value)
 {
-  return -EINVAL;
+	return -EINVAL;
 }
 
 static int sensor_s_gain(struct v4l2_subdev *sd, int value)
 {
-  return -EINVAL;
+	return -EINVAL;
 }
 
 static int sensor_g_band_filter(struct v4l2_subdev *sd, 
     __s32 *value)
 {
-	  struct sensor_info *info = to_state(sd);
-	  unsigned char rdval;
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
 
-	  vfe_dev_dbg("%s\n",__func__);
-	  LOG_ERR_RET(sensor_read(sd, 0x0190, &rdval))
-	  
-	  if(rdval == 0x00)
-	    info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_DISABLED;
-	  else {
-	    LOG_ERR_RET(sensor_read(sd, 0x019d, &rdval))
-	    if(rdval == 0x20)
-	      info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_50HZ;
-	    else
-	      info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_60HZ;
-	  }
-	  return 0;
+	vfe_dev_dbg("%s\n",__func__);
+	LOG_ERR_RET(sensor_read(sd, 0x0190, &rdval))
+
+	if(rdval == 0x00)
+		info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_DISABLED;
+	else {
+		LOG_ERR_RET(sensor_read(sd, 0x019d, &rdval))
+		if(rdval == 0x20)
+			info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_50HZ;
+		else
+			info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_60HZ;
+	}
+	return 0;
 	
 }
 
 static int sensor_s_band_filter(struct v4l2_subdev *sd, 
     enum v4l2_power_line_frequency value)
 {
-  struct sensor_info *info = to_state(sd);
-  unsigned char rdval;
+	struct sensor_info *info = to_state(sd);
+	data_type rdval;
 
-   vfe_dev_dbg("%s\n",__func__);
-  if(info->band_filter == value)
-    return 0;
-  
-  switch(value) {
-    case V4L2_CID_POWER_LINE_FREQUENCY_DISABLED:  
-      LOG_ERR_RET(sensor_read(sd,0x0190,&rdval))
-      LOG_ERR_RET(sensor_write(sd,0x0190,0x00))//turn off band filter 
-      break;
-    case V4L2_CID_POWER_LINE_FREQUENCY_50HZ:
-      LOG_ERR_RET(sensor_write(sd,0x019c,0x4b))//50hz 
-      LOG_ERR_RET(sensor_write(sd,0x019d,0x20))//manual band filter
-      LOG_ERR_RET(sensor_read(sd,0x0190,&rdval))
-      LOG_ERR_RET(sensor_write(sd,0x0190,0x00))//turn on band filter
-      break;
-    case V4L2_CID_POWER_LINE_FREQUENCY_60HZ:
-      LOG_ERR_RET(sensor_write(sd,0x019c,0x4b))//60hz 
-      LOG_ERR_RET(sensor_write(sd,0x019d,0xc0))//manual band filter
-      LOG_ERR_RET(sensor_read(sd,0x0190,&rdval))
-      LOG_ERR_RET(sensor_write(sd,0x0190,0x00))//turn on band filter
-      break;
-    case V4L2_CID_POWER_LINE_FREQUENCY_AUTO:
-      break;
-    default:
-      break;
-  }
-  mdelay(10);
-  info->band_filter = value;
-  return 0;
+	vfe_dev_dbg("%s\n",__func__);
+	if(info->band_filter == value)
+		return 0;
+
+	switch(value) {
+		case V4L2_CID_POWER_LINE_FREQUENCY_DISABLED:  
+			LOG_ERR_RET(sensor_read(sd,0x0190,&rdval))
+			LOG_ERR_RET(sensor_write(sd,0x0190,0x00))//turn off band filter 
+			break;
+		case V4L2_CID_POWER_LINE_FREQUENCY_50HZ:
+			LOG_ERR_RET(sensor_write(sd,0x019c,0x4b))//50hz 
+			LOG_ERR_RET(sensor_write(sd,0x019d,0x20))//manual band filter
+			LOG_ERR_RET(sensor_read(sd,0x0190,&rdval))
+			LOG_ERR_RET(sensor_write(sd,0x0190,0x00))//turn on band filter
+			break;
+		case V4L2_CID_POWER_LINE_FREQUENCY_60HZ:
+			LOG_ERR_RET(sensor_write(sd,0x019c,0x4b))//60hz 
+			LOG_ERR_RET(sensor_write(sd,0x019d,0xc0))//manual band filter
+			LOG_ERR_RET(sensor_read(sd,0x0190,&rdval))
+			LOG_ERR_RET(sensor_write(sd,0x0190,0x00))//turn on band filter
+			break;
+		case V4L2_CID_POWER_LINE_FREQUENCY_AUTO:
+			break;
+		default:
+			break;
+	}
+	mdelay(10);
+	info->band_filter = value;
+	return 0;
 }
 
 
@@ -3877,10 +3578,10 @@ static int sensor_s_brightness(struct v4l2_subdev *sd, int value)
 
 static int sensor_g_contrast(struct v4l2_subdev *sd, __s32 *value)
 {
-  struct sensor_info *info = to_state(sd);
+	struct sensor_info *info = to_state(sd);
   
-  *value = info->contrast;
-  return 0;
+	*value = info->contrast;
+	return 0;
 }
 
 static int sensor_s_contrast(struct v4l2_subdev *sd, int value)
@@ -3931,10 +3632,10 @@ static int sensor_s_contrast(struct v4l2_subdev *sd, int value)
 
 static int sensor_g_saturation(struct v4l2_subdev *sd, __s32 *value)
 {
-  struct sensor_info *info = to_state(sd);
+	struct sensor_info *info = to_state(sd);
   
-  *value = info->saturation;
-  return 0;
+	*value = info->saturation;
+	return 0;
 }
 
 static int sensor_s_saturation(struct v4l2_subdev *sd, int value)
@@ -3985,47 +3686,23 @@ static int sensor_s_saturation(struct v4l2_subdev *sd, int value)
 
 static int sensor_g_wb(struct v4l2_subdev *sd, int *value)
 {
-  struct sensor_info *info = to_state(sd);
-  enum v4l2_auto_n_preset_white_balance *wb_type = (enum v4l2_auto_n_preset_white_balance*)value;
+	struct sensor_info *info = to_state(sd);
+	enum v4l2_auto_n_preset_white_balance *wb_type = (enum v4l2_auto_n_preset_white_balance*)value;
   
-  *wb_type = info->wb;
+	*wb_type = info->wb;
   
-  return 0;
+	return 0;
 }
 static int sensor_s_autowb(struct v4l2_subdev *sd, int value)
 {
 	int ret;
 	struct sensor_info *info = to_state(sd);
- 	 unsigned char rdval;
 	
 	ret = sensor_write_array(sd, sensor_wb_auto_regs, ARRAY_SIZE(sensor_wb_auto_regs));
 	if (ret < 0) {
 		vfe_dev_err("sensor_write_array err at sensor_s_autowb!\n");
 		return ret;
 	}
-	/*
-	ret = sensor_read(sd, 0x01a0, &rdval);
-	if (ret < 0) {
-		vfe_dev_err("sensor_read err at sensor_s_autowb!\n");
-		return ret;
-	}
-
-	switch(value) {
-	case 0:
-		rdval &= 0xfe;
-		break;
-	case 1:
-		rdval |= 0x01;
-		break;
-	default:
-		break;
-	}	
-	ret = sensor_write(sd, 0x01a0, rdval);
-	if (ret < 0) {
-		vfe_dev_err("sensor_write err at sensor_s_autowb!\n");
-		return ret;
-	}
-	*/
 	mdelay(10);
 	info->autowb = value;
 	
@@ -4038,28 +3715,28 @@ static int sensor_s_wb(struct v4l2_subdev *sd,
 {
 	int ret;
 	struct sensor_info *info = to_state(sd);
-		switch (value) {
-			case V4L2_WHITE_BALANCE_AUTO:
-			  	LOG_ERR_RET(sensor_write_array(sd, sensor_wb_auto_regs ,ARRAY_SIZE(sensor_wb_auto_regs)))  
-				break;
-			case V4L2_WHITE_BALANCE_CLOUDY:
-			  	ret = sensor_write_array(sd, sensor_wb_cloud_regs, ARRAY_SIZE(sensor_wb_cloud_regs));
-				break;
-			case V4L2_WHITE_BALANCE_DAYLIGHT:
-				ret = sensor_write_array(sd, sensor_wb_daylight_regs, ARRAY_SIZE(sensor_wb_daylight_regs));
-				break;
-			case V4L2_WHITE_BALANCE_INCANDESCENT:
-				ret = sensor_write_array(sd, sensor_wb_incandescence_regs, ARRAY_SIZE(sensor_wb_incandescence_regs));
-				break;    
-			case V4L2_WHITE_BALANCE_FLUORESCENT_H:
-				ret = sensor_write_array(sd, sensor_wb_fluorescent_regs, ARRAY_SIZE(sensor_wb_fluorescent_regs));
-				break;
-			//case V4L2_WB_TUNGSTEN:   
-			//	ret = sensor_write_array(sd, sensor_wb_tungsten_regs, ARRAY_SIZE(sensor_wb_tungsten_regs));
-			//	break;
-			default:
-				return -EINVAL;
-		} 
+	switch (value) {
+		case V4L2_WHITE_BALANCE_AUTO:
+		  	LOG_ERR_RET(sensor_write_array(sd, sensor_wb_auto_regs ,ARRAY_SIZE(sensor_wb_auto_regs)))  
+			break;
+		case V4L2_WHITE_BALANCE_CLOUDY:
+		  	ret = sensor_write_array(sd, sensor_wb_cloud_regs, ARRAY_SIZE(sensor_wb_cloud_regs));
+			break;
+		case V4L2_WHITE_BALANCE_DAYLIGHT:
+			ret = sensor_write_array(sd, sensor_wb_daylight_regs, ARRAY_SIZE(sensor_wb_daylight_regs));
+			break;
+		case V4L2_WHITE_BALANCE_INCANDESCENT:
+			ret = sensor_write_array(sd, sensor_wb_incandescence_regs, ARRAY_SIZE(sensor_wb_incandescence_regs));
+			break;    
+		case V4L2_WHITE_BALANCE_FLUORESCENT_H:
+			ret = sensor_write_array(sd, sensor_wb_fluorescent_regs, ARRAY_SIZE(sensor_wb_fluorescent_regs));
+			break;
+		//case V4L2_WB_TUNGSTEN:   
+		//	ret = sensor_write_array(sd, sensor_wb_tungsten_regs, ARRAY_SIZE(sensor_wb_tungsten_regs));
+		//	break;
+		default:
+			return -EINVAL;
+	} 
 	
 	if (ret < 0) {
 		 vfe_dev_err("sensor_s_wb error, return %x!\n",ret);
@@ -4074,11 +3751,11 @@ static int sensor_s_wb(struct v4l2_subdev *sd,
 static int sensor_g_colorfx(struct v4l2_subdev *sd,
     __s32 *value)
 {
-  struct sensor_info *info = to_state(sd);
-  enum v4l2_colorfx *clrfx_type = (enum v4l2_colorfx*)value;
+	struct sensor_info *info = to_state(sd);
+	enum v4l2_colorfx *clrfx_type = (enum v4l2_colorfx*)value;
   
-  *clrfx_type = info->clrfx;
-  return 0;
+	*clrfx_type = info->clrfx;
+	return 0;
 }
 
 static int sensor_s_colorfx(struct v4l2_subdev *sd,
@@ -4126,314 +3803,195 @@ static int sensor_s_colorfx(struct v4l2_subdev *sd,
 		 vfe_dev_err("sensor_s_colorfx error, return %x!\n",ret);
 		return ret;
 	}
-  info->clrfx = value;
-  return 0;
-}
-/*
-static int sensor_g_flash_mode(struct v4l2_subdev *sd,
-    __s32 *value)
-{
-  struct sensor_info *info = to_state(sd);
-  enum v4l2_flash_led_mode *flash_mode = (enum v4l2_flash_led_mode*)value;
-  
-  *flash_mode = info->flash_mode;
-  return 0;
+	info->clrfx = value;
+	return 0;
 }
 
-static int sensor_s_flash_mode(struct v4l2_subdev *sd,
-    enum v4l2_flash_led_mode value)
-{
-	struct sensor_info *info = to_state(sd);
-	struct  vfe_dev *dev=(struct  vfe_dev *)dev_get_drvdata(sd->v4l2_dev->dev);
-	int flash_on,flash_off;
-	
-	flash_on = (dev->flash_pol!=0)?1:0;
-	flash_off = (flash_on==1)?0:1;
-	
-	switch (value) {
-	case V4L2_FLASH_MODE_OFF:
-		csi_gpio_write(sd,&dev->flash_io,flash_off);
-		break;
-	case V4L2_FLASH_MODE_AUTO:
-		return -EINVAL;
-		break;  
-	case V4L2_FLASH_MODE_ON:
-		csi_gpio_write(sd,&dev->flash_io,flash_on);
-		break;   
-	case V4L2_FLASH_MODE_TORCH:
-		return -EINVAL;
-		break;
-	case V4L2_FLASH_MODE_RED_EYE:   
-		return -EINVAL;
-		break;
-	default:
-		return -EINVAL;
-	}
-	
-	info->flash_mode = value;
-	return 0;
-  return 0;
-}
-*/
 /*
  * Stuff that knows about the sensor.
  */
- 
 static int sensor_power(struct v4l2_subdev *sd, int on)
 {
-  int ret;
-  
-  //insure that clk_disable() and clk_enable() are called in pair 
-  //when calling CSI_SUBDEV_STBY_ON/OFF and CSI_SUBDEV_PWR_ON/OFF
-  ret = 0;
+	switch(on)
+	{
+		case CSI_SUBDEV_STBY_ON:
+			vfe_dev_dbg("CSI_SUBDEV_STBY_ON!\n");
+			vfe_dev_print("disalbe oe!\n");
+			cci_lock(sd);
+			vfe_gpio_write(sd,PWDN,CSI_GPIO_HIGH);
+			cci_unlock(sd);  
+			vfe_set_mclk(sd,OFF);
+			break;
+		case CSI_SUBDEV_STBY_OFF:
+			vfe_dev_dbg("CSI_SUBDEV_STBY_OFF!\n"); 
+			cci_lock(sd);    
+			vfe_set_mclk_freq(sd,MCLK);
+			vfe_set_mclk(sd,ON);
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,PWDN,CSI_GPIO_LOW);
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,RESET,CSI_GPIO_HIGH);
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,RESET,CSI_GPIO_HIGH);
+			usleep_range(10000,12000);
+			cci_unlock(sd);        
+			break;
+		case CSI_SUBDEV_PWR_ON:
+			vfe_dev_dbg("CSI_SUBDEV_PWR_ON!\n");
+			cci_lock(sd);
+			// vfe_gpio_set_status(sd,PWDN,1);//set the gpio to output
+			// vfe_gpio_set_status(sd,RESET,1);//set the gpio to output
+			vfe_gpio_write(sd,PWDN,CSI_GPIO_HIGH);
+			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);
+			usleep_range(1000,1200);
+			vfe_set_mclk_freq(sd,MCLK);
+			vfe_set_mclk(sd,ON);
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,POWER_EN,CSI_GPIO_HIGH);
+			vfe_set_pmu_channel(sd,IOVDD,ON);
+			vfe_set_pmu_channel(sd,AVDD,ON);
+			vfe_set_pmu_channel(sd,DVDD,ON);
+			vfe_set_pmu_channel(sd,AFVDD,ON);
+			vfe_gpio_write(sd,PWDN,CSI_GPIO_LOW);
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,RESET,CSI_GPIO_HIGH);
+			usleep_range(30000,31000);
+			cci_unlock(sd);  
+			break;
+		case CSI_SUBDEV_PWR_OFF:
+			vfe_dev_dbg("CSI_SUBDEV_PWR_OFF!\n");
+			cci_lock(sd);
+			vfe_set_mclk(sd,OFF);
+			vfe_gpio_write(sd,POWER_EN,CSI_GPIO_LOW);
+			vfe_set_pmu_channel(sd,AFVDD,OFF);
+			vfe_set_pmu_channel(sd,DVDD,OFF);
+			vfe_set_pmu_channel(sd,AVDD,OFF);
+			vfe_set_pmu_channel(sd,IOVDD,OFF);  
+			usleep_range(10000,12000);
+			vfe_gpio_write(sd,PWDN,CSI_GPIO_LOW);
+			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);
+			//  vfe_gpio_set_status(sd,RESET,0);//set the gpio to input
+			//  vfe_gpio_set_status(sd,PWDN,0);//set the gpio to input
+			cci_unlock(sd);  
+			break;
+		default:
+			return -EINVAL;
+	}   
 
-  printk(" sensor_power on=%d\n",on);
-  printk(" sensor_power CSI_SUBDEV_STBY_ON=%d\n",CSI_SUBDEV_STBY_ON);
-  printk(" sensor_power CSI_SUBDEV_STBY_OFF=%d\n",CSI_SUBDEV_STBY_OFF);
-  printk(" sensor_power CSI_SUBDEV_PWR_ON=%d\n",CSI_SUBDEV_PWR_ON);
-  printk(" sensor_power CSI_SUBDEV_PWR_OFF=%d\n",CSI_SUBDEV_PWR_OFF);
-  switch(on)
-  {
-    case CSI_SUBDEV_STBY_ON:
-      vfe_dev_dbg("CSI_SUBDEV_STBY_ON!\n");
-      //software standby
-     // ret = sensor_write_array(sd, sensor_sw_stby_on_regs ,ARRAY_SIZE(sensor_sw_stby_on_regs));
-     // if(ret < 0)
-     //   vfe_dev_err("soft stby falied!\n");
-    //  mdelay(10);
-      //disable io oe
-      vfe_dev_print("disalbe oe!\n");
-			//ret = sensor_write_array(sd, sensor_oe_disable_regs , ARRAY_SIZE(sensor_oe_disable_regs));//gong
-		//	if(ret < 0)
-		//		 vfe_dev_err("disalbe oe falied!\n");
-      //make sure that no device can access i2c bus during sensor initial or power down
-      //when using i2c_lock_adpater function, the following codes must not access i2c bus before calling cci_unlock
-      cci_lock(sd);
-      //standby on io
-      vfe_gpio_write(sd,PWDN,CSI_STBY_ON);
-      //remember to unlock i2c adapter, so the device can access the i2c bus again
-      cci_unlock(sd);  
-      //inactive mclk after stadby in
-      vfe_set_mclk(sd,OFF);
-      break;
-    case CSI_SUBDEV_STBY_OFF:
-      vfe_dev_dbg("CSI_SUBDEV_STBY_OFF!\n"); 
-      //make sure that no device can access i2c bus during sensor initial or power down
-      //when using i2c_lock_adpater function, the following codes must not access i2c bus before calling cci_unlock
-      cci_lock(sd);    
-      //active mclk before stadby out
-      vfe_set_mclk_freq(sd,MCLK);
-      vfe_set_mclk(sd,ON);
-      usleep_range(10000,12000);
-      //standby off io
-      vfe_gpio_write(sd,PWDN,CSI_STBY_OFF);
-      usleep_range(10000,12000);
-	  vfe_gpio_write(sd,RESET,CSI_RST_OFF);
-      usleep_range(10000,12000);
-	  vfe_gpio_write(sd,RESET,CSI_RST_ON);
-      usleep_range(10000,12000);
-	  vfe_gpio_write(sd,RESET,CSI_RST_OFF);
-      usleep_range(10000,12000);
-	   //remember to unlock i2c adapter, so the device can access the i2c bus again
-      cci_unlock(sd);        
-      break;
-	  
-    case CSI_SUBDEV_PWR_ON:
-      vfe_dev_dbg("CSI_SUBDEV_PWR_ON!\n");
-      //make sure that no device can access i2c bus during sensor initial or power down
-      //when using i2c_lock_adpater function, the following codes must not access i2c bus before calling cci_unlock
-      cci_lock(sd);
-      //power on reset
-     // vfe_gpio_set_status(sd,PWDN,1);//set the gpio to output
-     // vfe_gpio_set_status(sd,RESET,1);//set the gpio to output
-      //power down io
-      vfe_gpio_write(sd,PWDN,CSI_STBY_ON);
-      //reset on io
-      vfe_gpio_write(sd,RESET,CSI_RST_ON);
-      usleep_range(1000,1200);
-      //active mclk before power on
-      vfe_set_mclk_freq(sd,MCLK);
-      vfe_set_mclk(sd,ON);
-      usleep_range(10000,12000);
-      //power supply
-      vfe_gpio_write(sd,POWER_EN,CSI_PWR_ON);
-      vfe_set_pmu_channel(sd,IOVDD,ON);
-      vfe_set_pmu_channel(sd,AVDD,ON);
-      vfe_set_pmu_channel(sd,DVDD,ON);
-      vfe_set_pmu_channel(sd,AFVDD,ON);
-      //standby off io
-      vfe_gpio_write(sd,PWDN,CSI_STBY_OFF);
-      usleep_range(10000,12000);
-      //reset after power on
-      vfe_gpio_write(sd,RESET,CSI_RST_OFF);
-      usleep_range(30000,31000);
-      //remember to unlock i2c adapter, so the device can access the i2c bus again
-      cci_unlock(sd);  
-      break;
-	  
-    case CSI_SUBDEV_PWR_OFF:
-      vfe_dev_dbg("CSI_SUBDEV_PWR_OFF!\n");
-      //make sure that no device can access i2c bus during sensor initial or power down
-      //when using i2c_lock_adpater function, the following codes must not access i2c bus before calling cci_unlock
-      cci_lock(sd);
-      //inactive mclk before power off
-      vfe_set_mclk(sd,OFF);
-      //power supply off
-      vfe_gpio_write(sd,POWER_EN,CSI_PWR_OFF);
-      vfe_set_pmu_channel(sd,AFVDD,OFF);
-      vfe_set_pmu_channel(sd,DVDD,OFF);
-      vfe_set_pmu_channel(sd,AVDD,OFF);
-      vfe_set_pmu_channel(sd,IOVDD,OFF);  
-      //standby and reset io
-      usleep_range(10000,12000);
-      vfe_gpio_write(sd,PWDN,CSI_STBY_OFF);
-      vfe_gpio_write(sd,RESET,CSI_RST_ON);
-      //set the io to hi-z
-    //  vfe_gpio_set_status(sd,RESET,0);//set the gpio to input
-    //  vfe_gpio_set_status(sd,PWDN,0);//set the gpio to input
-      //remember to unlock i2c adapter, so the device can access the i2c bus again
-      cci_unlock(sd);  
-      break;
-	  
-    default:
-      return -EINVAL;
-  }   
-
-  return 0;
+	return 0;
 }
  
 static int sensor_reset(struct v4l2_subdev *sd, u32 val)
 {
-  switch(val)
-  {
-    case 0:
-      vfe_gpio_write(sd,RESET,CSI_RST_OFF);
-      mdelay(10);
-      break;
-    case 1:
-      vfe_gpio_write(sd,RESET,CSI_RST_ON);
-      mdelay(10);
-      break;
-    default:
-      return -EINVAL;
-  }
+	switch(val)
+	{
+		case 0:
+			vfe_gpio_write(sd,RESET,CSI_GPIO_HIGH);
+			mdelay(10);
+			break;
+		case 1:
+			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);
+			mdelay(10);
+			break;
+		default:
+			return -EINVAL;
+	}
     
-  return 0;
+	return 0;
 }
 
 static int sensor_detect(struct v4l2_subdev *sd)
 {
-  unsigned char rdval;
+	data_type rdval;
   
-  LOG_ERR_RET(sensor_read(sd, 0x0000, &rdval))
+	LOG_ERR_RET(sensor_read(sd, 0x0000, &rdval))
   
-  if(rdval != 0x03)
-    return -ENODEV;
+	if(rdval != 0x03)
+		return -ENODEV;
 
   
-  return 0;
+	return 0;
 }
 
 static int sensor_init(struct v4l2_subdev *sd, u32 val)
 {
-  int ret;
-  struct sensor_info *info = to_state(sd);
-  
-  vfe_dev_dbg("sensor_init 0x%x\n",val);
-  
-  /*Make sure it is a target sensor*/
-  ret = sensor_detect(sd);
-  vfe_dev_dbg("sensor_detect %d\n",ret);
-  if (ret) {
-    vfe_dev_err("chip found is not an target chip.\n");
-    return ret;
-  }
-  
-  vfe_get_standby_mode(sd,&info->stby_mode);
-  
-  if((info->stby_mode == HW_STBY || info->stby_mode == SW_STBY) \
-      && info->init_first_flag == 0) {
-    vfe_dev_print("stby_mode and init_first_flag = 0\n");
-    return 0;
-  } 
-  
-  info->focus_status = 0;
-  info->low_speed = 0;
-  info->width = 0;
-  info->height = 0;
-  info->brightness = 0;
-  info->contrast = 0;
-  info->saturation = 0;
-  info->hue = 0;
-  info->hflip = 0;
-  info->vflip = 0;
-  info->gain = 0;
-  info->autogain = 1;
-  info->exp_bias = 0;
+	int ret;
+	struct sensor_info *info = to_state(sd);
+
+	vfe_dev_dbg("sensor_init 0x%x\n",val);
+
+	/*Make sure it is a target sensor*/
+	ret = sensor_detect(sd);
+	if (ret) {
+		vfe_dev_err("chip found is not an target chip.\n");
+		return ret;
+	}
+
+	vfe_get_standby_mode(sd,&info->stby_mode);
+
+	if((info->stby_mode == HW_STBY || info->stby_mode == SW_STBY) \
+	  && info->init_first_flag == 0) {
+		vfe_dev_print("stby_mode and init_first_flag = 0\n");
+		return 0;
+	} 
+
+	info->focus_status = 0;
+	info->low_speed = 0;
+	info->width = 0;
+	info->height = 0;
+	info->brightness = 0;
+	info->contrast = 0;
+	info->saturation = 0;
+	info->hue = 0;
+	info->hflip = 0;
+	info->vflip = 0;
+	info->gain = 0;
+	info->autogain = 1;
+	info->exp_bias = 0;
 	info->autoexp = 0;
-  info->autowb = 1;
-  info->clrfx = V4L2_COLORFX_NONE;
-  info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_50HZ;
+	info->autowb = 1;
+	info->clrfx = V4L2_COLORFX_NONE;
+	info->band_filter = V4L2_CID_POWER_LINE_FREQUENCY_50HZ;
 
-//  info->af_ctrl = V4L2_AF_RELEASE;
-  info->tpf.numerator = 1;            
-  info->tpf.denominator = 30;    /* 30fps */    
+	info->tpf.numerator = 1;            
+	info->tpf.denominator = 30;    /* 30fps */    
   
-  ret = sensor_write_array(sd, sensor_default_regs, ARRAY_SIZE(sensor_default_regs));  
-  if(ret < 0) {
-    vfe_dev_err("write sensor_default_regs error\n");
-    return ret;
-  }
+	ret = sensor_write_array(sd, sensor_default_regs, ARRAY_SIZE(sensor_default_regs));  
+	if(ret < 0) {
+		vfe_dev_err("write sensor_default_regs error\n");
+		return ret;
+	}
     
-  sensor_s_band_filter(sd, V4L2_CID_POWER_LINE_FREQUENCY_50HZ);
+	sensor_s_band_filter(sd, V4L2_CID_POWER_LINE_FREQUENCY_50HZ);
   
-  if(info->stby_mode == 0)
-    info->init_first_flag = 0;
+	if(info->stby_mode == 0)
+		info->init_first_flag = 0;
   
-  info->preview_first_flag = 1;
-//  INIT_DELAYED_WORK(&sensor_s_ae_ratio_work, sensor_s_ae_ratio);
+	info->preview_first_flag = 1;
   
-  return 0;
+	return 0;
 }
 
-static int sensor_g_exif(struct v4l2_subdev *sd, struct sensor_exif_attribute *exif)
+static void sensor_s_af_win(struct v4l2_subdev *sd, struct v4l2_win_setting * af_win)
 {
-	int ret = 0;//, gain_val, exp_val;
-	unsigned  int  temp=0,shutter=0, gain = 0;
-	unsigned char val;
-
-	sensor_write(sd, 0xfe, 0x00);
-	//sensor_write(sd, 0xb6, 0x02);
-
-	/*read shutter */
-	sensor_read(sd, 0x03, &val);
-	temp |= (val<< 8);
-	sensor_read(sd, 0x04, &val);
-	temp |= (val & 0xff);
-	shutter=temp;
-	
-	sensor_read(sd, 0xb1, &val);
-	gain = val;
-	exif->fnumber = 280;
-	exif->focal_length = 425;
-	exif->brightness = 125;
-	exif->flash_fire = 0;
-	//exif->iso_speed = 50*((50 + CLIP(gain-0x20, 0, 0xff)*5)/50);
-	exif->iso_speed = 50*gain / 16;
-
-	exif->exposure_time_num = 1;
-	exif->exposure_time_den = 16000/shutter;
-	return ret;
+	//sensor_s_af_zone(sd, &af_win->coor[0]);
 }
+static void sensor_s_ae_win(struct v4l2_subdev *sd, struct v4l2_win_setting * ae_win)
+{
 
+}
 
 static long sensor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	int ret=0;
-	//struct sensor_info *info = to_state(sd);
 	switch(cmd) {
-		case GET_SENSOR_EXIF:
-			sensor_g_exif(sd, (struct sensor_exif_attribute *)arg);
+		case SET_AUTO_FOCUS_WIN:
+			sensor_s_af_win(sd, (struct v4l2_win_setting *)arg);
+			break;
+		case SET_AUTO_EXPOSURE_WIN:
+			sensor_s_ae_win(sd, (struct v4l2_win_setting *)arg);
 			break;
 		default:
 			return -EINVAL;
@@ -4446,41 +4004,41 @@ static long sensor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
  * Store information about the video data format. 
  */
 static struct sensor_format_struct {
-  __u8 *desc;
-  //__u32 pixelformat;
-  enum v4l2_mbus_pixelcode mbus_code;
-  struct regval_list *regs;
-  int regs_size;
-  int bpp;   /* Bytes per pixel */
+	__u8 *desc;
+	//__u32 pixelformat;
+	enum v4l2_mbus_pixelcode mbus_code;//linux-3.0
+	struct regval_list *regs;
+	int	regs_size;
+	int bpp;   /* Bytes per pixel */
 } sensor_formats[] = {
-  {
-    .desc   = "YUYV 4:2:2",
-    .mbus_code  = V4L2_MBUS_FMT_YUYV8_2X8,
-    .regs     = sensor_fmt_yuv422_yuyv,
-    .regs_size = ARRAY_SIZE(sensor_fmt_yuv422_yuyv),
-    .bpp    = 2,
-  },
-  {
-    .desc   = "YVYU 4:2:2",
-    .mbus_code  = V4L2_MBUS_FMT_YVYU8_2X8,
-    .regs     = sensor_fmt_yuv422_yvyu,
-    .regs_size = ARRAY_SIZE(sensor_fmt_yuv422_yvyu),
-    .bpp    = 2,
-  },
-  {
-    .desc   = "UYVY 4:2:2",
-    .mbus_code  = V4L2_MBUS_FMT_UYVY8_2X8,
-    .regs     = sensor_fmt_yuv422_uyvy,
-    .regs_size = ARRAY_SIZE(sensor_fmt_yuv422_uyvy),
-    .bpp    = 2,
-  },
-  {
-    .desc   = "VYUY 4:2:2",
-    .mbus_code  = V4L2_MBUS_FMT_VYUY8_2X8,
-    .regs     = sensor_fmt_yuv422_vyuy,
-    .regs_size = ARRAY_SIZE(sensor_fmt_yuv422_vyuy),
-    .bpp    = 2,
-  },
+	{
+		.desc		= "YUYV 4:2:2",
+		.mbus_code	= V4L2_MBUS_FMT_YUYV8_2X8,//linux-3.0
+		.regs 		= sensor_fmt_yuv422_yuyv,
+		.regs_size = ARRAY_SIZE(sensor_fmt_yuv422_yuyv),
+		.bpp		= 2,
+	},
+	{
+		.desc		= "YVYU 4:2:2",
+		.mbus_code	= V4L2_MBUS_FMT_YVYU8_2X8,//linux-3.0
+		.regs 		= sensor_fmt_yuv422_yvyu,
+		.regs_size = ARRAY_SIZE(sensor_fmt_yuv422_yvyu),
+		.bpp		= 2,
+	},
+	{
+		.desc		= "UYVY 4:2:2",
+		.mbus_code	= V4L2_MBUS_FMT_UYVY8_2X8,//linux-3.0
+		.regs 		= sensor_fmt_yuv422_uyvy,
+		.regs_size = ARRAY_SIZE(sensor_fmt_yuv422_uyvy),
+		.bpp		= 2,
+	},
+	{
+		.desc		= "VYUY 4:2:2",
+		.mbus_code	= V4L2_MBUS_FMT_VYUY8_2X8,//linux-3.0
+		.regs 		= sensor_fmt_yuv422_vyuy,
+		.regs_size = ARRAY_SIZE(sensor_fmt_yuv422_vyuy),
+		.bpp		= 2,
+	},
 //  {
 //    .desc   = "Raw RGB Bayer",
 //    .mbus_code  = V4L2_MBUS_FMT_SBGGR8_1X8,
@@ -4499,98 +4057,96 @@ static struct sensor_format_struct {
 
 
 static struct sensor_win_size sensor_win_sizes[] = {
-  /* qsxga: 2592*1936 */
-  {
-    .width      = QSXGA_WIDTH,
-    .height     = QSXGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_qsxga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_qsxga_regs),
-    .set_size   = NULL,
-  },
-  #if 0
-  /* qxga: 2048*1536 */
-  {
-    .width      = QXGA_WIDTH,
-    .height     = QXGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_qxga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_qxga_regs),
-    .set_size   = NULL,
-  },
-  #endif
-  /* 1080P */
-  {
-    .width      = HD1080_WIDTH,
-    .height     = HD1080_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_1080p_regs,
-    .regs_size  = ARRAY_SIZE(sensor_1080p_regs),
-    .set_size   = NULL,
-  },
-  /* UXGA */
-  {
-    .width      = UXGA_WIDTH,
-    .height     = UXGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_uxga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_uxga_regs),
-    .set_size   = NULL,
-  },
-  /* SXGA */
-  {
-    .width      = SXGA_WIDTH,
-    .height     = SXGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_sxga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_sxga_regs),
-    .set_size   = NULL,
-  },
-  /* 720p */
-  {
-    .width      = HD720_WIDTH,
-    .height     = HD720_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_720p_regs,
-    .regs_size  = ARRAY_SIZE(sensor_720p_regs),
-    .set_size   = NULL,
-  },
-  /* XGA */
-  {
-    .width      = XGA_WIDTH,
-    .height     = XGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_xga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_xga_regs),
-    .set_size   = NULL,
-  },
-  /* SVGA */
-  {
-    .width      = SVGA_WIDTH,
-    .height     = SVGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_svga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_svga_regs),
-    .set_size   = NULL,
-  },
-  /* VGA */
-  {
-    .width      = VGA_WIDTH,
-    .height     = VGA_HEIGHT,
-    .hoffset    = 0,
-    .voffset    = 0,
-    .regs       = sensor_vga_regs,
-    .regs_size  = ARRAY_SIZE(sensor_vga_regs),
-    .set_size   = NULL,
-  },
+	/* qsxga: 2592*1936 */
+	{
+		.width      = QSXGA_WIDTH,
+		.height     = QSXGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_qsxga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_qsxga_regs),
+		.set_size   = NULL,
+	},
+	/* qxga: 2048*1536 */
+	{
+		.width      = QXGA_WIDTH,
+		.height     = QXGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_qxga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_qxga_regs),
+		.set_size   = NULL,
+	},
+	/* 1080P */
+	{
+		.width      = HD1080_WIDTH,
+		.height     = HD1080_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_1080p_regs,
+		.regs_size  = ARRAY_SIZE(sensor_1080p_regs),
+		.set_size   = NULL,
+	},
+	/* UXGA */
+	{
+		.width      = UXGA_WIDTH,
+		.height     = UXGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_uxga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_uxga_regs),
+		.set_size   = NULL,
+	},
+	/* SXGA */
+	{
+		.width      = SXGA_WIDTH,
+		.height     = SXGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_sxga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_sxga_regs),
+		.set_size   = NULL,
+	},
+	/* 720p */
+	{
+		.width      = HD720_WIDTH,
+		.height     = HD720_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_720p_regs,
+		.regs_size  = ARRAY_SIZE(sensor_720p_regs),
+		.set_size   = NULL,
+	},
+	/* XGA */
+	{
+		.width      = XGA_WIDTH,
+		.height     = XGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_xga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_xga_regs),
+		.set_size   = NULL,
+	},
+	/* SVGA */
+	{
+		.width      = SVGA_WIDTH,
+		.height     = SVGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_svga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_svga_regs),
+		.set_size   = NULL,
+	},
+	/* VGA */
+	{
+		.width      = VGA_WIDTH,
+		.height     = VGA_HEIGHT,
+		.hoffset    = 0,
+		.voffset    = 0,
+		.regs       = sensor_vga_regs,
+		.regs_size  = ARRAY_SIZE(sensor_vga_regs),
+		.set_size   = NULL,
+	},
 };
 
 #define N_WIN_SIZES (ARRAY_SIZE(sensor_win_sizes))
@@ -4598,24 +4154,24 @@ static struct sensor_win_size sensor_win_sizes[] = {
 static int sensor_enum_fmt(struct v4l2_subdev *sd, unsigned index,
                  enum v4l2_mbus_pixelcode *code)
 {
-  if (index >= N_FMTS)
-    return -EINVAL;
+	if (index >= N_FMTS)
+		return -EINVAL;
 
-  *code = sensor_formats[index].mbus_code;
-  return 0;
+	*code = sensor_formats[index].mbus_code;
+	return 0;
 }
 
 static int sensor_enum_size(struct v4l2_subdev *sd,
                             struct v4l2_frmsizeenum *fsize)
 {
-  if(fsize->index > N_WIN_SIZES-1)
-  	return -EINVAL;
+	if(fsize->index > N_WIN_SIZES-1)
+		return -EINVAL;
   
-  fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-  fsize->discrete.width = sensor_win_sizes[fsize->index].width;
-  fsize->discrete.height = sensor_win_sizes[fsize->index].height;
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	fsize->discrete.width = sensor_win_sizes[fsize->index].width;
+	fsize->discrete.height = sensor_win_sizes[fsize->index].height;
   
-  return 0;
+	return 0;
 }
 
 
@@ -4624,160 +4180,60 @@ static int sensor_try_fmt_internal(struct v4l2_subdev *sd,
     struct sensor_format_struct **ret_fmt,
     struct sensor_win_size **ret_wsize)
 {
-  int index;
-  struct sensor_win_size *wsize;
+	int index;
+	struct sensor_win_size *wsize;
 
-  for (index = 0; index < N_FMTS; index++)
-    if (sensor_formats[index].mbus_code == fmt->code)
-      break;
+	for (index = 0; index < N_FMTS; index++)
+		if (sensor_formats[index].mbus_code == fmt->code)
+			break;
 
-  if (index >= N_FMTS) 
-    return -EINVAL;
-  
-  if (ret_fmt != NULL)
-    *ret_fmt = sensor_formats + index;
+	if (index >= N_FMTS) 
+		return -EINVAL;
+
+	if (ret_fmt != NULL)
+		*ret_fmt = sensor_formats + index;
     
-  /*
-   * Fields: the sensor devices claim to be progressive.
-   */
-  
-  fmt->field = V4L2_FIELD_NONE;
-  
-  /*
-   * Round requested image size down to the nearest
-   * we support, but not below the smallest.
-   */
-  for (wsize = sensor_win_sizes; wsize < sensor_win_sizes + N_WIN_SIZES;
-       wsize++)
-    if (fmt->width >= wsize->width && fmt->height >= wsize->height)
-      break;
-    
-  if (wsize >= sensor_win_sizes + N_WIN_SIZES)
-    wsize--;   /* Take the smallest one */
-  if (ret_wsize != NULL)
-    *ret_wsize = wsize;
-  /*
-   * Note the size we'll actually handle.
-   */
-  fmt->width = wsize->width;
-  fmt->height = wsize->height;
-  //pix->bytesperline = pix->width*sensor_formats[index].bpp;
-  //pix->sizeimage = pix->height*pix->bytesperline;
+	/*
+	* Fields: the sensor devices claim to be progressive.
+	*/
+	fmt->field = V4L2_FIELD_NONE;
 
-  return 0;
+	/*
+	* Round requested image size down to the nearest
+	* we support, but not below the smallest.
+	*/
+	for (wsize = sensor_win_sizes; wsize < sensor_win_sizes + N_WIN_SIZES; wsize++)
+		if (fmt->width >= wsize->width && fmt->height >= wsize->height)
+			break;
+
+	if (wsize >= sensor_win_sizes + N_WIN_SIZES)
+		wsize--;   /* Take the smallest one */
+	if (ret_wsize != NULL)
+		*ret_wsize = wsize;
+	/*
+	* Note the size we'll actually handle.
+	*/
+	fmt->width = wsize->width;
+	fmt->height = wsize->height;
+
+	return 0;
 }
 
 static int sensor_try_fmt(struct v4l2_subdev *sd, 
              struct v4l2_mbus_framefmt *fmt)
 {
-  return sensor_try_fmt_internal(sd, fmt, NULL, NULL);
+	return sensor_try_fmt_internal(sd, fmt, NULL, NULL);
 }
 
 static int sensor_g_mbus_config(struct v4l2_subdev *sd,
            struct v4l2_mbus_config *cfg)
 {
-  cfg->type = V4L2_MBUS_PARALLEL;
-  cfg->flags = V4L2_MBUS_MASTER | VREF_POL | HREF_POL | CLK_POL ;
+	cfg->type = V4L2_MBUS_PARALLEL;
+	cfg->flags = V4L2_MBUS_MASTER | VREF_POL | HREF_POL | CLK_POL ;
   
-  return 0;
+	return 0;
 }
 
-/*
- * Set fps
- */
-#if 0
-static int sensor_s_fps(struct v4l2_subdev *sd)
-{
-  struct sensor_info *info = to_state(sd);
-  unsigned char div,sys_div;
-  unsigned char band_50_high,band_50_low,band_60_high,band_60_low;
-  unsigned char band_50_step,band_60_step,vts_high,vts_low;
-  int band_50,band_60,vts;
-
-  struct regval_list regs_fr[] = {
-		{0x3035,0xee},
-		{0x3a08,0xee},//50HZ step MSB 
-		{0x3a09,0xee},//50HZ step LSB 
-		{0x3a0a,0xee},//60HZ step MSB 
-		{0x3a0b,0xee},//60HZ step LSB 
-		{0x3a0e,0xee},//50HZ step max 
-		{0x3a0d,0xee},//60HZ step max 
-  	//{REG_TERM,VAL_TERM},
-  };
-
-  vfe_dev_dbg("sensor_s_fps\n");
-  
-  if (info->tpf.numerator == 0)
-    return -EINVAL;
-    
-  div = info->tpf.numerator;
-  
-  //power down
-//  ret = sensor_write(sd, 0x3008, 0x42);
-//  if(ret<0) {
-//    vfe_dev_err("power down error at sensor_s_parm!\n");
-//    return ret;
-//  }
-  
-  LOG_ERR_RET(sensor_read(sd, 0x3035, &sys_div))  
-  LOG_ERR_RET(sensor_read(sd, 0x3a08, &band_50_high))
-  LOG_ERR_RET(sensor_read(sd, 0x3a09, &band_50_low))
-  
-  band_50 = band_50_high*256+band_50_low;
-  
-  LOG_ERR_RET(sensor_read(sd, 0x3a0a, &band_60_high))
-  LOG_ERR_RET(sensor_read(sd, 0x3a0b, &band_60_low))
-    
-  band_60 = band_60_high*256+band_60_low;
-  
-  LOG_ERR_RET(sensor_read(sd, 0x380e, &vts_high)) 
-  LOG_ERR_RET(sensor_read(sd, 0x380f, &vts_low))
-  
-  vts = vts_high*256+vts_low;
-  
-//  vfe_dev_dbg("sys_div=%x,band50=%x,band_60=%x\n",sys_div,band_50,band_60);
-  
-  sys_div = (sys_div & 0x0f) | ((sys_div & 0xf0)*div);
-  band_50 = band_50/div;
-  band_60 = band_60/div;
-  band_50_step = vts/band_50;
-  band_60_step = vts/band_60;
-  
-//  vfe_dev_dbg("sys_div=%x,band50=%x,band_60=%x,band_50_step=%x,band_60_step=%x\n",sys_div,band_50,band_60,band_50_step,band_60_step);
-  
-  regs_fr[0].data = sys_div;
-  regs_fr[1].data = (band_50&0xff00)>>8;
-  regs_fr[2].data = (band_50&0x00ff)>>0;
-  regs_fr[3].data = (band_60&0xff00)>>8;
-  regs_fr[4].data = (band_60&0x00ff)>>0;
-  regs_fr[5].data = band_50_step;
-  regs_fr[6].data = band_60_step;
-  
-  LOG_ERR_RET(sensor_write_array(sd, regs_fr, ARRAY_SIZE(regs_fr)))
-  
-//#if DEV_DBG_EN == 1 
-//  {
-//    int i;  
-//    for(i=0;i<7;i++) {
-//      sensor_read(sd,regs_fr[i].reg_num,regs_fr[i].value);
-//      vfe_dev_print("address 0x%2x%2x = %4x",regs_fr[i].reg_num[0],regs_fr[i].reg_num[1],regs_fr[i].value[0]);
-//    }
-//  }
-//#endif
-	
-//	//release power down
-//  ret = sensor_write(sd, 0x3008, 0x02);
-//  if(ret<0) {
-//    vfe_dev_err("release power down error at sensor_s_parm!\n");
-//    return ret;
-//  }
-  
-  //msleep(500);
-  vfe_dev_dbg("set frame rate %d\n",info->tpf.denominator/info->tpf.numerator);
-  
-  return 0;
-}
-#endif
 /*
  * Set a format.
  */
@@ -4788,10 +4244,10 @@ static int sensor_s_fmt(struct v4l2_subdev *sd,
 	struct sensor_format_struct *sensor_fmt;
 	struct sensor_win_size *wsize;
 	struct sensor_info *info = to_state(sd);
-	struct regval_list regs;
-        int cnt,retval,pos_l=0,pos_h=0;
+	int cnt;
+	data_type retval,pos_l=0,pos_h=0;
 	
-	 vfe_dev_print(" sensor_s_fmt\n");
+	vfe_dev_print(" sensor_s_fmt\n");
 	
 	ret = sensor_try_fmt_internal(sd, fmt, &sensor_fmt, &wsize);
 	if (ret)
@@ -4813,35 +4269,22 @@ static int sensor_s_fmt(struct v4l2_subdev *sd,
 
 			
 	}
-//	else if(info->capture_mode == V4L2_MODE_PREVIEW)
-//	{
-//		sensor_s_continueous_af(sd,1);
-//	}
-	 vfe_dev_print(" 1111111111111\n");
+	else if(info->capture_mode == V4L2_MODE_PREVIEW)
+		sensor_s_continueous_af(sd);
+	
 	sensor_write_array(sd, sensor_fmt->regs , sensor_fmt->regs_size);//add by xiongbiao on 20130403
 	ret = 0;
 	if (wsize->regs)
 	{
-		 vfe_dev_print(" 22222222222222\n");
 		ret = sensor_write_array(sd, wsize->regs , wsize->regs_size);
 		if (ret < 0)
 			return ret;
 	}
-	if(info->capture_mode == V4L2_MODE_VIDEO || info->capture_mode == V4L2_MODE_PREVIEW)
+	if(info->capture_mode == V4L2_MODE_VIDEO)
 	{
-	/*
-		if(info->auto_focus==1) 
-		{
-			sensor_s_continueous_af(sd, 1); 
-			msleep(100); 
-		} 
-		else 
-		{ 
-			msleep(150); 
-		} 
+  		LOG_ERR_RET(sensor_write(sd, 0x070A, 0x00))
 
 		 vfe_dev_print("info->capture_mode == V4L2_MODE_VIDEO\n");
-		 */
 	}
 	else if(info->capture_mode == V4L2_MODE_IMAGE)
 	{
@@ -4861,57 +4304,10 @@ static int sensor_s_fmt(struct v4l2_subdev *sd,
 		if (ret < 0)
 			return ret;
 	}
-
-#if 0	
-	if(info->capture_mode == V4L2_MODE_VIDEO)
-	{
-		//video
-		if(info->af_mode != V4L2_AF_FIXED) {
-
-#if 0
-			if(info->af_mode != V4L2_AF_TOUCH && info->af_mode != V4L2_AF_FACE) {				
-				ret = sensor_s_relaunch_af_zone(sd);	//set af zone to default zone
-				if (ret < 0) {
-					 vfe_dev_err("sensor_s_relaunch_af_zone err !\n");
-					return ret;
-				}	
-			}
-#endif
-
-			if(info->af_mode != V4L2_AF_INFINITY) {
-				ret = sensor_s_continueous_af(sd);		//set continueous af
-				if (ret < 0) {
-					 vfe_dev_err("sensor_s_continueous_af err !\n");
-					return ret;
-				}
-			}
-		}
-		sensor_s_fps(sd);	
-	}
-#endif	
-#if 0//#if DEV_DBG_EN == 1		//gong
-	{
-		int i;
-		struct regval_list dbg_regs[] = {
-			{{0x30,0x34},{0xee}},
-			{{0x30,0x35},{0xee}},
-			{{0x30,0x36},{0xee}},
-			{{0x30,0x37},{0xee}},
-			{{0x31,0x08},{0xee}},
-			{{0x38,0x24},{0xee}},
-		};
-		for(i=0;i<6;i++) {
-			sensor_read(sd,dbg_regs[i].reg_num,dbg_regs[i].value);
-			 vfe_dev_print("address 0x%2x%2x = %4x",dbg_regs[i].reg_num[0],dbg_regs[i].reg_num[1],dbg_regs[i].value[0]);
-		}
-	}
-#endif
-		
 	info->fmt = sensor_fmt;
 	info->width = wsize->width;
 	info->height = wsize->height;
-	 vfe_dev_print(" 4444444444444444\n");
-	 vfe_dev_print("s_fmt=%s set width = %d, height = %d\n",sensor_fmt->desc,wsize->width,wsize->height);
+	vfe_dev_print("s_fmt=%s set width = %d, height = %d\n",sensor_fmt->desc,wsize->width,wsize->height);
 	
 	return 0;
 }
@@ -4941,54 +4337,54 @@ static int sensor_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 
 static int sensor_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 {
-  struct v4l2_captureparm *cp = &parms->parm.capture;
-  struct v4l2_fract *tpf = &cp->timeperframe;
-  struct sensor_info *info = to_state(sd);
-  unsigned char div;
-  
-  vfe_dev_dbg("sensor_s_parm\n");
-  
-  if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE){
-  	vfe_dev_dbg("parms->type!=V4L2_BUF_TYPE_VIDEO_CAPTURE\n");
-    return -EINVAL;
-  }
-  
-  if (info->tpf.numerator == 0){
-  	vfe_dev_dbg("info->tpf.numerator == 0\n");
-    return -EINVAL;
-  }
-    
-  info->capture_mode = cp->capturemode;
-  
-  if (info->capture_mode == V4L2_MODE_IMAGE) {
-    vfe_dev_dbg("capture mode is not video mode,can not set frame rate!\n");
-    return 0;
-  }
-    
-  if (tpf->numerator == 0 || tpf->denominator == 0) {
-    tpf->numerator = 1;
-    tpf->denominator = SENSOR_FRAME_RATE;/* Reset to full rate */
-    vfe_dev_err("sensor frame rate reset to full rate!\n");
-  }
-  
-  div = SENSOR_FRAME_RATE/(tpf->denominator/tpf->numerator);
-  if(div > 15 || div == 0)
-  {
-  	vfe_dev_print("SENSOR_FRAME_RATE=%d\n",SENSOR_FRAME_RATE);
-  	vfe_dev_print("tpf->denominator=%d\n",tpf->denominator);
-  	vfe_dev_print("tpf->numerator=%d\n",tpf->numerator);
-    return -EINVAL;
-  }
-  
-  vfe_dev_dbg("set frame rate %d\n",tpf->denominator/tpf->numerator);
-  
-  info->tpf.denominator = SENSOR_FRAME_RATE; 
-  info->tpf.numerator = div;
+	struct v4l2_captureparm *cp = &parms->parm.capture;
+	struct v4l2_fract *tpf = &cp->timeperframe;
+	struct sensor_info *info = to_state(sd);
+	data_type div;
+
+	vfe_dev_dbg("sensor_s_parm\n");
+
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE){
+		vfe_dev_dbg("parms->type!=V4L2_BUF_TYPE_VIDEO_CAPTURE\n");
+		return -EINVAL;
+	}
+
+	if (info->tpf.numerator == 0){
+		vfe_dev_dbg("info->tpf.numerator == 0\n");
+		return -EINVAL;
+	}
+
+	info->capture_mode = cp->capturemode;
+
+	if (info->capture_mode == V4L2_MODE_IMAGE) {
+		vfe_dev_dbg("capture mode is not video mode,can not set frame rate!\n");
+		return 0;
+	}
+
+	if (tpf->numerator == 0 || tpf->denominator == 0) {
+		tpf->numerator = 1;
+		tpf->denominator = SENSOR_FRAME_RATE;/* Reset to full rate */
+		vfe_dev_err("sensor frame rate reset to full rate!\n");
+	}
+
+	div = SENSOR_FRAME_RATE/(tpf->denominator/tpf->numerator);
+	if(div > 15 || div == 0)
+	{
+		vfe_dev_print("SENSOR_FRAME_RATE=%d\n",SENSOR_FRAME_RATE);
+		vfe_dev_print("tpf->denominator=%d\n",tpf->denominator);
+		vfe_dev_print("tpf->numerator=%d\n",tpf->numerator);
+		return -EINVAL;
+	}
+
+	vfe_dev_dbg("set frame rate %d\n",tpf->denominator/tpf->numerator);
+
+	info->tpf.denominator = SENSOR_FRAME_RATE; 
+	info->tpf.numerator = div;
   
 	if(info->tpf.denominator/info->tpf.numerator < 30)
 		info->low_speed = 1;
     
-  return 0;
+	return 0;
 }
 
 
@@ -5003,288 +4399,265 @@ static int sensor_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 static int sensor_queryctrl(struct v4l2_subdev *sd,
     struct v4l2_queryctrl *qc)
 {
-  /* Fill in min, max, step and default value for these controls. */
-  /* see include/linux/videodev2.h for details */
-//  vfe_dev_dbg("queryctrl qc->id=0x%8x\n", qc->id);
-  switch (qc->id) {
-  case V4L2_CID_BRIGHTNESS:
-    return v4l2_ctrl_query_fill(qc, -4, 4, 1, 1);
-  case V4L2_CID_CONTRAST:
-    return v4l2_ctrl_query_fill(qc, -4, 4, 1, 1);
-  case V4L2_CID_SATURATION:
-    return v4l2_ctrl_query_fill(qc, -4, 4, 1, 1);
-  case V4L2_CID_HUE:
-    return v4l2_ctrl_query_fill(qc, -180, 180, 5, 0);
-  case V4L2_CID_VFLIP:
-  case V4L2_CID_HFLIP:
-    return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
-  case V4L2_CID_GAIN:
-   return v4l2_ctrl_query_fill(qc, 0, 255, 1, 128);
-  case V4L2_CID_AUTOGAIN:
-    return v4l2_ctrl_query_fill(qc, 0, 1, 1, 1);
-  case V4L2_CID_EXPOSURE:
-  case V4L2_CID_AUTO_EXPOSURE_BIAS:
-    return v4l2_ctrl_query_fill(qc, -4, 4, 1, -1);
-  case V4L2_CID_EXPOSURE_AUTO:
-    return v4l2_ctrl_query_fill(qc, -4, 4, 1, -1);
-  case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
-    return v4l2_ctrl_query_fill(qc, 0, 9, 1, 1);
-  case V4L2_CID_AUTO_WHITE_BALANCE:
-    return v4l2_ctrl_query_fill(qc, 0, 9, 1, 1);
-  case V4L2_CID_COLORFX:
-    return v4l2_ctrl_query_fill(qc, 0, 15, 1, 0);
-  case V4L2_CID_FLASH_LED_MODE:
-    return v4l2_ctrl_query_fill(qc, 0, 4, 1, 0);  
-  
-  case V4L2_CID_3A_LOCK:
-    return v4l2_ctrl_query_fill(qc, 0, V4L2_LOCK_FOCUS, 1, 0);
-//  case V4L2_CID_AUTO_FOCUS_RANGE:
-//    return v4l2_ctrl_query_fill(qc, 0, 0, 0, 0);//only auto
-  case V4L2_CID_AUTO_FOCUS_INIT:
-  case V4L2_CID_AUTO_FOCUS_RELEASE:
-  case V4L2_CID_AUTO_FOCUS_START:
-  case V4L2_CID_AUTO_FOCUS_STOP:
-  case V4L2_CID_AUTO_FOCUS_STATUS:
-    return v4l2_ctrl_query_fill(qc, 0, 0, 0, 0);
-  case V4L2_CID_FOCUS_AUTO:
-    return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
-  //case V4L2_CID_AUTO_EXPOSURE_WIN_NUM:
-    //return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
-  //case V4L2_CID_AUTO_FOCUS_WIN_NUM:
-   // return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
-  }
-  return -EINVAL;
+	/* Fill in min, max, step and default value for these controls. */
+	/* see include/linux/videodev2.h for details */
+	/* see sensor_s_parm and sensor_g_parm for the meaning of value */
+
+	switch (qc->id) {
+	case V4L2_CID_BRIGHTNESS:
+		return v4l2_ctrl_query_fill(qc, -4, 4, 1, 1);
+	case V4L2_CID_CONTRAST:
+		return v4l2_ctrl_query_fill(qc, -4, 4, 1, 1);
+	case V4L2_CID_SATURATION:
+		return v4l2_ctrl_query_fill(qc, -4, 4, 1, 1);
+	case V4L2_CID_HUE:
+		return v4l2_ctrl_query_fill(qc, -180, 180, 5, 0);
+	case V4L2_CID_VFLIP:
+	case V4L2_CID_HFLIP:
+		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
+	case V4L2_CID_GAIN:
+		return v4l2_ctrl_query_fill(qc, 0, 255, 1, 128);
+	case V4L2_CID_AUTOGAIN:
+		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 1);
+	case V4L2_CID_EXPOSURE:
+	case V4L2_CID_AUTO_EXPOSURE_BIAS:
+		return v4l2_ctrl_query_fill(qc, -4, 4, 1, -1);
+	case V4L2_CID_EXPOSURE_AUTO:
+		return v4l2_ctrl_query_fill(qc, -4, 4, 1, -1);
+	case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
+		return v4l2_ctrl_query_fill(qc, 0, 9, 1, 1);
+	case V4L2_CID_AUTO_WHITE_BALANCE:
+		return v4l2_ctrl_query_fill(qc, 0, 9, 1, 1);
+	case V4L2_CID_COLORFX:
+		return v4l2_ctrl_query_fill(qc, 0, 15, 1, 0);
+	case V4L2_CID_FLASH_LED_MODE:
+		return v4l2_ctrl_query_fill(qc, 0, 4, 1, 0);  
+	case V4L2_CID_3A_LOCK:
+		return v4l2_ctrl_query_fill(qc, 0, V4L2_LOCK_FOCUS, 1, 0);
+//	case V4L2_CID_AUTO_FOCUS_RANGE:
+//		return v4l2_ctrl_query_fill(qc, 0, 0, 0, 0);//only auto
+	case V4L2_CID_AUTO_FOCUS_INIT:
+	case V4L2_CID_AUTO_FOCUS_RELEASE:
+	case V4L2_CID_AUTO_FOCUS_START:
+	case V4L2_CID_AUTO_FOCUS_STOP:
+	case V4L2_CID_AUTO_FOCUS_STATUS:
+		return v4l2_ctrl_query_fill(qc, 0, 0, 0, 0);
+	case V4L2_CID_FOCUS_AUTO:
+		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
+	}
+	return -EINVAL;
 }
 
 static int sensor_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
-  //vfe_dev_dbg("sensor_g_ctrl ctrl->id=0x%8x\n", ctrl->id);
-  switch (ctrl->id) {
-  case V4L2_CID_BRIGHTNESS:
-    return sensor_g_brightness(sd, &ctrl->value);
-  case V4L2_CID_CONTRAST:
-    return sensor_g_contrast(sd, &ctrl->value);
-  case V4L2_CID_SATURATION:
-    return sensor_g_saturation(sd, &ctrl->value);
-  case V4L2_CID_HUE:
-    return sensor_g_hue(sd, &ctrl->value);  
-  case V4L2_CID_VFLIP:
-    return sensor_g_vflip(sd, &ctrl->value);
-  case V4L2_CID_HFLIP:
-    return sensor_g_hflip(sd, &ctrl->value);
-  case V4L2_CID_GAIN:
-    return sensor_g_gain(sd, &ctrl->value);
-  case V4L2_CID_AUTOGAIN:
-    return sensor_g_autogain(sd, &ctrl->value);
-  case V4L2_CID_EXPOSURE:
-  case V4L2_CID_AUTO_EXPOSURE_BIAS:
-    return sensor_g_exp(sd, &ctrl->value);
-  case V4L2_CID_EXPOSURE_AUTO:
-    return sensor_g_autoexp(sd, &ctrl->value);
-  case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
-    return sensor_g_wb(sd, &ctrl->value);
-  case V4L2_CID_AUTO_WHITE_BALANCE:
-    return sensor_g_autowb(sd, &ctrl->value);
-  case V4L2_CID_COLORFX:
-    return sensor_g_colorfx(sd, &ctrl->value);
-  //case V4L2_CID_FLASH_LED_MODE:
-  //  return sensor_g_flash_mode(sd, &ctrl->value);
-  case V4L2_CID_POWER_LINE_FREQUENCY:
-    return sensor_g_band_filter(sd, &ctrl->value);
-  
-  case V4L2_CID_3A_LOCK:
-  	return sensor_g_3a_lock(sd);
-//  case V4L2_CID_AUTO_FOCUS_RANGE:
-//  	ctrl->value=0;//only auto
-//  	return 0;
-//  case V4L2_CID_AUTO_FOCUS_INIT:
-//  case V4L2_CID_AUTO_FOCUS_RELEASE:
-//  case V4L2_CID_AUTO_FOCUS_START:
-//  case V4L2_CID_AUTO_FOCUS_STOP:
-  case V4L2_CID_AUTO_FOCUS_STATUS:
-  	//printk("V4L2_CID_AUTO_FOCUS_STATUS\n");
-  	return sensor_g_af_status(sd);
-//  case V4L2_CID_FOCUS_AUTO:
- // case V4L2_CID_AUTO_FOCUS_WIN_NUM:
-  	//ctrl->value=1;
-  	//return 0;
-  //case V4L2_CID_AUTO_EXPOSURE_WIN_NUM:
-  	//ctrl->value=1;
-  	//return 0;
-  }
-  return -EINVAL;
+	switch (ctrl->id) {
+	case V4L2_CID_BRIGHTNESS:
+		return sensor_g_brightness(sd, &ctrl->value);
+	case V4L2_CID_CONTRAST:
+		return sensor_g_contrast(sd, &ctrl->value);
+	case V4L2_CID_SATURATION:
+		return sensor_g_saturation(sd, &ctrl->value);
+	case V4L2_CID_HUE:
+		return sensor_g_hue(sd, &ctrl->value);  
+	case V4L2_CID_VFLIP:
+		return sensor_g_vflip(sd, &ctrl->value);
+	case V4L2_CID_HFLIP:
+		return sensor_g_hflip(sd, &ctrl->value);
+	case V4L2_CID_GAIN:
+		return sensor_g_gain(sd, &ctrl->value);
+	case V4L2_CID_AUTOGAIN:
+		return sensor_g_autogain(sd, &ctrl->value);
+	case V4L2_CID_EXPOSURE:
+	case V4L2_CID_AUTO_EXPOSURE_BIAS:
+		return sensor_g_exp(sd, &ctrl->value);
+	case V4L2_CID_EXPOSURE_AUTO:
+		return sensor_g_autoexp(sd, &ctrl->value);
+	case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
+		return sensor_g_wb(sd, &ctrl->value);
+	case V4L2_CID_AUTO_WHITE_BALANCE:
+		return sensor_g_autowb(sd, &ctrl->value);
+	case V4L2_CID_COLORFX:
+		return sensor_g_colorfx(sd, &ctrl->value);
+//	case V4L2_CID_FLASH_LED_MODE:
+//		return sensor_g_flash_mode(sd, &ctrl->value);
+	case V4L2_CID_POWER_LINE_FREQUENCY:
+		return sensor_g_band_filter(sd, &ctrl->value);
+	case V4L2_CID_3A_LOCK:
+		return sensor_g_3a_lock(sd);
+//	case V4L2_CID_AUTO_FOCUS_RANGE:
+//		ctrl->value=0;//only auto
+//		return 0;
+//	case V4L2_CID_AUTO_FOCUS_INIT:
+//	case V4L2_CID_AUTO_FOCUS_RELEASE:
+//	case V4L2_CID_AUTO_FOCUS_START:
+//	case V4L2_CID_AUTO_FOCUS_STOP:
+	case V4L2_CID_AUTO_FOCUS_STATUS:
+		return sensor_g_af_status(sd);
+//	case V4L2_CID_FOCUS_AUTO:
+	}
+	return -EINVAL;
 }
 
 static int sensor_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
-  struct v4l2_queryctrl qc;
-  int ret;
-  struct v4l2_pix_size *pix;
+	struct v4l2_queryctrl qc;
+	int ret;
   
-//  vfe_dev_dbg("sensor_s_ctrl ctrl->id=0x%8x\n", ctrl->id);
-  qc.id = ctrl->id;
-  ret = sensor_queryctrl(sd, &qc);
-  if (ret < 0) {
-    return ret;
-  }
+	qc.id = ctrl->id;
+	ret = sensor_queryctrl(sd, &qc);
+	if (ret < 0) {
+		return ret;
+	}
 
 	if (qc.type == V4L2_CTRL_TYPE_MENU ||
-		qc.type == V4L2_CTRL_TYPE_INTEGER ||
-		qc.type == V4L2_CTRL_TYPE_BOOLEAN)
+			qc.type == V4L2_CTRL_TYPE_INTEGER ||
+			qc.type == V4L2_CTRL_TYPE_BOOLEAN)
 	{
-	  if (ctrl->value < qc.minimum || ctrl->value > qc.maximum) {
-	    return -ERANGE;
-	  }
+			if (ctrl->value < qc.minimum || ctrl->value > qc.maximum) 
+		{
+			return -ERANGE;
+		}
 	}
 	
-  switch (ctrl->id) {
-    case V4L2_CID_BRIGHTNESS:
-      return sensor_s_brightness(sd, ctrl->value);
-    case V4L2_CID_CONTRAST:
-      return sensor_s_contrast(sd, ctrl->value);
-    case V4L2_CID_SATURATION:
-      return sensor_s_saturation(sd, ctrl->value);
-    case V4L2_CID_HUE:
-      return sensor_s_hue(sd, ctrl->value);   
-    case V4L2_CID_VFLIP:
-      return sensor_s_vflip(sd, ctrl->value);
-    case V4L2_CID_HFLIP:
-      return sensor_s_hflip(sd, ctrl->value);
-    case V4L2_CID_GAIN:
-      return sensor_s_gain(sd, ctrl->value);
-    case V4L2_CID_AUTOGAIN:
-      return sensor_s_autogain(sd, ctrl->value);
-    case V4L2_CID_EXPOSURE:
-    case V4L2_CID_AUTO_EXPOSURE_BIAS:
-      return sensor_s_exp(sd, ctrl->value);
-    case V4L2_CID_EXPOSURE_AUTO:
-      return sensor_s_autoexp(sd,
-          (enum v4l2_exposure_auto_type) ctrl->value);
-    case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
-  		return sensor_s_wb(sd,
-          (enum v4l2_auto_n_preset_white_balance) ctrl->value); 
-    case V4L2_CID_AUTO_WHITE_BALANCE:
-      return sensor_s_autowb(sd, ctrl->value);
-    case V4L2_CID_COLORFX:
-      return sensor_s_colorfx(sd,
-          (enum v4l2_colorfx) ctrl->value);
-   // case V4L2_CID_FLASH_LED_MODE:
-   //   return sensor_s_flash_mode(sd,
-    //      (enum v4l2_flash_led_mode) ctrl->value);
-    case V4L2_CID_POWER_LINE_FREQUENCY:
-      return sensor_s_band_filter(sd,
-          (enum v4l2_power_line_frequency) ctrl->value);
-    
-    case V4L2_CID_3A_LOCK:
-    	return sensor_s_3a_lock(sd, ctrl->value);
-//    case V4L2_CID_AUTO_FOCUS_RANGE:
-//  	  return 0;
-	  case V4L2_CID_AUTO_FOCUS_INIT:
-	  	return sensor_s_init_af(sd);
-	  case V4L2_CID_AUTO_FOCUS_RELEASE:
-	  	return sensor_s_release_af(sd);
-	  case V4L2_CID_AUTO_FOCUS_START:
-	  	return sensor_s_single_af(sd);
-	  case V4L2_CID_AUTO_FOCUS_STOP:
-	  	return sensor_s_pause_af(sd);
-	  case V4L2_CID_AUTO_FOCUS_STATUS:
-	  case V4L2_CID_FOCUS_AUTO:
-	  	return sensor_s_continueous_af(sd, ctrl->value);
-	  //case V4L2_CID_AUTO_FOCUS_WIN_NUM:
-	  	//vfe_dev_dbg("s_ctrl win value=%d\n",ctrl->value);
-	  	//return sensor_s_af_zone(sd, (struct v4l2_win_coordinate *)(ctrl->user_pt));
-	//  case V4L2_CID_AUTO_EXPOSURE_WIN_NUM:
-	  //	return 0;
-  }
-  return -EINVAL;
+	switch (ctrl->id) {
+	case V4L2_CID_BRIGHTNESS:
+		return sensor_s_brightness(sd, ctrl->value);
+	case V4L2_CID_CONTRAST:
+		return sensor_s_contrast(sd, ctrl->value);
+	case V4L2_CID_SATURATION:
+		return sensor_s_saturation(sd, ctrl->value);
+	case V4L2_CID_HUE:
+		return sensor_s_hue(sd, ctrl->value);   
+	case V4L2_CID_VFLIP:
+		return sensor_s_vflip(sd, ctrl->value);
+	case V4L2_CID_HFLIP:
+		return sensor_s_hflip(sd, ctrl->value);
+	case V4L2_CID_GAIN:
+		return sensor_s_gain(sd, ctrl->value);
+	case V4L2_CID_AUTOGAIN:
+		return sensor_s_autogain(sd, ctrl->value);
+	case V4L2_CID_EXPOSURE:
+	case V4L2_CID_AUTO_EXPOSURE_BIAS:
+		return sensor_s_exp(sd, ctrl->value);
+	case V4L2_CID_EXPOSURE_AUTO:
+	return sensor_s_autoexp(sd, (enum v4l2_exposure_auto_type) ctrl->value);
+	case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
+		return sensor_s_wb(sd, (enum v4l2_auto_n_preset_white_balance) ctrl->value); 
+	case V4L2_CID_AUTO_WHITE_BALANCE:
+		return sensor_s_autowb(sd, ctrl->value);
+	case V4L2_CID_COLORFX:
+		return sensor_s_colorfx(sd, (enum v4l2_colorfx) ctrl->value);
+//	case V4L2_CID_FLASH_LED_MODE:
+//		return sensor_s_flash_mode(sd, (enum v4l2_flash_led_mode) ctrl->value);
+	case V4L2_CID_POWER_LINE_FREQUENCY:
+	return sensor_s_band_filter(sd, (enum v4l2_power_line_frequency) ctrl->value);
+//	case V4L2_CID_3A_LOCK:
+//		return sensor_s_3a_lock(sd, ctrl->value);
+//	case V4L2_CID_AUTO_FOCUS_RANGE:
+//		return 0;
+	case V4L2_CID_AUTO_FOCUS_INIT:
+		return sensor_s_init_af(sd);
+	case V4L2_CID_AUTO_FOCUS_RELEASE:
+		return sensor_s_release_af(sd);
+	case V4L2_CID_AUTO_FOCUS_START:
+		return sensor_s_single_af(sd);
+	case V4L2_CID_AUTO_FOCUS_STOP:
+		return sensor_s_pause_af(sd);
+	case V4L2_CID_AUTO_FOCUS_STATUS:
+	case V4L2_CID_FOCUS_AUTO:
+		return sensor_s_continueous_af(sd);
+	}
+	return -EINVAL;
 }
 
 
 static int sensor_g_chip_ident(struct v4l2_subdev *sd,
     struct v4l2_dbg_chip_ident *chip)
 {
-  struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
-  return v4l2_chip_ident_i2c_client(client, chip, V4L2_IDENT_SENSOR, 0);
+	return v4l2_chip_ident_i2c_client(client, chip, V4L2_IDENT_SENSOR, 0);
 }
 
 
 /* ----------------------------------------------------------------------- */
 
 static const struct v4l2_subdev_core_ops sensor_core_ops = {
-  .g_chip_ident = sensor_g_chip_ident,
-  .g_ctrl = sensor_g_ctrl,
-  .s_ctrl = sensor_s_ctrl,
-  .queryctrl = sensor_queryctrl,
-  .reset = sensor_reset,
-  .init = sensor_init,
-  .s_power = sensor_power,
-  .ioctl = sensor_ioctl,
+	.g_chip_ident = sensor_g_chip_ident,
+	.g_ctrl = sensor_g_ctrl,
+	.s_ctrl = sensor_s_ctrl,
+	.queryctrl = sensor_queryctrl,
+	.reset = sensor_reset,
+	.init = sensor_init,
+	.s_power = sensor_power,
+	.ioctl = sensor_ioctl,
 };
 
 static const struct v4l2_subdev_video_ops sensor_video_ops = {
-  .enum_mbus_fmt = sensor_enum_fmt,
-  .enum_framesizes = sensor_enum_size,
-  .try_mbus_fmt = sensor_try_fmt,
-  .s_mbus_fmt = sensor_s_fmt,
-  .s_parm = sensor_s_parm,
-  .g_parm = sensor_g_parm,
-  .g_mbus_config = sensor_g_mbus_config,
+	.enum_mbus_fmt = sensor_enum_fmt,
+	.enum_framesizes = sensor_enum_size,
+	.try_mbus_fmt = sensor_try_fmt,
+	.s_mbus_fmt = sensor_s_fmt,
+	.s_parm = sensor_s_parm,
+	.g_parm = sensor_g_parm,
+	.g_mbus_config = sensor_g_mbus_config,
 };
 
 static const struct v4l2_subdev_ops sensor_ops = {
-  .core = &sensor_core_ops,
-  .video = &sensor_video_ops,
+	.core = &sensor_core_ops,
+	.video = &sensor_video_ops,
 };
 
 /* ----------------------------------------------------------------------- */
 static struct cci_driver cci_drv = {
 	.name = SENSOR_NAME,
+	.addr_width = CCI_BITS_16,
+	.data_width = CCI_BITS_8,
 };
 
 
 static int sensor_probe(struct i2c_client *client,
       const struct i2c_device_id *id)
 {
-  struct v4l2_subdev *sd;
-  struct sensor_info *info;
-//  int ret;
-  info = kzalloc(sizeof(struct sensor_info), GFP_KERNEL);
-  if (info == NULL)
-    return -ENOMEM;
-  sd = &info->sd;
-  glb_sd = sd;
-  cci_dev_probe_helper(sd, client, &sensor_ops, &cci_drv);
-  info->fmt = &sensor_formats[0];  
-  info->af_first_flag = 1;
-  info->init_first_flag = 1;
-  info->auto_focus = 0;
-  return 0;
+	struct v4l2_subdev *sd;
+	struct sensor_info *info;
+	info = kzalloc(sizeof(struct sensor_info), GFP_KERNEL);
+	if (info == NULL)
+		return -ENOMEM;
+	sd = &info->sd;
+	glb_sd = sd;
+	cci_dev_probe_helper(sd, client, &sensor_ops, &cci_drv);
+	info->fmt = &sensor_formats[0];  
+	info->af_first_flag = 1;
+	info->init_first_flag = 1;
+	info->auto_focus = 0;
+	return 0;
 }
+
 
 static int sensor_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd;
+
 	sd = cci_dev_remove_helper(client, &cci_drv);
-	printk("sensor_remove ov5640 sd = %p!\n",sd);
 	kfree(to_state(sd));
 	return 0;
 }
 
 static const struct i2c_device_id sensor_id[] = {
-  { SENSOR_NAME, 0 },
-  { }
+	{ SENSOR_NAME, 0 },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, sensor_id);
 
 static struct i2c_driver sensor_driver = {
-  .driver = {
-    .owner = THIS_MODULE,
-  .name = SENSOR_NAME,
-  },
-  .probe = sensor_probe,
-  .remove = sensor_remove,
-  .id_table = sensor_id,
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = SENSOR_NAME,
+	},
+	.probe = sensor_probe,
+	.remove = sensor_remove,
+	.id_table = sensor_id,
 };
 static __init int init_sensor(void)
 {

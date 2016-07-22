@@ -1,5 +1,5 @@
 # OP-TEE Linux Driver
-The optee_linuxdriver git, containing the source code for the TEE driver 
+The optee_linuxdriver git, containing the source code for the TEE driver
 module in Linux.
 It is distributed under the GPLv2 open-source license. For a general
 overview of OP-TEE, please see the [Notice.md](Notice.md) file.

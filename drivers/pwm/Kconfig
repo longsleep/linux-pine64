@@ -201,25 +201,13 @@ config PWM_VT8500
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-vt8500.
 
-choice
-	prompt "SUNXI PWM SELECT."
+config PWM_SUNXI
+	tristate "Sunxi PWM support"
+	depends on PWM && ARCH_SUNXI
+	help
+	  Generic PWM framework driver for sunxi.
 
-	config PWM_SUNXI
-		tristate "Sunxi PWM support"
-		depends on PWM && ARCH_SUNXI
-		help
-		  Generic PWM framework driver for sunxi.
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-sunxi.
 
-		  To compile this driver as a module, choose M here: the module
-		  will be called pwm-sunxi.
-
-	config PWM_SUNXI_NEW
-		tristate "Sunxi Enhance PWM support"
-		depends on PWM && ARCH_SUNXI && (ARCH_SUN8IW10 || ARCH_SUN8IW11)
-		help
-		  Enhance PWM framework driver for sunxi.
-
-		  To compile this driver as a module, choose M here: the module
-		  will be called pwm-sunxi.
-endchoice
 endif

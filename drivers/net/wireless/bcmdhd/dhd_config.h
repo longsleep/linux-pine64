@@ -123,6 +123,7 @@ typedef struct dhd_conf {
 	int dpc_cpucore;
 	int frameburst;
 	bool deepsleep;
+	int pm;
 } dhd_conf_t;
 
 #ifdef BCMSDIO
@@ -165,6 +166,7 @@ int dhd_conf_read_config(dhd_pub_t *dhd, char *conf_path);
 int dhd_conf_set_chiprev(dhd_pub_t *dhd, uint chip, uint chiprev);
 uint dhd_conf_get_chip(void *context);
 uint dhd_conf_get_chiprev(void *context);
+int dhd_conf_get_pm(void *context);
 int dhd_conf_preinit(dhd_pub_t *dhd);
 int dhd_conf_reset(dhd_pub_t *dhd);
 int dhd_conf_attach(dhd_pub_t *dhd);

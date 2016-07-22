@@ -13,6 +13,12 @@
 #include <linux/regulator/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/sys_config.h>
+#include <linux/if_ether.h>
+#include <linux/etherdevice.h>
+#include <linux/crypto.h>
+#include <linux/err.h>
+#include <linux/scatterlist.h>
+#include <linux/pinctrl/pinconf-sunxi.h>
 
 struct sunxi_wlan_platdata {
 	int bus_index;
@@ -37,7 +43,7 @@ void sunxi_wlan_set_power(bool on_off)
 {
 	struct platform_device *pdev;
 	int ret = 0;
-	if(!wlan_data)
+	if (!wlan_data)
 		return;
 
 	pdev = wlan_data->pdev;
@@ -54,7 +60,7 @@ EXPORT_SYMBOL_GPL(sunxi_wlan_set_power);
 int sunxi_wlan_get_bus_index(void)
 {
 	struct platform_device *pdev;
-	if(!wlan_data)
+	if (!wlan_data)
 		return -EINVAL;
 
 	pdev = wlan_data->pdev;
@@ -67,11 +73,10 @@ int sunxi_wlan_get_oob_irq(void)
 {
 	struct platform_device *pdev;
 	int host_oob_irq = 0;
-	if(!wlan_data || !gpio_is_valid(wlan_data->gpio_wlan_hostwake))
+	if (!wlan_data || !gpio_is_valid(wlan_data->gpio_wlan_hostwake))
 		return 0;
 
 	pdev = wlan_data->pdev;
-
 	host_oob_irq = gpio_to_irq(wlan_data->gpio_wlan_hostwake);
 	if (IS_ERR_VALUE(host_oob_irq)) 
 		dev_err(&pdev->dev,"map gpio [%d] to virq failed, errno = %d\n",
@@ -84,7 +89,7 @@ EXPORT_SYMBOL_GPL(sunxi_wlan_get_oob_irq);
 int sunxi_wlan_get_oob_irq_flags(void)
 {
 	int oob_irq_flags;
-	if(!wlan_data)
+	if (!wlan_data)
 		return 0;
 
 	oob_irq_flags = (IRQF_TRIGGER_HIGH | IRQF_SHARED | IRQF_NO_SUSPEND);
@@ -99,8 +104,8 @@ static int sunxi_wlan_on(struct sunxi_wlan_platdata *data, bool on_off)
 	struct device *dev = &pdev->dev;
 	int ret = 0;
 
-	if(!on_off && gpio_is_valid(data->gpio_wlan_regon))
-		gpio_set_value(data->gpio_wlan_regon, 0);
+	if (!on_off && gpio_is_valid(data->gpio_wlan_regon))
+		gpio_direction_output(data->gpio_wlan_regon, 0);
 
 	if(data->wlan_power_name){
 		data->wlan_power = regulator_get(dev, data->wlan_power_name);
@@ -162,9 +167,9 @@ static int sunxi_wlan_on(struct sunxi_wlan_platdata *data, bool on_off)
 		}
 	}
 
-	if(on_off && gpio_is_valid(data->gpio_wlan_regon)){
+	if (on_off && gpio_is_valid(data->gpio_wlan_regon)) {
 		mdelay(10);
-		gpio_set_value(data->gpio_wlan_regon, 1);
+		gpio_direction_output(data->gpio_wlan_regon, 1);
 	}
 	wlan_data->power_state = on_off;
 
@@ -204,8 +209,131 @@ static ssize_t power_state_store(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(power_state, S_IRUGO | S_IWUSR,
-	power_state_show, power_state_store);
+extern void sunxi_mmc_rescan_card(unsigned ids);
+static ssize_t scan_device_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int bus = wlan_data->bus_index;
+
+	dev_info(dev, "start scan device on bus_index: %d\n",
+			wlan_data->bus_index);
+	if (bus < 0) {
+		dev_err(dev, "scan device fail!\n");
+		return -1;
+	}
+	sunxi_mmc_rescan_card(bus);
+	return count;
+}
+
+static DEVICE_ATTR(power_state, S_IWUSR | S_IWGRP | S_IRUGO,
+		power_state_show, power_state_store);
+static DEVICE_ATTR(scan_device, S_IWUSR | S_IWGRP,
+		NULL, scan_device_store);
+
+static struct attribute *misc_attributes[] = {
+	&dev_attr_power_state.attr,
+	&dev_attr_scan_device.attr,
+	NULL,
+};
+
+static struct attribute_group misc_attribute_group = {
+	.name  = "rf-ctrl",
+	.attrs = misc_attributes,
+};
+
+static struct miscdevice sunxi_wlan_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name  = "sunxi-wlan",
+};
+
+static char wifi_mac_str[18] = {0};
+extern int sunxi_get_soc_chipid(uint8_t *chipid);
+static void sunxi_wlan_chipid_mac_address(u8 *mac)
+{
+#define MD5_SIZE	16
+#define CHIP_SIZE	16
+
+	struct crypto_hash *tfm;
+	struct hash_desc desc;
+	struct scatterlist sg;
+	u8 result[MD5_SIZE];
+	u8 chipid[CHIP_SIZE];
+	int i = 0;
+	int ret = -1;
+
+	memset(chipid, 0, sizeof(chipid));
+	memset(result, 0, sizeof(result));
+
+	sunxi_get_soc_chipid((u8 *)chipid);
+
+	tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(tfm)) {
+		pr_err("Failed to alloc md5\n");
+		return;
+	}
+	desc.tfm = tfm;
+	desc.flags = 0;
+
+	ret = crypto_hash_init(&desc);
+	if (ret < 0) {
+		pr_err("crypto_hash_init() failed\n");
+		goto out;
+	}
+
+	sg_init_one(&sg, chipid, sizeof(chipid) - 1);
+	ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
+	if (ret < 0) {
+		pr_err("crypto_hash_update() failed for id\n");
+		goto out;
+	}
+
+	crypto_hash_final(&desc, result);
+	if (ret < 0) {
+		pr_err("crypto_hash_final() failed for result\n");
+		goto out;
+	}
+
+	/* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
+	for (i = 0; i < 6; i++)
+		mac[i] = result[2*i];
+	mac[0] &= 0xfe;     /* clear multicast bit */
+	mac[0] &= 0xfd;     /* clear local assignment bit (IEEE802) */
+
+out:
+	crypto_free_hash(tfm);
+}
+EXPORT_SYMBOL(sunxi_wlan_chipid_mac_address);
+
+void sunxi_wlan_custom_mac_address(u8 *mac)
+{
+	int i;
+	char *p = wifi_mac_str;
+	u8 mac_addr[ETH_ALEN] = {0};
+
+	if(!strlen(p)) {
+		return;
+	}
+
+	for (i=0; i < ETH_ALEN; i++, p++) {
+		mac_addr[i] = simple_strtoul(p, &p, 16);
+	}
+
+	memcpy(mac, mac_addr, sizeof(mac_addr));
+}
+EXPORT_SYMBOL(sunxi_wlan_custom_mac_address);
+
+#ifndef MODULE
+static int __init set_wlan_mac_addr(char *str)
+{
+	char *p = str;
+
+	if (str != NULL && *str)
+		strlcpy(wifi_mac_str, p, 18);
+
+	return 0;
+}
+__setup("wifi_mac=", set_wlan_mac_addr);
+#endif
 
 static int sunxi_wlan_probe(struct platform_device *pdev)
 {
@@ -213,9 +341,12 @@ static int sunxi_wlan_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct sunxi_wlan_platdata *data;
 	struct gpio_config config;
+	unsigned long pin_config;
 	u32 val;
 	const char *power,*io_regulator;
 	int ret = 0;
+	int clk_gpio;
+	char pin_name[32];
 
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (!dev)
@@ -264,24 +395,25 @@ static int sunxi_wlan_probe(struct platform_device *pdev)
 	data->gpio_wlan_regon = of_get_named_gpio_flags(np, "wlan_regon", 0, (enum of_gpio_flags *)&config);
 	if (!gpio_is_valid(data->gpio_wlan_regon)) {
 		dev_err(dev, "get gpio wlan_regon failed\n");
-	}else{
-		dev_info(dev,"wlan_regon gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
+	} else {
+		dev_info(dev, "wlan_regon gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
 				config.gpio,
 				config.mul_sel,
 				config.pull,
 				config.drv_level,
 				config.data);
 
-		ret = devm_gpio_request(dev, data->gpio_wlan_regon, "wlan_regon");
+		ret = devm_gpio_request(dev, data->gpio_wlan_regon,
+				"wlan_regon");
 		if (ret < 0) {
-			dev_err(dev,"can't request wlan_regon gpio %d\n",
+			dev_err(dev, "can't request wlan_regon gpio %d\n",
 				data->gpio_wlan_regon);
 			return ret;
 		}
 
 		ret = gpio_direction_output(data->gpio_wlan_regon, 0);
 		if (ret < 0) {
-			dev_err(dev,"can't request output direction wlan_regon gpio %d\n",
+			dev_err(dev, "can't request output direction wlan_regon gpio %d\n",
 				data->gpio_wlan_regon);
 			return ret;
 		}
@@ -290,39 +422,77 @@ static int sunxi_wlan_probe(struct platform_device *pdev)
 	data->gpio_wlan_hostwake = of_get_named_gpio_flags(np, "wlan_hostwake", 0, (enum of_gpio_flags *)&config);
 	if (!gpio_is_valid(data->gpio_wlan_hostwake)) {
 		dev_err(dev, "get gpio wlan_hostwake failed\n");
-	}else{
-		dev_info(dev,"wlan_hostwake gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
+	} else {
+		dev_info(dev, "wlan_hostwake gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
 				config.gpio,
 				config.mul_sel,
 				config.pull,
 				config.drv_level,
 				config.data);
 
-		ret = devm_gpio_request(dev, data->gpio_wlan_hostwake, "wlan_hostwake");
+		ret = devm_gpio_request(dev, data->gpio_wlan_hostwake,
+				"wlan_hostwake");
 		if (ret < 0) {
-			dev_err(dev,"can't request wlan_hostwake gpio %d\n",
+			dev_err(dev, "can't request wlan_hostwake gpio %d\n",
 				data->gpio_wlan_hostwake);
 			return ret;
 		}
 
 		gpio_direction_input(data->gpio_wlan_hostwake);
 		if (ret < 0) {
-			dev_err(dev,"can't request input direction wlan_hostwake gpio %d\n",
+			dev_err(dev, "can't request input direction wlan_hostwake gpio %d\n",
 				data->gpio_wlan_hostwake);
 			return ret;
 		}
 	}
 
-	data->lpo = devm_clk_get(dev, NULL);
+	clk_gpio = of_get_named_gpio_flags(np, "wlan_clk_gpio", 0,
+						(enum of_gpio_flags *)&config);
+	if (!gpio_is_valid(clk_gpio)) {
+		dev_err(dev, "get gpio wlan_clk_gpio failed\n");
+	} else {
+		dev_info(dev, "wlan_clk_gpio gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
+				config.gpio,
+				config.mul_sel,
+				config.pull,
+				config.drv_level,
+				config.data);
+
+		ret = devm_gpio_request(dev, clk_gpio, "wlan_clk_gpio");
+		if (ret < 0) {
+			dev_err(dev, "can't request wlan_clk_gpio gpio %d\n",
+				clk_gpio);
+			return ret;
+		}
+
+		sunxi_gpio_to_name(config.gpio, pin_name);
+		pin_config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_FUNC,
+					config.mul_sel);
+		pin_config_set(SUNXI_PINCTRL, pin_name, pin_config);
+	}
+
+	data->lpo = of_clk_get(np, 0);
 	if (IS_ERR_OR_NULL(data->lpo)){
 		dev_warn(dev, "clk not config\n");
 	}else{
+		dev_warn(dev, "enable clk\n");
 		ret = clk_prepare_enable(data->lpo);
 		if (ret < 0) 
-			dev_warn(dev,"can't enable clk\n");
+			dev_warn(dev, "can't enable clk\n");
 	}
 
-	device_create_file(dev, &dev_attr_power_state);
+	ret = misc_register(&sunxi_wlan_dev);
+	if (ret) {
+		dev_err(dev, "sunxi-wlan register driver as misc device error!\n");
+		return ret;
+	}
+	ret = sysfs_create_group(&sunxi_wlan_dev.this_device->kobj,
+			&misc_attribute_group);
+	if (ret) {
+		dev_err(dev, "sunxi-wlan register sysfs create group failed!\n");
+		return ret;
+	}
+
 	data->power_state = 0;
 
 	return 0;
@@ -330,10 +500,14 @@ static int sunxi_wlan_probe(struct platform_device *pdev)
 
 static int sunxi_wlan_remove(struct platform_device *pdev)
 {
-	device_remove_file(&pdev->dev, &dev_attr_power_state);
-	
-	if (!IS_ERR_OR_NULL(wlan_data->lpo)) 
+	WARN_ON(0 != misc_deregister(&sunxi_wlan_dev));
+	sysfs_remove_group(&(sunxi_wlan_dev.this_device->kobj),
+			&misc_attribute_group);
+
+	if (!IS_ERR_OR_NULL(wlan_data->lpo)) {
 		clk_disable_unprepare(wlan_data->lpo);
+		clk_put(wlan_data->lpo);
+	}
 
 	return 0;
 }
@@ -344,7 +518,7 @@ static const struct of_device_id sunxi_wlan_ids[] = {
 };
 
 static struct platform_driver sunxi_wlan_driver = {
-	.probe		= sunxi_wlan_probe,
+	.probe	= sunxi_wlan_probe,
 	.remove	= sunxi_wlan_remove,
 	.driver	= {
 		.owner	= THIS_MODULE,

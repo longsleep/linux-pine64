@@ -53,6 +53,7 @@ static void init_addr(u32 *addr, u32 addr_num)
 	while(addr_num--){
 		*temp_addr++ = (*addr++)&0xffff;
 	}
+
 	return;
 }
 

@@ -193,9 +193,6 @@ static int nla_put_uid(struct sk_buff *skb, int idx, kuid_t uid)
 
 static int fib_uid_range_match(struct flowi *fl, struct fib_rule *rule)
 {
-    if(rule->table == RT_TABLE_MAIN){
-		return true;
-    }
 	return (!uid_valid(rule->uid_start) && !uid_valid(rule->uid_end)) ||
 	       (uid_gte(fl->flowi_uid, rule->uid_start) &&
 		uid_lte(fl->flowi_uid, rule->uid_end));
@@ -212,8 +209,8 @@ static int fib_rule_match(struct fib_rule *rule, struct fib_rules_ops *ops,
 	if (rule->oifindex && (rule->oifindex != fl->flowi_oif))
 		goto out;
 
-	//if ((rule->mark ^ fl->flowi_mark) & rule->mark_mask)
-	//	goto out;
+	if ((rule->mark ^ fl->flowi_mark) & rule->mark_mask)
+		goto out;
 
 	if (!fib_uid_range_match(fl, rule))
 		goto out;

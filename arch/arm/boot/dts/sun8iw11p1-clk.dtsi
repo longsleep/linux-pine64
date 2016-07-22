@@ -679,15 +679,5 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "losc_out";
 		};
-		clk_ps20: ps20 {
-			#clock-cells = <0>;
-			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "ps20";
-		};
-		clk_ps21: ps21 {
-			#clock-cells = <0>;
-			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "ps21";
-		};
 	};/*clocks end*/
 };

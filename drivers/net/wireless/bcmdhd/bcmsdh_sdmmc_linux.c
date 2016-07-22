@@ -256,6 +256,9 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 		sd_err(("%s: error while trying to keep power\n", __FUNCTION__));
 		return err;
 	}
+#if defined(OOB_INTR_ONLY)
+	bcmsdh_oob_intr_set(sdioh->bcmsdh, FALSE);
+#endif
 	dhd_mmc_suspend = TRUE;
 	smp_mb();
 
@@ -273,7 +276,7 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 	printk("%s Enter func->num=%d\n", __FUNCTION__, func->num);
 	if (func->num != 2)
 		return 0;
-	
+
 	dhd_mmc_suspend = FALSE;
 #if defined(OOB_INTR_ONLY)
 	sdioh = sdio_get_drvdata(func);

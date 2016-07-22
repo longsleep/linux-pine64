@@ -200,7 +200,6 @@ config  INPUT_SW_DEVICE
        help
         Sensors and CTPS of i2c bus to use the equipment inspection
         If you say yes here you get support for Sensors and CTPS Detection.
-
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"
@@ -216,7 +215,6 @@ source "drivers/input/touchscreen/Kconfig"
 source "drivers/input/misc/Kconfig"
 
 source "drivers/input/sensor/Kconfig"
-
 endif
 
 menu "Hardware I/O ports"

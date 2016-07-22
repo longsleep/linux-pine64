@@ -43,6 +43,7 @@
 #include <linux/of_platform.h>
 #include <linux/efi.h>
 #include <linux/sys_config.h>
+#include <linux/sunxi-chip.h>
 
 #include <asm/fixmap.h>
 #include <asm/cputype.h>
@@ -497,6 +498,14 @@ static int c_show(struct seq_file *m, void *v)
 {
 	int i;
 
+#if defined(CONFIG_ARCH_SUNXI)
+	u32 serial[4];
+	int ret;
+	
+	memset(serial, 0, sizeof(serial));
+	ret = sunxi_get_serial((u8 *)serial);
+#endif
+
 	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
 		   cpu_name, read_cpuid_id() & 15, ELF_PLATFORM);
 
@@ -538,7 +547,10 @@ static int c_show(struct seq_file *m, void *v)
 	seq_puts(m, "\n");
 
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
-
+#if defined(CONFIG_ARCH_SUNXI)
+	seq_printf(m, "Serial\t\t: %04x%08x%08x\n",
+		   serial[2], serial[1], serial[0]);
+#endif
 	return 0;
 }
 

@@ -883,10 +883,6 @@ static s32 lcd_clk_disable(struct disp_device* lcd)
 	return	DIS_SUCCESS;
 }
 
-#ifdef EINK_FLUSH_TIME_TEST
-struct timeval lcd_start,lcd_mid, lcd_mid1, lcd_mid2,lcd_end,t5_b,t5_e,pin_b,pin_e,po_b,po_e,tocn_b,tcon_e;
-unsigned int lcd_t1=0,lcd_t2=0,lcd_t3=0,lcd_t4=0,lcd_t5=0,lcd_pin,lcd_po,lcd_tcon;
-#endif
 static s32 disp_lcd_tcon_enable(struct disp_device *lcd)
 {
 	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
@@ -946,58 +942,6 @@ static s32 disp_lcd_pin_cfg(struct disp_device *lcd, u32 bon)
 	return DIS_SUCCESS;
 }
 
-#if defined (CONFIG_FPGA_V4_PLATFORM) && defined (SUPPORT_EINK)
-static s32 disp_lcd_pwm_enable(struct disp_device *lcd)
-{
-	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
-	volatile unsigned long *reg = 0;
-	unsigned long val = 0;
-	if ((NULL == lcd) || (NULL == lcdp)) {
-		DE_WRN("NULL hdl!\n");
-		return DIS_FAIL;
-	}
-	if (disp_lcd_is_used(lcd) && lcdp->pwm_info.dev) {
-		reg = ((volatile unsigned long *)0xf1c20878);
-		val = readl(reg);
-		val = val & 0xfff0ffff;
-		val = val | 0x10000;
-		writel(val, reg);
-		reg = ((volatile unsigned long *)0xf1c2087C);
-		val = readl(reg);
-		val = val & 0xefffffff;
-		val = val | 0x10000000;
-		writel(val, reg);
-		return 0;
-	}
-	DE_WRN("pwm device hdl is NULL\n");
-	return DIS_FAIL;
-}
-static s32 disp_lcd_pwm_disable(struct disp_device *lcd)
-{
-	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
-	volatile unsigned long  *reg = 0;
-	unsigned long val = 0;
-	if ((NULL == lcd) || (NULL == lcdp)) {
-		DE_WRN("NULL hdl!\n");
-		return DIS_FAIL;
-	}
-	if (disp_lcd_is_used(lcd) && lcdp->pwm_info.dev) {
-		reg = ((volatile unsigned long  *)0xf1c20878);
-		val = readl(reg);
-		val = val & 0xfff0ffff;
-		val = val | 0x10000;
-		writel(val, reg);
-		reg = ((volatile unsigned long  *)0xf1c2087C);
-		val = readl(reg);
-		val = val & 0xefffffff;
-		val = val | 0x00000000;
-		writel(val, reg);
-		return 0;
-	}
-	DE_WRN("pwm device hdl is NULL\n");
-	return DIS_FAIL;
-}
-#else
 static s32 disp_lcd_pwm_enable(struct disp_device *lcd)
 {
 	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
@@ -1031,7 +975,6 @@ static s32 disp_lcd_pwm_disable(struct disp_device *lcd)
 
 	return DIS_FAIL;
 }
-#endif
 
 static s32 disp_lcd_backlight_enable(struct disp_device *lcd)
 {
@@ -1096,51 +1039,6 @@ static s32 disp_lcd_backlight_disable(struct disp_device *lcd)
 	return 0;
 }
 
-#if defined (CONFIG_FPGA_V4_PLATFORM) && defined (SUPPORT_EINK)
-static s32 disp_lcd_power_enable(struct disp_device *lcd, u32 power_id)
-{
-	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
-	volatile unsigned long  *reg = 0;
-	unsigned long val = 0;
-	if ((NULL == lcd) || (NULL == lcdp)) {
-		DE_WRN("NULL hdl!\n");
-		return DIS_FAIL;
-	}
-	if (disp_lcd_is_used(lcd)) {
-		reg = ((volatile unsigned long  *)0xf1c20878);
-		val = readl(reg);
-		val = val & 0x000fffff;
-		val = val | 0x11100000;
-		writel(val, reg);
-		reg = ((volatile unsigned long  *)0xf1c2087C);
-		val = readl(reg);
-		val = val & 0x1fffffff;
-		val = val | 0xe0000000;
-		writel(val, reg);
-		return 0;
-	}
-	return DIS_FAIL;
-}
-static s32 disp_lcd_power_disable(struct disp_device *lcd, u32 power_id)
-{
-	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
-	volatile unsigned long  *reg = 0;
-	unsigned long val = 0;
-	if ((NULL == lcd) || (NULL == lcdp)) {
-		DE_WRN("NULL hdl!\n");
-		return DIS_FAIL;
-	}
-	if (disp_lcd_is_used(lcd)) {
-		reg = ((volatile unsigned long  *)0xf1c20878);
-		val = readl(reg);
-		val = val & 0x000fffff;
-		val = val | 0x77700000;
-		writel(val, reg);
-		return 0;
-	}
-	return DIS_FAIL;
-}
-#else
 static s32 disp_lcd_power_enable(struct disp_device *lcd, u32 power_id)
 {
 	struct disp_lcd_private_data *lcdp = disp_lcd_get_priv(lcd);
@@ -1178,7 +1076,6 @@ static s32 disp_lcd_power_disable(struct disp_device *lcd, u32 power_id)
 
 	return 0;
 }
-#endif
 
 static s32 disp_lcd_bright_get_adjust_value(struct disp_device *lcd, u32 bright)
 {
@@ -1331,9 +1228,7 @@ static s32 disp_lcd_get_panel_info(struct disp_device *lcd, disp_panel_para* inf
 	return 0;
 }
 
-#if defined (SUPPORT_EINK) && defined (EINK_PANEL_USED)
-extern int eink_display_one_frame(struct disp_eink_manager* manager);
-#endif
+//FIXME
 extern void sync_event_proc(u32 disp, bool timeout);
 #if defined(__LINUX_PLAT__)
 static s32 disp_lcd_event_proc(int irq, void *parg)
@@ -1343,11 +1238,7 @@ static s32 disp_lcd_event_proc(void *parg)
 {
 	struct disp_device *lcd = (struct disp_device*)parg;
 	struct disp_lcd_private_data *lcdp = NULL;
-#if defined (SUPPORT_EINK) && defined (EINK_PANEL_USED)//fix,add one condition.
-	struct disp_eink_manager* eink_manager = NULL;
-#else
 	struct disp_manager *mgr = NULL;
-#endif
 	u32 hwdev_index;
 
 	if (NULL == lcd)
@@ -1359,17 +1250,7 @@ static s32 disp_lcd_event_proc(void *parg)
 	if (NULL == lcdp)
 		return DISP_IRQ_RETURN;
 
-#if defined (SUPPORT_EINK) && defined (EINK_PANEL_USED)
-	eink_manager = disp_get_eink_manager(0);
-	if (NULL == eink_manager)
-		return DISP_IRQ_RETURN;
-#endif
-
 	if (disp_al_lcd_query_irq(hwdev_index, LCD_IRQ_TCON0_VBLK, &lcdp->panel_info)) {
-#if defined (SUPPORT_EINK) && defined (EINK_PANEL_USED)//fix,add one condition.
-
-		eink_display_one_frame(eink_manager);
-#else
 		int cur_line = disp_al_lcd_get_cur_line(hwdev_index, &lcdp->panel_info);
 		int start_delay = disp_al_lcd_get_start_delay(hwdev_index, &lcdp->panel_info);
 
@@ -1382,7 +1263,6 @@ static s32 disp_lcd_event_proc(void *parg)
 		} else {
 			sync_event_proc(mgr->disp, true);
 		}
-#endif
 	}
 
 	return DISP_IRQ_RETURN;
@@ -1410,10 +1290,8 @@ static s32 disp_lcd_enable(struct disp_device* lcd)
 	if (1 == disp_lcd_is_enabled(lcd))
 		return 0;
 
-#if !defined (SUPPORT_EINK) && !defined (EINK_PANEL_USED)
 	if (mgr->enable)
 		mgr->enable(mgr);
-#endif
 
 	/* init fix power */
 	for (i=0; i<LCD_POWER_NUM; i++) {
@@ -1596,10 +1474,8 @@ static s32 disp_lcd_disable(struct disp_device* lcd)
 		}
 	}
 
-#if !defined (EINK_PANEL_USED) && !defined (SUPPORT_EINK)
 	if (mgr->disable)
 		mgr->disable(mgr);
-#endif
 
 	return 0;
 }
@@ -1958,18 +1834,9 @@ static s32 disp_lcd_init(struct disp_device* lcd)
 		}
 		lcd_clk_init(lcd);
 	}
-#if defined (SUPPORT_EINK) && defined (EINK_PANEL_USED)
-	disp_lcd_pin_cfg(lcd, 1);
-#endif
+
 	//lcd_panel_parameter_check(lcd->disp, lcd);
 	return 0;
-}
-static void disp_close_eink_panel_task(struct work_struct *work)//(unsigned long parg)
-{
-	struct disp_device*  plcd = NULL;
-	plcd = disp_device_find(0, DISP_OUTPUT_TYPE_LCD);
-	plcd->disable(plcd);
-	return;
 }
 
 static s32 disp_lcd_exit(struct disp_device* lcd)
@@ -2077,7 +1944,6 @@ s32 disp_init_lcd(disp_bsp_init_para * para)
 		lcd->init = disp_lcd_init;
 		lcd->exit = disp_lcd_exit;
 
-		INIT_WORK(&lcd->close_eink_panel_work, disp_close_eink_panel_task);
 		lcd->init(lcd);
 		disp_device_register(lcd);
 		disp ++;

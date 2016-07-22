@@ -260,26 +260,7 @@ static void dachpf_enable(struct snd_soc_codec *codec,bool on)
 static void adchpf_enable(struct snd_soc_codec *codec,bool on)
 {
 	if (on) {
-                snd_soc_update_bits(codec, SUNXI_MOD_CLK_ENA, (0x1<<HPF_AGC_MOD_CLK_EN), (0x1<<HPF_AGC_MOD_CLK_EN));
-                snd_soc_update_bits(codec, SUNXI_MOD_RST_CTL, (0x1<<HPF_AGC_MOD_RST_CTL), (0x1<<HPF_AGC_MOD_RST_CTL));
-
-                snd_soc_update_bits(codec, SUNXI_AC_ADC_DAPLCTRL, (0x1<<LEFT_HPF_EN), (0x1<<LEFT_HPF_EN));
-                snd_soc_update_bits(codec, SUNXI_AC_ADC_DAPRCTRL, (0x1<<RIGHT_HPF_EN), (0x1<<RIGHT_HPF_EN));
-
-                snd_soc_write(codec, SUNXI_AC_DAPHHPFC, 0xef);
-                snd_soc_write(codec, SUNXI_AC_DAPLHPFC, 0xfac1);
-
-                snd_soc_update_bits(codec, SUNXI_AGC_ENA, (0x3<<6), (0x3<<6));
-
 	} else {
-                snd_soc_update_bits(codec, SUNXI_MOD_CLK_ENA, (0x1<<HPF_AGC_MOD_CLK_EN), (0x0<<HPF_AGC_MOD_CLK_EN));
-                snd_soc_update_bits(codec, SUNXI_MOD_RST_CTL, (0x1<<HPF_AGC_MOD_RST_CTL), (0x0<<HPF_AGC_MOD_RST_CTL));
-
-                snd_soc_update_bits(codec, SUNXI_AC_ADC_DAPLCTRL, (0x1<<LEFT_HPF_EN), (0x0<<LEFT_HPF_EN));
-                snd_soc_update_bits(codec, SUNXI_AC_ADC_DAPRCTRL, (0x1<<RIGHT_HPF_EN), (0x0<<RIGHT_HPF_EN));
-
-                snd_soc_update_bits(codec, SUNXI_AGC_ENA, (0x3<<6), (0x0<<6));
-
 	}
 }
 
@@ -640,7 +621,13 @@ static int ac_speaker_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 		case SND_SOC_DAPM_POST_PMU:
 			sunxi_internal_codec->spkenable = true;
-			msleep(50);
+			/* for pop */
+			if (sunxi_internal_codec->first_speaker_event == 0) {
+				msleep(800);
+				sunxi_internal_codec->first_speaker_event = 1;
+			} else {
+				msleep(50);
+			}
 			if (spk_gpio.cfg)
 				gpio_set_value(spk_gpio.gpio, 1);
 
@@ -2282,7 +2269,7 @@ static int __init sunxi_internal_codec_probe(struct platform_device *pdev)
 
 	/*voltage*/
 	sunxi_internal_codec->vol_supply.cpvdd =  regulator_get(NULL, "vcc-cpvdd");
-	if (IS_ERR(sunxi_internal_codec->vol_supply.cpvdd)) {
+	if (!sunxi_internal_codec->vol_supply.cpvdd) {
 		pr_err("get audio cpvdd failed\n");
 		ret = -EFAULT;
 		goto err1;
@@ -2295,7 +2282,7 @@ static int __init sunxi_internal_codec_probe(struct platform_device *pdev)
 	}
 
 	sunxi_internal_codec->vol_supply.avcc = regulator_get(NULL, "vcc-avcc");
-	if (IS_ERR(sunxi_internal_codec->vol_supply.avcc)) {
+	if (!sunxi_internal_codec->vol_supply.avcc) {
 		pr_err("[%s]:get audio avcc failed\n",__func__);
 		ret = -EFAULT;
 		goto err1;
@@ -2483,14 +2470,6 @@ static int __init sunxi_internal_codec_probe(struct platform_device *pdev)
 	} else {
 		sunxi_internal_codec->pa_sleep_time = temp_val;
 	}
-	    ret = of_property_read_u32(node, "dac_digital_vol",&temp_val);
-                if (ret < 0) {
-                    pr_err("[audio-codec]dac_digital_vol configurations missing or invalid.\n");
-                    ret = -EINVAL;
-                    goto err1;
-                } else {
-                     sunxi_internal_codec->gain_config.dac_digital_vol = temp_val;
-                }
 
 	ret = of_property_read_u32(node, "dac_digital_vol",&temp_val);
 	if (ret < 0) {

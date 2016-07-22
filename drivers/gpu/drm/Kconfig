@@ -27,7 +27,7 @@ config DRM_USB
 	select USB
 
 config DRM_KMS_HELPER
-	tristate
+	tristate "crtc helpers for KMS"
 	depends on DRM
 	select FB
 	select FRAMEBUFFER_CONSOLE if !EXPERT
@@ -220,3 +220,5 @@ source "drivers/gpu/drm/omapdrm/Kconfig"
 source "drivers/gpu/drm/tilcdc/Kconfig"
 
 source "drivers/gpu/drm/qxl/Kconfig"
+
+source "drivers/gpu/drm/sunxi/Kconfig"

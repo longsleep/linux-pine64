@@ -7,11 +7,11 @@ struct disp_al_private_data
 	u32 output_mode[DEVICE_NUM];//indicate mode for tv/hdmi, lcd_if for lcd
 	u32 output_cs[DEVICE_NUM];//index according to device
 	u32 disp_device[DE_NUM];//disp_device[0]=1:indicate disp0 <->device1
-	u32 disp_disp[DEVICE_NUM];// disp_disp[0]=1: indicate device0 <-> disp1
+	u32 disp_disp[DE_NUM];// disp_disp[0]=1: indicate device0 <-> disp1
 	struct disp_rect disp_size[DE_NUM];
 	struct disp_layer_info logo_info[DE_NUM];
-	u32 output_fps[DEVICE_NUM];//index according to device
-	u32 tcon_index[DEVICE_NUM];
+	u32 output_fps[DE_NUM];//index according to device
+	u32 tcon_index[DE_NUM];
 };
 
 static struct disp_al_private_data al_priv;
@@ -243,7 +243,6 @@ int disp_al_lcd_cfg(u32 screen_id, disp_panel_para * panel, panel_extend_para *e
 		DE_INF("lcd cfg ok!\n");
 
 	tcon0_cfg_ext(screen_id, extend_panel);
-	tcon0_src_select(screen_id, LCD_SRC_DE, al_priv.disp_disp[screen_id]);
 
 	if (LCD_IF_DSI == panel->lcd_if)	{
 #if defined(SUPPORT_DSI)
@@ -401,8 +400,6 @@ int disp_al_lcd_get_start_delay(u32 screen_id, disp_panel_para * panel)
 /* hdmi */
 int disp_al_hdmi_enable(u32 screen_id)
 {
-	tcon1_hdmi_clk_enable(screen_id, 1);
-
 	tcon1_open(screen_id);
 	return 0;
 }
@@ -413,7 +410,6 @@ int disp_al_hdmi_disable(u32 screen_id)
 
 	tcon1_close(screen_id);
 	tcon_exit(screen_id);
-	tcon1_hdmi_clk_enable(screen_id, 0);
 
 	return 0;
 }
@@ -434,7 +430,6 @@ int disp_al_hdmi_cfg(u32 screen_id, struct disp_video_timings *video_info)
 		tcon1_hdmi_color_remap(screen_id,1);
 	else
 		tcon1_hdmi_color_remap(screen_id,0);
-	tcon1_src_select(screen_id, LCD_SRC_DE, al_priv.disp_disp[screen_id]);
 
 	return 0;
 }
@@ -442,9 +437,7 @@ int disp_al_hdmi_cfg(u32 screen_id, struct disp_video_timings *video_info)
 /* tv */
 int disp_al_tv_enable(u32 screen_id)
 {
-	tcon1_tv_clk_enable(screen_id, 1);
 	tcon1_open(screen_id);
-
 	return 0;
 }
 
@@ -454,7 +447,6 @@ int disp_al_tv_disable(u32 screen_id)
 
 	tcon1_close(screen_id);
 	tcon_exit(screen_id);
-	tcon1_tv_clk_enable(screen_id, 0);
 
 	return 0;
 }
@@ -472,48 +464,9 @@ int disp_al_tv_cfg(u32 screen_id, struct disp_video_timings *video_info)
 	tcon_init(screen_id);
 	tcon1_set_timming(screen_id, video_info);
 	tcon1_yuv_range(screen_id, 1);
-	tcon1_src_select(screen_id, LCD_SRC_DE, al_priv.disp_disp[screen_id]);
 
 	return 0;
 }
-
-#if defined(SUPPORT_VGA)
-/* vga interface
- */
-int disp_al_vga_enable(u32 screen_id)
-{
-	tcon1_open(screen_id);
-
-	return 0;
-}
-
-int disp_al_vga_disable(u32 screen_id)
-{
-	al_priv.output_type[screen_id] = (u32)DISP_OUTPUT_TYPE_NONE;
-
-	tcon1_close(screen_id);
-	tcon_exit(screen_id);
-
-	return 0;
-}
-
-int disp_al_vga_cfg(u32 screen_id, struct disp_video_timings *video_info)
-{
-	al_priv.output_type[screen_id] = (u32)DISP_OUTPUT_TYPE_VGA;
-	al_priv.output_mode[screen_id] = (u32)video_info->tv_mode;
-	al_priv.output_fps[screen_id] = video_info->pixel_clk / video_info->hor_total_time /\
-		video_info->ver_total_time;
-	al_priv.tcon_index[screen_id] = 1;
-
-	de_update_device_fps(al_priv.disp_disp[screen_id], al_priv.output_fps[screen_id]);
-
-	tcon_init(screen_id);
-	tcon1_set_timming(screen_id, video_info);
-	tcon1_src_select(screen_id, LCD_SRC_DE, al_priv.disp_disp[screen_id]);
-
-	return 0;
-}
-#endif
 
 int disp_al_vdevice_cfg(u32 screen_id, struct disp_video_timings *video_info, struct disp_vdevice_interface_para *para)
 {
@@ -558,7 +511,6 @@ int disp_al_vdevice_cfg(u32 screen_id, struct disp_video_timings *video_info, st
 		DE_WRN("lcd cfg fail!\n");
 	else
 		DE_INF("lcd cfg ok!\n");
-	tcon0_src_select(screen_id, LCD_SRC_DE, al_priv.disp_disp[screen_id]);
 
 	return 0;
 }
@@ -645,18 +597,6 @@ int disp_al_device_get_status(u32 screen_id)
 	return ret;
 }
 
-int disp_al_device_src_select(u32 screen_id, u32 src)
-{
-	int ret = 0;
-
-	if (0 == al_priv.tcon_index[screen_id])
-		ret = tcon0_src_select(screen_id, src, al_priv.disp_disp[screen_id]);
-	else
-		ret = tcon1_src_select(screen_id, src, al_priv.disp_disp[screen_id]);
-
-	return ret;
-}
-
 int disp_init_al(disp_bsp_init_para * para)
 {
 	int i;
@@ -677,9 +617,6 @@ int disp_init_al(disp_bsp_init_para * para)
 			de_smbl_init(i, para->reg_base[DISP_MOD_DE]);
 	}
 
-#if defined(HAVE_DEVICE_COMMON_MODULE)
-	tcon_top_set_reg_base(0, para->reg_base[DISP_MOD_DEVICE]);
-#endif
 #if defined(SUPPORT_DSI)
 	dsi_set_reg_base(0, para->reg_base[DISP_MOD_DSI0]);
 #endif
@@ -694,7 +631,7 @@ int disp_init_al(disp_bsp_init_para * para)
 		struct disp_video_timings tt;
 
 		memset(&tt, 0, sizeof(struct disp_video_timings));
-		al_priv.disp_device[disp] = tcon_get_attach_by_de_index(disp);
+		al_priv.disp_device[disp] = de_rtmx_get_mux(disp); //todo !!!
 		disp_device = al_priv.disp_device[disp];
 
 		/* should take care about this, extend display treated as a LCD OUTPUT */

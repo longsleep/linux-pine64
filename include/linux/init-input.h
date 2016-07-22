@@ -62,8 +62,8 @@ struct ctp_config_info{
 	struct gpio_config ctp_power_io;
 	struct regulator *ctp_power_ldo;
 	struct gpio_config irq_gpio;
-	struct gpio_config wakeup_gpio; 
-#ifdef TOUCH_KEY_LIGHT_SUPPORT 
+	struct gpio_config wakeup_gpio;
+#ifdef TOUCH_KEY_LIGHT_SUPPORT
 	struct gpio_config key_light_gpio;
 #endif
 	struct device *dev;

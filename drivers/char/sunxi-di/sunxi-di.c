@@ -409,7 +409,8 @@ static s32 sunxi_di_resume(struct device *dev)
 
 static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	void __user *argp = (void __user *)arg;
+	__di_para_t di_paras;
+	__di_para_t *di_para = &di_paras;
 	s32 ret = 0;
 	u32 field = 0;
 
@@ -418,8 +419,11 @@ static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 	switch (cmd) {
 	case DI_IOCSTART:
 		{
-			__di_para_t __user *di_para = argp;
-
+			if (copy_from_user((void *)di_para,
+				(void __user *)arg, sizeof(__di_para_t))) {
+				pr_warning("copy_from_user fail\n");
+				return -EFAULT;
+			}
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.addr[0] = 0x%lx\n", __func__, (unsigned long)(di_para->input_fb.addr[0]));
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.addr[1] = 0x%lx\n", __func__, (unsigned long)(di_para->input_fb.addr[1]));
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.size.width = %d\n", __func__, di_para->input_fb.size.width);

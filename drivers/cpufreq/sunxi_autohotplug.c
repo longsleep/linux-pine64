@@ -3,8 +3,6 @@
 #include <linux/module.h>
 #include "autohotplug.h"
 
-#include <trace/events/autohotplug.h>
-
 extern unsigned int  load_try_down;
 extern unsigned int  load_try_up;
 extern unsigned long cpu_up_lasttime;
@@ -30,30 +28,25 @@ int hmp_cluster0_is_big = 0;
 
 static int is_cpu_load_stable(unsigned int cpu, int stable_type)
 {
-	int ret;
-
 	if (cpu >= CONFIG_NR_CPUS)
 		return 0;
 
 	if (stable_type == STABLE_DOWN)
-		ret = time_after_eq(jiffies,
+		return time_after_eq(jiffies,
 					cpu_up_lasttime + usecs_to_jiffies(load_down_stable_us));
 	else if(stable_type == STABLE_UP)
-		ret = time_after_eq(jiffies,
+		return time_after_eq(jiffies,
 					cpu_up_lasttime + usecs_to_jiffies(load_up_stable_us));
 #if defined(CONFIG_SCHED_HMP)
 	else if(stable_type == STABLE_BOOST)
-		ret = time_after_eq(jiffies,
+		return time_after_eq(jiffies,
 					cpu_up_lasttime + usecs_to_jiffies(load_boost_stable_us));
 	else if(stable_type == STABLE_LAST_BIG)
-		ret = time_after_eq(jiffies,
+		return time_after_eq(jiffies,
 					cpu_up_lasttime + usecs_to_jiffies(load_lastbig_stable_us));
 #endif
 	else
 		return 0;
-
-	trace_autohotplug_stable(ret);
-	return ret;
 }
 
 #if defined(CONFIG_SCHED_HMP)

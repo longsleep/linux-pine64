@@ -64,7 +64,36 @@ void ss_keysize_set(int size, ce_task_desc_t *task)
 /* key: phsical address. */
 void ss_key_set(char *key, int size, ce_task_desc_t *task)
 {
-	ss_keyselect_set(CE_KEY_SELECT_INPUT, task);
+	int i = 0;
+	int key_sel = CE_KEY_SELECT_INPUT;
+	struct {
+		int type;
+		char desc[AES_MIN_KEY_SIZE];
+	} keys[] = {
+		{CE_KEY_SELECT_SSK,		   CE_KS_SSK},
+		{CE_KEY_SELECT_HUK,		   CE_KS_HUK},
+		{CE_KEY_SELECT_RSSK,	   CE_KS_RSSK},
+		{CE_KEY_SELECT_INTERNAL_0, CE_KS_INTERNAL_0},
+		{CE_KEY_SELECT_INTERNAL_1, CE_KS_INTERNAL_1},
+		{CE_KEY_SELECT_INTERNAL_2, CE_KS_INTERNAL_2},
+		{CE_KEY_SELECT_INTERNAL_3, CE_KS_INTERNAL_3},
+		{CE_KEY_SELECT_INTERNAL_4, CE_KS_INTERNAL_4},
+		{CE_KEY_SELECT_INTERNAL_5, CE_KS_INTERNAL_5},
+		{CE_KEY_SELECT_INTERNAL_6, CE_KS_INTERNAL_6},
+		{CE_KEY_SELECT_INTERNAL_7, CE_KS_INTERNAL_7},
+		{CE_KEY_SELECT_INPUT, ""} };
+
+	while (keys[i].type != CE_KEY_SELECT_INPUT) {
+		if (strncasecmp(key, keys[i].desc, AES_MIN_KEY_SIZE) == 0) {
+			key_sel = keys[i].type;
+			memset(key, 0, size);
+			break;
+		}
+		i++;
+	}
+	SS_DBG("The key select: %d\n", key_sel);
+
+	ss_keyselect_set(key_sel, task);
 	ss_keysize_set(size, task);
 	task->key_addr = virt_to_phys(key);
 }

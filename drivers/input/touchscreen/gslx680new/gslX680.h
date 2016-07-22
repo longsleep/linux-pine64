@@ -27,7 +27,7 @@
 #define X_RATIO_CUST	-15
 #define Y_RATIO_CUST	2
 #endif
-//#define GSL_ALG_ID		//有没有id算法
+//#define GSL_ALG_ID		//锟斤拷没锟斤拷id锟姐法
 
 struct gsl_touch_info
 {

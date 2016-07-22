@@ -2143,26 +2143,7 @@ static int sensor_init(struct v4l2_subdev *sd, u32 val)
 static long sensor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	int ret=0;
-	struct sensor_info *info = to_state(sd);
-	switch(cmd) {
-		case GET_CURRENT_WIN_CFG:
-			if(info->current_wins != NULL)
-			{
-				memcpy( arg,
-				        info->current_wins,
-				        sizeof(struct sensor_win_size) );
-				ret=0;
-			}
-			else
-			{
-				vfe_dev_err("empty wins!\n");
-				ret=-1;
-			}
-			break;
-		default:
-			return -EINVAL;
-	}
-	return ret;
+		return ret;
 }
 
 
@@ -2290,7 +2271,6 @@ static int sensor_try_fmt_internal(struct v4l2_subdev *sd,
 {
 	int index;
 	struct sensor_win_size *wsize;
-	struct sensor_info *info = to_state(sd);
 
 	for (index = 0; index < N_FMTS; index++)
 		if (sensor_formats[index].mbus_code == fmt->code)
@@ -2324,7 +2304,7 @@ static int sensor_try_fmt_internal(struct v4l2_subdev *sd,
 	*/
 	fmt->width = wsize->width;
 	fmt->height = wsize->height;
-	info->current_wins = wsize;
+
 	return 0;
 }
 

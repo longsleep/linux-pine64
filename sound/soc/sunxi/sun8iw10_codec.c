@@ -144,8 +144,8 @@ static int late_enable_dac(struct snd_soc_dapm_widget *w,
 	struct snd_soc_codec *codec = w->codec;
 	struct sunxi_codec *sunxi_internal_codec = snd_soc_codec_get_drvdata(codec);
 	mutex_lock(&sunxi_internal_codec->dac_mutex);
-	pr_debug("..dac power state change \n");
-        switch (event) {
+	pr_debug("..dac power state change.\n");
+	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		if (sunxi_internal_codec->dac_enable == 0) {
 			snd_soc_update_bits(codec, AC_DAC_DPC, (0x1<<EN_DAC), (0x1<<EN_DAC));
@@ -339,9 +339,8 @@ static const struct snd_soc_dapm_widget ac_dapm_widgets[] = {
 	SND_SOC_DAPM_MIXER_E("Right Output Mixer", DAC_PA_SRC, RMIXEN, 0,
 			ac_routmix_controls, ARRAY_SIZE(ac_routmix_controls), late_enable_dac, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
 
-	SND_SOC_DAPM_MUX_E("HP_R Mux", SND_SOC_NOPM, 0, 0,	&ac_hp_r_func_controls,late_enable_dac, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
-	SND_SOC_DAPM_MUX_E("HP_L Mux", SND_SOC_NOPM, 0, 0,	&ac_hp_l_func_controls,late_enable_dac, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
-
+	SND_SOC_DAPM_MUX("HP_R Mux", SND_SOC_NOPM, 0, 0,	&ac_hp_r_func_controls),
+	SND_SOC_DAPM_MUX("HP_L Mux", SND_SOC_NOPM, 0, 0,	&ac_hp_l_func_controls),
 
 	/*0x05*/
 	SND_SOC_DAPM_MUX("SPK_R Mux", SND_SOC_NOPM, 0, 0,	&ac_rspks_func_controls),
@@ -744,11 +743,10 @@ static unsigned int codec_read(struct snd_soc_codec *codec,
 					  unsigned int reg)
 {
 	struct sunxi_codec *sunxi_internal_codec = snd_soc_codec_get_drvdata(codec);
-	unsigned int analog_reg;
-	if (reg & ANALOG_FLAG) {
+
+	if (reg <= 0x1e) {
 		/*analog reg*/
-		analog_reg = reg & (~ANALOG_FLAG);
-		return read_prcm_wvalue(analog_reg,sunxi_internal_codec->codec_abase);
+		return read_prcm_wvalue(reg,sunxi_internal_codec->codec_abase);
 	} else {
 		/*digital reg*/
 		return codec_rdreg(sunxi_internal_codec->codec_dbase + reg);
@@ -759,15 +757,14 @@ static int codec_write(struct snd_soc_codec *codec,
 				  unsigned int reg, unsigned int value)
 {
 	struct sunxi_codec *sunxi_internal_codec = snd_soc_codec_get_drvdata(codec);
-	unsigned int analog_reg;
-	if (reg & ANALOG_FLAG) {
+
+	if (reg <= 0x1e) {
 		/*analog reg*/
-		analog_reg = reg & (~ANALOG_FLAG);
-                write_prcm_wvalue(analog_reg, value,sunxi_internal_codec->codec_abase);
+		write_prcm_wvalue(reg, value,sunxi_internal_codec->codec_abase);
 	} else {
 		/*digital reg*/
 		codec_wrreg(sunxi_internal_codec->codec_dbase + reg, value);
-        }
+	}
 	return 0;
 }
 
@@ -792,7 +789,7 @@ static ssize_t show_audio_reg(struct device *dev, struct device_attribute *attr,
 	count += sprintf(buf, "dump audio reg:\n");
 
 	while (reg_labels[i].name != NULL) {
-		if ((reg_labels[i].value & (~ANALOG_FLAG)) == 0) {
+		if (reg_labels[i].value == 0) {
 			reg_group++;
 		}
 		if (reg_group == 1) {
@@ -801,8 +798,8 @@ static ssize_t show_audio_reg(struct device *dev, struct device_attribute *attr,
 							readl(codec_digitaladress + reg_labels[i].value) );
 		} else if (reg_group == 2) {
 			count +=sprintf(buf + count, "%s 0x%x: 0x%x\n", reg_labels[i].name,
-							(reg_labels[i].value&(~ANALOG_FLAG)),
-						        read_prcm_wvalue(reg_labels[i].value&(~ANALOG_FLAG),codec_analogadress) );
+							(reg_labels[i].value),
+						        read_prcm_wvalue(reg_labels[i].value,codec_analogadress) );
 		}
 		i++;
 	}

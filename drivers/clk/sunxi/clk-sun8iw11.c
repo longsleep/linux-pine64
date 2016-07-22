@@ -707,8 +707,6 @@ SUNXI_CLK_PERIPH(twi3,           0,               0,    0,          0,          
 SUNXI_CLK_PERIPH(twi4,           0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               BUS_RST4,        BUS_GATE3,     0,         0,          15,         15,             0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(pio,            0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               0,               BUS_GATE2,     0,         0,          0,          5,              0,   &clk_lock, NULL,             0);
 SUNXI_CLK_PERIPH(losc_out,       0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               0,               LOSC_OUT_GATE, 0,         0,          0,          0,              0,   &clk_lock, NULL,             0);
-SUNXI_CLK_PERIPH(ps20,          0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               BUS_RST4,        BUS_GATE3,     0,         0,          6,          6,              0,   &clk_lock, NULL,             0);
-SUNXI_CLK_PERIPH(ps21,          0,               0,    0,          0,                  0,      0,          0,          0,          0,          0,               BUS_RST4,        BUS_GATE3,     0,         0,          7,          7,              0,   &clk_lock, NULL,             0);
 
 struct periph_init_data sunxi_periphs_init[] = {
 	{"cpu",            CLK_GET_RATE_NOCACHE, cpu_parents,            ARRAY_SIZE(cpu_parents),            &sunxi_clk_periph_cpu              },
@@ -807,8 +805,6 @@ struct periph_init_data sunxi_periphs_init[] = {
 	{"twi4",	   0,			 apb2mod_parents,	 ARRAY_SIZE(apb2mod_parents),	     &sunxi_clk_periph_twi4		},
 	{"pio",            0,                    apb1mod_parents,        ARRAY_SIZE(apb1mod_parents),        &sunxi_clk_periph_pio              },
 	{"losc_out",       0,                    losc_parents,           ARRAY_SIZE(losc_parents),           &sunxi_clk_periph_losc_out         },
-	{"ps20",           0,                    apb2mod_parents,        ARRAY_SIZE(apb2mod_parents),        &sunxi_clk_periph_ps20             },
-	{"ps21",           0,                    apb2mod_parents,        ARRAY_SIZE(apb2mod_parents),        &sunxi_clk_periph_ps21             },
 };
 
 void __init sunxi_init_clocks(void)
@@ -917,6 +913,9 @@ void of_sunxi_clocks_init(struct device_node *node)
 	clk_add_alias("pll11",NULL,"pll_mipi",NULL);
 	clk_add_alias("pll12",NULL,"pll_de",NULL);
 	clk_add_alias("pll13",NULL,"pll_ddr1",NULL);
+#ifdef CONFIG_COMMON_CLK_ENABLE_SYNCBOOT_EARLY
+	clk_syncboot();
+#endif
 }
 
 void of_sunxi_fixed_clk_setup(struct device_node *node)

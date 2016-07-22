@@ -18,7 +18,7 @@ struct sunxi_lcd_drv
   struct sunxi_disp_source_ops      src_ops;
 };
 
-#ifndef SUPPORT_DSI
+#if !defined(SUPPORT_DSI)
 typedef enum
 {
 	DSI_DCS_ENTER_IDLE_MODE                         =       0x39 ,                  //01

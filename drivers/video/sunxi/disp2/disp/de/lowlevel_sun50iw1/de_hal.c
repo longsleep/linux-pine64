@@ -509,8 +509,10 @@ int de_al_mgr_apply(unsigned int screen_id, struct disp_manager_data *data)
 		csc_cfg.enhance_mode = csc_cfg_temp.enhance_mode;
 		csc_cfg.in_fmt = DISP_CSC_TYPE_RGB;
 		csc_cfg.in_mode = DISP_BT601;
-		if (screen_id == 1) 	/*cvbs's de channel*/
+
+		if (screen_id == 1)
 			s_csc_type = data->config.cs;
+
 		csc_cfg.out_fmt = (DISP_CSC_TYPE_RGB == data->config.cs)?DE_RGB:DE_YUV;
 		if ((data->config.size.width < 1280) && (data->config.size.height < 720))
 		  csc_cfg.out_mode = DISP_BT601;

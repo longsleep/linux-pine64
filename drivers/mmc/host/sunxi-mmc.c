@@ -1248,91 +1248,6 @@ void enable_card3(void)
 
 #endif
 
-
-
-extern int mmc_go_idle(struct mmc_host *host);
-extern int mmc_send_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr);
-extern int mmc_send_status(struct mmc_card *card, u32 *status);
-extern void mmc_set_clock(struct mmc_host *host, unsigned int hz);
-extern void mmc_set_timing(struct mmc_host *host, unsigned int timing);
-extern void mmc_set_bus_width(struct mmc_host *host, unsigned int width);
-static void sunxi_mmc_do_shutdown_com(struct platform_device * pdev)
-{
-	u32 ocr = 0;
-	u32 err = 0;
-	struct mmc_host *mmc = NULL;
-	struct sunxi_mmc_host *host = NULL;
-	u32 status = 0;
-
-	mmc = platform_get_drvdata(pdev);
-	if (mmc == NULL) {
-		dev_err(&pdev->dev,"%s: mmc is NULL\n", __FUNCTION__);
-		goto out;
-	}
-
-	host = mmc_priv(mmc);
-	if (host == NULL) {
-		dev_err(&pdev->dev,"%s: host is NULL\n", __FUNCTION__);
-		goto out;
-	}
-
-	dev_info(mmc_dev(mmc),"try to disable cache\n");
-	mmc_claim_host(mmc);
-    err = mmc_cache_ctrl(mmc, 0);
-	mmc_release_host(mmc);
-    if (err){
-		dev_err(mmc_dev(mmc),"disable cache failed\n");
-		mmc_claim_host(mmc);//not release host to not allow android to read/write after shutdown
-         goto out;
-    }
-
-	//claim host to not allow androd read/write during shutdown
-	dev_dbg(mmc_dev(mmc),"%s: claim host\n", __FUNCTION__);
-	mmc_claim_host(mmc);
-
-	do {
-		if (mmc_send_status(mmc->card, &status) != 0) {
-			dev_err(mmc_dev(mmc),"%s: send status failed\n", __FUNCTION__);
-			goto out; //err_out; //not release host to not allow android to read/write after shutdown
-		}
-	} while(status != 0x00000900);
-
-	//mmc_card_set_ddr_mode(card);
-	mmc_set_timing(mmc, MMC_TIMING_LEGACY);
-	mmc_set_bus_width(mmc, MMC_BUS_WIDTH_1);
-	mmc_set_clock(mmc, 400000);
-	err = mmc_go_idle(mmc);
-	if (err) {
-		dev_err(mmc_dev(mmc),"%s: mmc_go_idle err\n", __FUNCTION__);
-		goto out; //err_out; //not release host to not allow android to read/write after shutdown
-	}
-
-	if (mmc->card->type != MMC_TYPE_MMC) {//sd can support cmd1,so not send cmd1
-		goto out;//not release host to not allow android to read/write after shutdown
-	}
-
-	err = mmc_send_op_cond(mmc, 0, &ocr);
-	if (err) {
-		dev_err(mmc_dev(mmc),"%s: first mmc_send_op_cond err\n", __FUNCTION__);
-		goto out; //err_out; //not release host to not allow android to read/write after shutdown
-	}
-
-	err = mmc_send_op_cond(mmc, ocr | (1 << 30), &ocr);
-	if (err) {
-		dev_err(mmc_dev(mmc),"%s: mmc_send_op_cond err\n", __FUNCTION__);
-		goto out; //err_out; //not release host to not allow android to read/write after shutdown
-	}
-
-	//do not release host to not allow android to read/write after shutdown
-	goto out;
-
-out:
-	dev_info(mmc_dev(mmc),"%s: mmc shutdown exit..ok\n", __FUNCTION__);
-
-	return ;
-}
-
-
 static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 				      struct platform_device *pdev)
 {
@@ -1382,12 +1297,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		host->sunxi_mmc_dump_dly_table  = sunxi_mmc_dump_dly2;
 		sunxi_mmc_reg_ex_res_inter(host,2);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
-		if(host->ctl_spec_cap & NO_REINIT_SHUTDOWN){
-			host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown2;
-		}else{
-			/*only be compatible with a20*/
-			host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown_com;
-		}
+		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown2;
 		host->phy_index = 2;
  	}
 #endif

@@ -33,13 +33,18 @@ enum IOCTL_CMD {
 #if ((defined CONFIG_ARCH_SUN8IW8P1) || (defined CONFIG_ARCH_SUN50I))
 	IOCTL_WAIT_JPEG_DEC = 0x500,
 #endif
-	IOCTL_GET_REFCOUNT,
 };
 
 struct cedarv_env_infomation{
 	unsigned int phymem_start;
 	int  phymem_total_size;
 	unsigned long  address_macc;
+};
+
+struct cedarv_env_infomation_compat{
+	unsigned int phymem_start;
+	int  phymem_total_size;
+	compat_ulong_t  address_macc;
 };
 
 struct cedarv_cache_range{
@@ -51,6 +56,14 @@ struct __cedarv_task {
 	int task_prio;
 	int ID;
 	unsigned long timeout;	
+	unsigned int frametime;
+	unsigned int block_mode;
+};
+
+struct __cedarv_task_compat {
+	int task_prio;
+	int ID;
+	compat_ulong_t timeout;
 	unsigned int frametime;
 	unsigned int block_mode;
 };
@@ -72,6 +85,11 @@ struct cedarv_engine_task_info {
 
 struct cedarv_regop {
     unsigned long addr;
+    unsigned int value;
+};
+
+struct cedarv_regop_compat {
+    compat_ulong_t addr;
     unsigned int value;
 };
 /*--------------------------------------------------------------------------------*/

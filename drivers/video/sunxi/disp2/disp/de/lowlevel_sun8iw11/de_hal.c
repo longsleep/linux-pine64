@@ -167,7 +167,7 @@ int de_al_lyr_apply(unsigned int screen_id, struct disp_layer_config_data *data,
 	de_rect layer[CHN_NUM][LAYER_MAX_NUM_PER_CHN],bld_rect[CHN_NUM];
 	de_rect crop[CHN_NUM][LAYER_MAX_NUM_PER_CHN];
 	static scaler_para ovl_para[CHN_NUM],ovl_cpara[VI_CHN_NUM];
-	bool chn_used[CHN_NUM] = {false}, chn_zorder_cfg[CHN_NUM] = {false}, chn_dirty[CHN_NUM] = {false};
+	bool chn_used[CHN_NUM] = {false}, chn_zorder_cfg[CHN_NUM] = {false};
 	bool chn_is_yuv[CHN_NUM] = {false};
 	enum disp_color_space cs[CHN_NUM];
 	unsigned char layer_zorder[CHN_NUM] = {0}, chn_index;
@@ -191,21 +191,11 @@ int de_al_lyr_apply(unsigned int screen_id, struct disp_layer_config_data *data,
 				chn_is_yuv[data1->config.channel] = true;
 				cs[data1->config.channel] = data1->config.info.fb.color_space;
 			}
-			if (data1->flag)
-				chn_dirty[data1->config.channel] = true;
 
 			layer_zorder[data1->config.channel] = data1->config.info.zorder;
 		}
 		data1 ++;
 	}
-
-	data1 = data;
-	for (i=0; i<layer_num; i++) {
-		if (data1->config.enable && chn_dirty[data1->config.channel])
-			data1->flag = LAYER_ALL_DIRTY;
-		data1 ++;
-	}
-
 	chn_index = 0;
 	for (i=0; i<chn; i++) {
 		u32 min_zorder = 255, min_zorder_chn = 0;
@@ -419,6 +409,7 @@ int de_al_mgr_apply(unsigned int screen_id, struct disp_manager_data *data)
 	}
 	if (data->flag & MANAGER_ENABLE_DIRTY) {
 		de_rtmx_set_enable(screen_id, data->config.enable);
+		de_rtmx_mux(screen_id, data->config.hwdev_index);
 		de_rtmx_set_outitl(screen_id,data->config.interlace);
 	}
 

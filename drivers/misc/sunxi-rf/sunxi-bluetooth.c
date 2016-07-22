@@ -32,8 +32,8 @@ static int sunxi_bt_on(struct sunxi_bt_platdata *data, bool on_off)
 	struct device *dev = &pdev->dev;
 	int ret = 0;
 
-	if(!on_off && gpio_is_valid(data->gpio_bt_rst))
-		gpio_set_value(data->gpio_bt_rst, 0);
+	if (!on_off && gpio_is_valid(data->gpio_bt_rst))
+		gpio_direction_output(data->gpio_bt_rst, 0);
 
 	if(data->bt_power_name){
 		data->bt_power = regulator_get(dev, data->bt_power_name);
@@ -95,9 +95,9 @@ static int sunxi_bt_on(struct sunxi_bt_platdata *data, bool on_off)
 		}
 	}
 
-	if(on_off && gpio_is_valid(data->gpio_bt_rst)){
+	if (on_off && gpio_is_valid(data->gpio_bt_rst)) {
 		mdelay(10);
-		gpio_set_value(data->gpio_bt_rst, 1);
+		gpio_direction_output(data->gpio_bt_rst, 1);
 	}
 	data->power_state = on_off;
 
@@ -168,8 +168,8 @@ static int sunxi_bt_probe(struct platform_device *pdev)
 	data->gpio_bt_rst = of_get_named_gpio_flags(np, "bt_rst_n", 0, (enum of_gpio_flags *)&config);
 	if (!gpio_is_valid(data->gpio_bt_rst)) {
 		dev_err(dev, "get gpio bt_rst failed\n");
-	}else{
-		dev_info(dev,"bt_rst gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
+	} else {
+		dev_info(dev, "bt_rst gpio=%d  mul-sel=%d  pull=%d  drv_level=%d  data=%d\n",
 				config.gpio,
 				config.mul_sel,
 				config.pull,
@@ -178,20 +178,20 @@ static int sunxi_bt_probe(struct platform_device *pdev)
 
 		ret = devm_gpio_request(dev, data->gpio_bt_rst, "bt_rst");
 		if (ret < 0) {
-			dev_err(dev,"can't request bt_rst gpio %d\n",
+			dev_err(dev, "can't request bt_rst gpio %d\n",
 				data->gpio_bt_rst);
 			return ret;
 		}
 
 		ret = gpio_direction_output(data->gpio_bt_rst, 0);
 		if (ret < 0) {
-			dev_err(dev,"can't request output direction bt_rst gpio %d\n",
+			dev_err(dev, "can't request output direction bt_rst gpio %d\n",
 				data->gpio_bt_rst);
 			return ret;
 		}
 	}
 
-	data->lpo = devm_clk_get(dev, NULL);
+	data->lpo = of_clk_get(np, 0);
 	if (IS_ERR_OR_NULL(data->lpo)){
 		dev_warn(dev, "clk not config\n");
 	}else{
@@ -222,9 +222,10 @@ fail_rfkill:
 	if (data->rfkill) 
 		rfkill_destroy(data->rfkill);
 failed_alloc:
-	if (!IS_ERR_OR_NULL(data->lpo))
+	if (!IS_ERR_OR_NULL(data->lpo)) {
 		clk_disable_unprepare(data->lpo);
-
+		clk_put(data->lpo);
+	}
 	return ret;
 }
 
@@ -240,8 +241,10 @@ static int sunxi_bt_remove(struct platform_device *pdev)
 		rfkill_destroy(rfk);
 	}
 
-	if (!IS_ERR_OR_NULL(data->lpo))
+	if (!IS_ERR_OR_NULL(data->lpo)) {
 		clk_disable_unprepare(data->lpo);
+		clk_put(data->lpo);
+	}
 
 	return 0;
 }

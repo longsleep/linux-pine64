@@ -29,7 +29,7 @@
 
 /**
  * ctp_fetch_sysconfig_para - get config info from sysconfig.fex file.
- * return value:  
+ * return value:
  *                    = 0; success;
  *                    < 0; err
  */
@@ -72,7 +72,7 @@ static int ctp_fetch_sysconfig_para(enum input_sensor_type *ctp_type)
 	ret = of_property_read_u32(np, "ctp_power_ldo_vol", &data->ctp_power_vol);
 	if (ret) {
 		 pr_err("get ctp_power_ldo_vol is fail, %d\n", ret);
-	}	
+	}
 
 	data->ctp_power_io.gpio = of_get_named_gpio_flags(np, "ctp_power_io", 0, (enum of_gpio_flags *)(&(data->ctp_power_io)));
 	if (!gpio_is_valid(data->ctp_power_io.gpio))
@@ -85,14 +85,14 @@ static int ctp_fetch_sysconfig_para(enum input_sensor_type *ctp_type)
 	ret = of_property_read_u32(np, "ctp_screen_max_x", &data->screen_max_x);
 	if (ret) {
 		 pr_err("get ctp_screen_max_x is fail, %d\n", ret);
-	}	
+	}
 
 	
 	ret = of_property_read_u32(np, "ctp_screen_max_y", &data->screen_max_y);
 	if (ret) {
 		 pr_err("get screen_max_y is fail, %d\n", ret);
-	}	
-	
+	}
+
 	ret = of_property_read_u32(np, "ctp_revert_x_flag", &data->revert_x_flag);
 	if (ret) {
 		 pr_err("get revert_x_flag is fail, %d\n", ret);
@@ -158,11 +158,11 @@ static void ctp_free_platform_resource(enum input_sensor_type *ctp_type)
  *
  */
 static int ctp_init_platform_resource(enum input_sensor_type *ctp_type)
-{	
+{
 	int ret = -1;
         struct ctp_config_info *data = container_of(ctp_type,
 					struct ctp_config_info, input_type);
-					
+
 	if (data->ctp_power) {
 		data->ctp_power_ldo = regulator_get(NULL, data->ctp_power);
 		if (!data->ctp_power_ldo)
@@ -184,7 +184,7 @@ static int ctp_init_platform_resource(enum input_sensor_type *ctp_type)
 	if(0 != gpio_request(data->wakeup_gpio.gpio, NULL)) {
 		pr_err("wakeup gpio_request is failed\n");
 		return ret;
-	} 
+	}
 	if (0 != gpio_direction_output(data->wakeup_gpio.gpio, 1)) {
 		pr_err("wakeup gpio set err!");
 		return ret;
@@ -201,7 +201,7 @@ static int ctp_init_platform_resource(enum input_sensor_type *ctp_type)
 		return ret;
 	}
 #endif
-	ret = 0;      
+	ret = 0;
 	return ret;
 }
 /*********************************CTP END***************************************/
@@ -253,7 +253,7 @@ static int gsensor_init_platform_resource(enum input_sensor_type *gsensor_type)
 
 /**
  * gsensor_fetch_sysconfig_para - get config info from sysconfig.fex file.
- * return value:  
+ * return value:
  *                    = 0; success;
  *                    < 0; err
  */
@@ -262,7 +262,7 @@ static int gsensor_fetch_sysconfig_para(enum input_sensor_type *gsensor_type)
 	int ret = -1;
 	struct sensor_config_info *data = container_of(gsensor_type,
 					struct sensor_config_info, input_type);
-	
+
     struct device_node *np = NULL;
     np = of_find_node_by_name(NULL,"gsensor");
 	if (!np) {
@@ -275,7 +275,7 @@ static int gsensor_fetch_sysconfig_para(enum input_sensor_type *gsensor_type)
 	    goto devicetree_get_item_err;
 	}else
 	    data->sensor_used = 1;
-	
+
     if(1 == data->sensor_used){
 	    ret = of_property_read_u32(np, "gsensor_twi_id", &data->twi_id);
 	    if (ret) {
@@ -285,7 +285,7 @@ static int gsensor_fetch_sysconfig_para(enum input_sensor_type *gsensor_type)
     }else{
        pr_err("%s gsensor_unused \n",__func__);
     }
-	
+
 	ret = of_property_read_string(np,"gsensor_vcc_io",&data->sensor_power);
 	if (ret) {
 		    pr_err("get gsensor_vcc_io is fail, %d\n", ret);
@@ -334,7 +334,7 @@ static int gyr_init_platform_resource(enum input_sensor_type *gyr_type)
 
 /**
  * gyr_fetch_sysconfig_para - get config info from sysconfig.fex file.
- * return value:  
+ * return value:
  *                    = 0; success;
  *                    < 0; err
  */
@@ -343,14 +343,14 @@ static int gyr_fetch_sysconfig_para(enum input_sensor_type *gyr_type)
 	int ret = -1;
 	struct sensor_config_info *data = container_of(gyr_type,
 					struct sensor_config_info, input_type);
-		
+
    struct device_node *np = NULL;
-    np = of_find_node_by_name(NULL,"gyroscopesensor");
+    np = of_find_node_by_name(NULL,"gy");
 	if (!np) {
 		 pr_err("ERROR! get gy_para failed, func:%s, line:%d\n",__FUNCTION__, __LINE__);
 		 goto devicetree_get_item_err;
 	}
-		
+
 	if (!of_device_is_available(np)) {
 	    pr_err("%s: gy is not used\n", __func__);
 	    goto devicetree_get_item_err;
@@ -400,7 +400,7 @@ static int e_compass_init_platform_resource(enum input_sensor_type *e_compass_ty
 
 /**
  * e_compass_fetch_sysconfig_para - get config info from sysconfig.fex file.
- * return value:  
+ * return value:
  *                    = 0; success;
  *                    < 0; err
  */
@@ -412,7 +412,7 @@ static int e_compass_fetch_sysconfig_para(enum input_sensor_type *e_compass_type
 					struct sensor_config_info, input_type);
 
     struct device_node *np = NULL;
-    np = of_find_node_by_name(NULL,"compasssensor");
+    np = of_find_node_by_name(NULL,"compass");
 	if (!np) {
 		 pr_err("ERROR! get compass_para failed, func:%s, line:%d\n",__FUNCTION__, __LINE__);
 		 goto devicetree_get_item_err;
@@ -423,7 +423,7 @@ static int e_compass_fetch_sysconfig_para(enum input_sensor_type *e_compass_type
 		goto devicetree_get_item_err;
 	}else
 		data->sensor_used = 1;
-	
+
     if(1 == data->sensor_used){
 	    ret = of_property_read_u32(np, "compass_twi_id", &data->twi_id);
 	    if (ret) {
@@ -497,7 +497,7 @@ static int ls_init_platform_resource(enum input_sensor_type *ls_type)
 
 /**
  * ls_fetch_sysconfig_para - get config info from sysconfig.fex file.
- * return value:  
+ * return value:
  *                    = 0; success;
  *                    < 0; err
  */
@@ -509,7 +509,7 @@ static int ls_fetch_sysconfig_para(enum input_sensor_type *ls_type)
 					struct sensor_config_info, input_type);
 
     struct device_node *np = NULL;
-    np = of_find_node_by_name(NULL,"lightsensor");
+    np = of_find_node_by_name(NULL,"ls");
     if (!np) {
 		pr_err("ERROR! get ls_para failed, func:%s, line:%d\n",__FUNCTION__, __LINE__);
 		goto devicetree_get_item_err;
@@ -701,7 +701,7 @@ int input_set_power_enable(enum input_sensor_type *input_type, u32 enable)
 			regulator_enable(ldo);
 		} else {
 			if (regulator_is_enabled(ldo))
-				regulator_disable(ldo);		
+				regulator_disable(ldo);
 		}
 	} else if(power_io) {
 		if(enable) {
@@ -727,7 +727,7 @@ int input_set_int_enable(enum input_sensor_type *input_type, u32 enable)
 	u32 irq_number = 0;
 	void *data = NULL;
 
-	switch (*input_type) 
+	switch (*input_type)
 	{
 	case CTP_TYPE:
 		data = container_of(input_type,
@@ -744,7 +744,7 @@ int input_set_int_enable(enum input_sensor_type *input_type, u32 enable)
 	default:
 		break;
 	}
-	
+
 	if ((enable != 0) && (enable != 1)) {
 		return ret;
 	}
@@ -753,7 +753,7 @@ int input_set_int_enable(enum input_sensor_type *input_type, u32 enable)
 	else
 		disable_irq_nosync(irq_number);
 
-	return 0;       
+	return 0;
 }
 EXPORT_SYMBOL(input_set_int_enable);
 
@@ -769,8 +769,8 @@ int input_free_int(enum input_sensor_type *input_type, void *para)
 	int irq_number = 0;
 	void *data = NULL;
 	struct device *dev = NULL;
-	
-	switch (*input_type) 
+
+	switch (*input_type)
 	{
 	case CTP_TYPE:
 		data = container_of(input_type,
@@ -794,7 +794,7 @@ int input_free_int(enum input_sensor_type *input_type, void *para)
 
 	devm_free_irq(dev, irq_number, para);
 
-	return 0;       
+	return 0;
 }
 EXPORT_SYMBOL(input_free_int);
 
@@ -818,14 +818,14 @@ int input_request_int(enum input_sensor_type *input_type, irq_handler_t handle,
 	void *data = NULL;
 	struct device *dev = NULL;
 
-	switch (*input_type) 
+	switch (*input_type)
 	{
 	case CTP_TYPE:
 		data = container_of(input_type,
 					struct ctp_config_info, input_type);
 		irq_number = gpio_to_irq(((struct ctp_config_info *)data)->int_number);
 		if (IS_ERR_VALUE(irq_number)) {
-			pr_warn("map gpio [%d] to virq failed, errno = %d\n", 
+			pr_warn("map gpio [%d] to virq failed, errno = %d\n",
 				GPIOA(3), irq_number);
 			return -EINVAL;
 		}
@@ -839,7 +839,7 @@ int input_request_int(enum input_sensor_type *input_type, irq_handler_t handle,
 					struct sensor_config_info, input_type);
 		irq_number = gpio_to_irq(((struct sensor_config_info *)data)->int_number);
 		if (IS_ERR_VALUE(irq_number)) {
-			pr_warn("map gpio [%d] to virq failed, errno = %d\n", 
+			pr_warn("map gpio [%d] to virq failed, errno = %d\n",
 				GPIOA(3), irq_number);
 			return -EINVAL;
 		}
@@ -851,15 +851,15 @@ int input_request_int(enum input_sensor_type *input_type, irq_handler_t handle,
 	}
 
 	/* request virq, set virq type to high level trigger */
-	ret = devm_request_irq(dev, irq_number, handle, 
+	ret = devm_request_irq(dev, irq_number, handle,
 			       trig_type, "PA3_EINT", para);
 	if (IS_ERR_VALUE(ret)) {
-		pr_warn("request virq %d failed, errno = %d\n", 
+		pr_warn("request virq %d failed, errno = %d\n",
 		         irq_number, ret);
 		return -EINVAL;
 	}
 
-	return 0;     
+	return 0;
 }
 EXPORT_SYMBOL(input_request_int);
 
@@ -887,10 +887,10 @@ EXPORT_SYMBOL(input_free_platform_resource);
 int input_init_platform_resource(enum input_sensor_type *input_type)
 {
 	int ret = -1;
-	
+
 	ret = (*init_platform_resource[*input_type])(input_type);
-	
-	return ret;	
+
+	return ret;
 }
 EXPORT_SYMBOL(input_init_platform_resource);
 
@@ -898,16 +898,16 @@ EXPORT_SYMBOL(input_init_platform_resource);
  * input_fetch_sysconfig_para - get config info from sysconfig.fex file.
  * Input:
  * 	type:
- * return value:  
+ * return value:
  *                    = 0; success;
  *                    < 0; err
  */
 int input_fetch_sysconfig_para(enum input_sensor_type *input_type)
 {
 	int ret = -1;
-	
+
 	ret = (*fetch_sysconfig_para[*input_type])(input_type);
-	
+
 	return ret;
 }
 EXPORT_SYMBOL(input_fetch_sysconfig_para);

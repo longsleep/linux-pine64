@@ -83,14 +83,15 @@
 #define WAKEUP_GPIO_GROUP(group)    (1 << (group - 'A'))
 
 #if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW8P1) || defined(CONFIG_ARCH_SUN50IW1P1) \
-	|| defined(CONFIG_ARCH_SUN8IW10P1) \
-	|| defined(CONFIG_ARCH_SUN8IW11P1)
+	|| defined(CONFIG_ARCH_SUN8IW10P1)
 #define IO_NUM (2)
 #elif defined(CONFIG_ARCH_SUN9IW1P1)
 #define PLL_NUM (12)
 #define BUS_NUM (15)
 #define IO_NUM (2)
 #else
+#define PLL_NUM (11)
+#define BUS_NUM (6)
 #define IO_NUM (2)
 #endif
 
@@ -194,20 +195,20 @@ typedef enum clk_src
 } clk_src_e;
 
 typedef struct pwr_dm_state{
-    /*
-     * for state bitmap:
+    /* 
+     * for state bitmap: 
      * bitx = 1: keep state.
      * bitx = 0: mean close corresponding power src.
      */
-    unsigned int state;
-    unsigned int sys_mask;	//bitx=1, the corresponding state is effect,
+    unsigned int state;	
+    unsigned int sys_mask;	//bitx=1, the corresponding state is effect, 
 				//otherwise, the corresponding power is in charge in device driver.
-
+    
     // sys_mask&state		: bitx=1, mean the power is on, for the "on" state power, u need care about the voltage.;
     // ((~sys_mask)|state)		: bitx=0, mean the power is close;
     // pwr_dm_state bitmap
-
-    // actually: we care about the pwr_dm voltage,
+    
+    // actually: we care about the pwr_dm voltage, 
     // such as: we want to keep the vdd_sys at 1.0v at standby period.
     //		we actually do not care how to do it.
     //		it can be sure that cpus can do it with the pmu's help.
@@ -451,7 +452,7 @@ typedef	struct normal_standby_para
 
 //define cpus wakeup src
 #define CPUS_MEM_WAKEUP              (CPUS_WAKEUP_LOWBATT | CPUS_WAKEUP_USB | CPUS_WAKEUP_AC | \
-						CPUS_WAKEUP_DESCEND | CPUS_WAKEUP_ASCEND | CPUS_WAKEUP_ALM0 | CPUS_WAKEUP_GPIO)
+						CPUS_WAKEUP_DESCEND | CPUS_WAKEUP_ASCEND | CPUS_WAKEUP_ALM0 | CPUS_WAKEUP_GPIO | CPUS_WAKEUP_IR)
 #define CPUS_BOOTFAST_WAKEUP         (CPUS_WAKEUP_LOWBATT | CPUS_WAKEUP_LONG_KEY |CPUS_WAKEUP_ALM0|CPUS_WAKEUP_USB|CPUS_WAKEUP_AC )
 
 /*used in normal standby*/

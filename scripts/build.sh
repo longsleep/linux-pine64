@@ -129,24 +129,22 @@ build_kernel()
 	else
 		cp -f rootfs.cpio.gz output/
 	fi
-	#exchange sdc0 and sdc2 in sun50iw1p1 for dragonBoard card boot
-	if [ "x${LICHEE_PLATFORM}" = "xdragonboard"  -a "x${LICHEE_CHIP}" = "xsun50iw1p1" ]; then
+	
+	if [ "x${LICHEE_PLATFORM}" = "xdragonboard"  -a "x${LICHEE_CHIP}" = "xsun50iw1p1" ]; then      #exchange sdc0 and sdc2 in sun50iw1p1 for dragonBoard card boot
 		local SYS_CONFIG_FILE=../tools/pack/chips/${LICHEE_CHIP}/configs/${LICHEE_BOARD}/sys_config.fex
 		local DTS_PATH=./arch/arm64/boot/dts/
-
-		#sun50iw1p1_bak.dtsi means the orginal dtsi
-		if [ -f ${DTS_PATH}/sun50iw1p1_bak.dtsi ];then
-			#sun50iw1p1.dtsi that we use in fact
-			rm -f ${DTS_PATH}/sun50iw1p1.dtsi
+		
+		if [ -f ${DTS_PATH}/sun50iw1p1_bak.dtsi ];then #sun50iw1p1_bak.dtsi means the orginal dtsi
+			rm -f ${DTS_PATH}/sun50iw1p1.dtsi          #sun50iw1p1.dtsi that we use in fact
 			mv ${DTS_PATH}/sun50iw1p1_bak.dtsi ${DTS_PATH}/sun50iw1p1.dtsi
 		fi
-		# if find dragonboard_test=1 in sys_config.fex ,then will exchange sdc0 and sdc2
-		if [ -n "`grep "dragonboard_test" $SYS_CONFIG_FILE | grep "1" | grep -v ";"`" ]; then
+
+		if [ -n "`grep "dragonboard_test" $SYS_CONFIG_FILE | grep "1" | grep -v ";"`" ]; then   # if find dragonboard_test=1 in sys_config.fex ,then will exchange sdc0 and sdc2
 			cp ${DTS_PATH}/sun50iw1p1.dtsi  ${DTS_PATH}/sun50iw1p1_bak.dtsi
 			rm -f ${DTS_PATH}/sun50iw1p1.dtsi
 			cp  ${DTS_PATH}/sun50iw1p1_for_dragonboard.dtsi   ${DTS_PATH}/sun50iw1p1.dtsi
 	    fi
-	fi
+	fi 
 
     if [ ! -f .config ] ; then
         printf "\n\033[0;31;1mUsing default config ${LICHEE_KERN_DEFCONF} ...\033[0m\n\n"
@@ -216,8 +214,6 @@ build_modules()
 	build_nand_lib
 	make -C modules/nand LICHEE_MOD_DIR=${LICHEE_MOD_DIR} LICHEE_KDIR=${LICHEE_KDIR} \
 		CONFIG_CHIP_ID=${CONFIG_CHIP_ID} install
-       make -C modules/aw_schw LICHEE_MOD_DIR=${LICHEE_MOD_DIR} LICHEE_KDIR=${LICHEE_KDIR} \
-               CONFIG_CHIP_ID=${CONFIG_CHIP_ID} install
 	
 	echo "lichee_chip = $LICHEE_CHIP"
 	if [ "${LICHEE_CHIP}" = "sun8iw10p1" ] || [ "${LICHEE_CHIP}" = "sun8iw11p1" ]; then
@@ -340,7 +336,7 @@ gen_output()
 clean_kernel()
 {
 	echo "Cleaning kernel ..."
-	make ARCH=${ARCH} clean
+	make ARCH=${ARCH} mrproper
 	rm -rf output/*
 	echo
 }

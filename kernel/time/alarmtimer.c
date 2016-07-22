@@ -206,21 +206,6 @@ ktime_t alarm_expires_remaining(const struct alarm *alarm)
 }
 
 #ifdef CONFIG_RTC_CLASS
-static int boot_mode=0;                // 0: normal boot; 1: charger mode; 2: recovery mode
-
-static int __init boot_mode_setup(char *str)
-{
-       if (!str)
-               return -EINVAL;
-
-       // androidboot.mode=charger
-       if (!strncmp(str, "charger", strlen("charger")))
-               boot_mode=1;
-
-       return 1;
-}
-__setup("androidboot.mode=", boot_mode_setup);
-
 /**
  * alarmtimer_suspend - Suspend time callback
  * @dev: unused
@@ -334,20 +319,17 @@ static void alarmtimer_shutdown(struct platform_device *dev)
         if (!min.tv64 || (delta.tv64 < min.tv64))
             min = delta;
 
+        /*if the current time is less 50 seconds than the alarm time, the alarm should turn off*/
+        if (ktime_to_ms(min) < 50 * MSEC_PER_SEC) {
+            printk("[alarmtimer] shutdown alarm interval is too short, less than 50s! %s %d\n", __FUNCTION__, __LINE__);
+            return;
+        }
         /* Setup an rtc timer to fire that far in the future */
         rtc_timer_cancel(rtc, &rtctimer);
         rtc_read_time(rtc, &tm);
         now = rtc_tm_to_ktime(tm);
-        /* if not in charger mode cur_time < (40s + alarm_time), alarm start right away(5s for shut down time),
-         * otherwise, power on before alarm for 35s
-         * */
-        if (!boot_mode) {
-            if (ktime_to_ms(min) < 40 * MSEC_PER_SEC){
-                min = ktime_set(5, 0);
-            }else{
-                min = ktime_sub(min, ktime_set(35, 0));
-            }
-        }
+        /* make the alarm trigger ahead of the alarm time, because the power on spend about 50s */
+        min = ktime_sub(min, ktime_set(50, 0));
         printk("[alarmtimer] add shutdown alarm interval=%lldms, %s %d\n", ktime_to_ms(min), __FUNCTION__, __LINE__);
         now = ktime_add(now, min);
 

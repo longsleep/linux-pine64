@@ -46,6 +46,7 @@ extern disp_drv_info g_disp_drv;
 
 static struct __fb_addr_para g_fb_addr;
 
+
 s32 sunxi_get_fb_addr_para(struct __fb_addr_para *fb_addr_para)
 {
 	if (fb_addr_para){
@@ -166,6 +167,29 @@ static void *Fb_map_kernel(unsigned long phys_addr, unsigned long size)
 		*(tmp++) = cur_page++;
 
 	pgprot = pgprot_noncached(PAGE_KERNEL);
+	vaddr = vmap(pages, npages, VM_MAP, pgprot);
+
+	vfree(pages);
+	return vaddr;
+}
+
+static void *Fb_map_kernel_cache(unsigned long phys_addr, unsigned long size)
+{
+	int npages = PAGE_ALIGN(size) / PAGE_SIZE;
+	struct page **pages = vmalloc(sizeof(struct page *) * npages);
+	struct page **tmp = pages;
+	struct page *cur_page = phys_to_page(phys_addr);
+	pgprot_t pgprot;
+	void *vaddr = NULL;
+	int i;
+
+	if (!pages)
+		return NULL;
+
+	for (i = 0; i < npages; i++)
+		*(tmp++) = cur_page++;
+
+	pgprot = PAGE_KERNEL;
 	vaddr = vmap(pages, npages, VM_MAP, pgprot);
 
 	vfree(pages);
@@ -873,7 +897,7 @@ static int Fb_map_kernel_logo(u32 sel, struct fb_info *info)
 
 	/* parser bmp header */
 	offset = paddr & ~PAGE_MASK;
-	vaddr = (void *)Fb_map_kernel(paddr, sizeof(bmp_header_t));
+	vaddr = (void *)Fb_map_kernel_cache(paddr, sizeof(bmp_header_t));
 	if (NULL == vaddr) {
 		__wrn("fb_map_kernel failed, paddr=0x%p,size=0x%x\n", (void*)paddr, (unsigned int)sizeof(bmp_header_t));
 		return -1;
@@ -920,7 +944,7 @@ static int Fb_map_kernel_logo(u32 sel, struct fb_info *info)
 	Fb_unmap_kernel(vaddr);
 
 	/* map the total bmp buffer */
-	vaddr = (void *)Fb_map_kernel(paddr, x * y * bmp_bpix + sizeof(bmp_header_t));
+	vaddr = (void *)Fb_map_kernel_cache(paddr, x * y * bmp_bpix + sizeof(bmp_header_t));
 	if (NULL == vaddr) {
 		__wrn("fb_map_kernel failed, paddr=0x%p,size=0x%x\n", (void*)paddr, (unsigned int)(x * y * bmp_bpix + sizeof(bmp_header_t)));
 		return -1;
@@ -1150,29 +1174,6 @@ static s32 fb_parse_bootlogo_base(phys_addr_t *fb_base, int * fb_size)
 	return 0;
 }
 
-unsigned long fb_get_address_info(u32 fb_id, u32 phy_virt_flag)
-{
-	struct fb_info *info = NULL;
-	unsigned long phy_addr = 0;
-	unsigned long virt_addr = 0;
-
-	if (fb_id >= FB_MAX) {
-		return 0;
-	}
-
-	info = g_fbi.fbinfo[fb_id];
-	phy_addr = info->fix.smem_start;
-	virt_addr = (unsigned long)info->screen_base;
-
-	if (0 == phy_virt_flag) {
-		//get virtual address
-		return virt_addr;
-	} else {
-		//get phy address
-		return phy_addr;
-	}
-}
-
 s32 fb_init(struct platform_device *pdev)
 {
 	struct disp_fb_create_info fb_para;
@@ -1272,17 +1273,11 @@ s32 fb_init(struct platform_device *pdev)
 				fb_para.width = g_disp_drv.disp_init.fb_width[i];
 				fb_para.height = g_disp_drv.disp_init.fb_height[i];
 			}
-
 			fb_para.output_width = bsp_disp_get_screen_width_from_output_type(screen_id,
 				    g_disp_drv.disp_init.output_type[screen_id], g_disp_drv.disp_init.output_mode[screen_id]);
 			fb_para.output_height = bsp_disp_get_screen_height_from_output_type(screen_id,
 				    g_disp_drv.disp_init.output_type[screen_id], g_disp_drv.disp_init.output_mode[screen_id]);
 			fb_para.fb_mode = screen_id;
-
-			#if defined (SUPPORT_EINK)	//fix me: for eink panel,fix in sysconfig
-			fb_para.output_width = fb_para.width;
-			fb_para.output_height = fb_para.height;
-			#endif
 
 			display_fb_request(i, &fb_para);
 #if defined(CONFIG_DISP2_SUNXI_BOOT_COLORBAR)

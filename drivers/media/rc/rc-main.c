@@ -26,11 +26,12 @@
 #define IR_TAB_MAX_SIZE	8192
 
 /* FIXME: IR_KEYPRESS_TIMEOUT should be protocol specific */
-#define IR_KEYPRESS_TIMEOUT 250
+#define IR_KEYPRESS_TIMEOUT 200
 
 /* Used to keep track of known keymaps */
 static LIST_HEAD(rc_map_list);
 static DEFINE_SPINLOCK(rc_map_lock);
+static int keyrepeated = 0;
 
 static struct rc_map_list *seek_rc_map(const char *name)
 {
@@ -549,10 +550,12 @@ static void ir_do_keyup(struct rc_dev *dev, bool sync)
 		return;
 
 	IR_dprintk(1, "keyup key 0x%04x\n", dev->last_keycode);
+	input_event(dev->input_dev, EV_MSC, MSC_SCAN, (dev->last_scancode & (~(0x1<<24))));
 	input_report_key(dev->input_dev, dev->last_keycode, 0);
 	if (sync)
 		input_sync(dev->input_dev);
 	dev->keypressed = false;
+	keyrepeated = 0;
 }
 
 /**
@@ -614,13 +617,16 @@ void rc_repeat(struct rc_dev *dev)
 
 	spin_lock_irqsave(&dev->keylock, flags);
 
-	input_event(dev->input_dev, EV_MSC, MSC_SCAN, dev->last_scancode);
 	input_sync(dev->input_dev);
 
 	if (!dev->keypressed)
 		goto out;
 
-	dev->keyup_jiffies = jiffies + msecs_to_jiffies(IR_KEYPRESS_TIMEOUT);
+//	input_event(dev->input_dev, EV_MSC, MSC_SCAN, (dev->last_scancode || (0x1 << 25)));
+//	input_sync(dev->input_dev);
+
+	keyrepeated = 1;
+	dev->keyup_jiffies = jiffies + msecs_to_jiffies(dev->input_dev->rep[REP_PERIOD]);
 	mod_timer(&dev->timer_keyup, dev->keyup_jiffies);
 
 out:
@@ -642,13 +648,12 @@ static void ir_do_keydown(struct rc_dev *dev, int scancode,
 			  u32 keycode, u8 toggle)
 {
 	bool new_event = !dev->keypressed ||
-			 dev->last_scancode != scancode ||
+			 dev->last_scancode != scancode || (!keyrepeated) ||
 			 dev->last_toggle != toggle;
+	int temp_code;
 
 	if (new_event && dev->keypressed)
 		ir_do_keyup(dev, false);
-
-	input_event(dev->input_dev, EV_MSC, MSC_SCAN, scancode);
 
 	if (new_event && keycode != KEY_RESERVED) {
 		/* Register a keypress */
@@ -656,6 +661,9 @@ static void ir_do_keydown(struct rc_dev *dev, int scancode,
 		dev->last_scancode = scancode;
 		dev->last_toggle = toggle;
 		dev->last_keycode = keycode;
+		keyrepeated = 0;
+		temp_code = scancode | (0x01 << 24);
+		input_event(dev->input_dev, EV_MSC, MSC_SCAN, temp_code);
 
 		IR_dprintk(1, "%s: key down event, "
 			   "key 0x%04x, scancode 0x%04x\n",
@@ -684,7 +692,7 @@ void rc_keydown(struct rc_dev *dev, int scancode, u8 toggle)
 	spin_lock_irqsave(&dev->keylock, flags);
 	ir_do_keydown(dev, scancode, keycode, toggle);
 
-	if (dev->keypressed) {
+	if (dev->keypressed && !keyrepeated) {
 		dev->keyup_jiffies = jiffies + msecs_to_jiffies(IR_KEYPRESS_TIMEOUT);
 		mod_timer(&dev->timer_keyup, dev->keyup_jiffies);
 	}
@@ -1062,7 +1070,7 @@ int rc_register_device(struct rc_dev *dev)
 		return -EINVAL;
 
 	set_bit(EV_KEY, dev->input_dev->evbit);
-	set_bit(EV_REP, dev->input_dev->evbit);
+	//set_bit(EV_REP, dev->input_dev->evbit);
 	set_bit(EV_MSC, dev->input_dev->evbit);
 	set_bit(MSC_SCAN, dev->input_dev->mscbit);
 	if (dev->open)
@@ -1095,9 +1103,6 @@ int rc_register_device(struct rc_dev *dev)
 	memcpy(&dev->input_dev->id, &dev->input_id, sizeof(dev->input_id));
 	dev->input_dev->phys = dev->input_phys;
 	dev->input_dev->name = dev->input_name;
-	rc = input_register_device(dev->input_dev);
-	if (rc)
-		goto out_table;
 
 	/*
 	 * Default delay of 250ms is too short for some protocols, especially
@@ -1113,6 +1118,10 @@ int rc_register_device(struct rc_dev *dev)
 	 * to do.
 	 */
 	dev->input_dev->rep[REP_PERIOD] = 125;
+
+	rc = input_register_device(dev->input_dev);
+	if (rc)
+		goto out_table;
 
 	path = kobject_get_path(&dev->dev.kobj, GFP_KERNEL);
 	printk(KERN_INFO "%s: %s as %s\n",

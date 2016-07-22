@@ -362,7 +362,7 @@ s32 disp_tv_suspend(struct disp_device* ptv)
 	if (false == ptvp->suspended) {
 		ptvp->suspended = true;
 		if (ptvp->tv_func.tv_suspend != NULL) {
-			ptvp->tv_func.tv_suspend(ptv->disp);
+			ptvp->tv_func.tv_suspend();
 		}
 	}
 	return 0;
@@ -379,7 +379,7 @@ s32 disp_tv_resume(struct disp_device* ptv)
 
 	if (true == ptvp->suspended) {
 		if (ptvp->tv_func.tv_resume != NULL) {
-			ptvp->tv_func.tv_resume(ptv->disp);
+			ptvp->tv_func.tv_resume();
 		}
 		ptvp->suspended = false;
 	}
@@ -447,7 +447,7 @@ s32 disp_tv_get_input_csc(struct disp_device* ptv)
 	if (ptvp->tv_func.tv_get_input_csc == NULL)
 		return DIS_FAIL;
 
-	return ptvp->tv_func.tv_get_input_csc(ptv->disp);			//0 or 1.
+	return ptvp->tv_func.tv_get_input_csc();			//0 or 1.
 }
 
 
@@ -486,7 +486,7 @@ s32 disp_tv_check_support_mode(struct disp_device*  ptv, enum disp_output_type t
 	}
 	if (ptvp->tv_func.tv_get_input_csc == NULL)
 		return DIS_FAIL;
-	return ptvp->tv_func.tv_mode_support(ptv->disp, tv_mode);
+	return ptvp->tv_func.tv_mode_support(tv_mode);
 }
 
 s32 disp_init_tv_para(disp_bsp_init_para * para)
@@ -535,17 +535,14 @@ s32	disp_set_enhance_mode(struct disp_device *ptv, u32 mode)
 
 s32 disp_init_tv(void)//disp_bsp_init_para * para)  //call by disp_display
 {
-	u32 value = 0;
-	u32 ret = 0;
-	char status[32];
-	char primary_key[32];
 
-	g_tv_used = false;
-	ret = disp_sys_script_get_item("tv", "status", (int*)status, 2);
-	if (2 == ret && !strcmp(status, "okay"))
-		g_tv_used = true;
+	script_item_u   val;
+	script_item_value_type_e  type;
 
-	if (g_tv_used) {
+	type = script_get_item("tv_para", "tv_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT == type)
+		g_tv_used = val.val;
+	if (g_tv_used ) {
 		u32 num_devices;
 		u32 disp = 0;
 		struct disp_device* p_tv;
@@ -575,10 +572,8 @@ s32 disp_init_tv(void)//disp_bsp_init_para * para)  //call by disp_display
 
 		disp = 0;
 		for (hwdev_index=0; hwdev_index<num_devices; hwdev_index++) {
-			bool tv_used = false;
-
-			if (!bsp_disp_feat_is_supported_output_types(hwdev_index, DISP_OUTPUT_TYPE_TV)) {
-				DE_WRN("screen %d do not support TV TYPE!\n", hwdev_index);
+			if (!bsp_disp_feat_is_supported_output_types(disp, DISP_OUTPUT_TYPE_TV)) {
+				DE_WRN("screen %d do not support TV TYPE!\n", disp);
 				continue;
 			}
 
@@ -615,14 +610,7 @@ s32 disp_init_tv(void)//disp_bsp_init_para * para)  //call by disp_display
 			p_tv->set_enhance_mode = disp_set_enhance_mode;
 			p_tv->init(p_tv);
 
-			value = 0;
-			sprintf(primary_key, "tv%d", p_tv->disp);
-			ret = disp_sys_script_get_item(primary_key, "tv_used", (int*)&value, 1);
-			if ((1 == ret) && (1 == value))
-				tv_used = true;
-
-			if (tv_used)
-				disp_device_register(p_tv);
+			disp_device_register(p_tv);
 			disp ++;
 		}
 	}

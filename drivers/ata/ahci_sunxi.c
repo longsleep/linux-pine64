@@ -68,6 +68,8 @@ static struct scsi_host_template ahci_platform_sht = {
 
 static char* ahci_sunxi_gpio_name = "sata_power_en";
 
+static void ahci_sunxi_dump_reg(struct device *dev);
+
 static void sunxi_clrbits(void __iomem *reg, u32 clr_val)
 {
 	u32 reg_val;
@@ -423,8 +425,7 @@ err0:
 	return rc;
 }
 
-#ifdef AHCI_SUNXI_DBUG
-static void ahci_sunxi_dump_reg(struct device *dev)
+void ahci_sunxi_dump_reg(struct device *dev)
 {
 	struct ata_host *host = dev_get_drvdata(dev);
 	struct ahci_host_priv *hpriv = host->private_data;
@@ -435,17 +436,14 @@ static void ahci_sunxi_dump_reg(struct device *dev)
 		printk("0x%3x = 0x%x, 0x%3x = 0x%x, 0x%3x = 0x%x, 0x%3x = 0x%x\n", i, readl(base+i), i+4, readl(base+ i+4), i+8, readl(base+i+8), i+12, readl(base+i+12));
 	}
 }
-#endif
 
 #ifdef CONFIG_PM
 
 static int ahci_sunxi_suspend(struct device *dev)
 {
-	printk("ahci_sunxi: ahci_sunxi_suspend\n"); //danielwang
 
-#ifdef AHCI_SUNXI_DBUG
-	ahci_sunxi_dump_reg(dev);
-#endif
+	printk("ahci_sunxi: ahci_sunxi_suspend\n"); //danielwang
+//	ahci_sunxi_dump_reg(dev);
 
 	ahci_sunxi_stop(dev);
 
@@ -461,10 +459,7 @@ static int ahci_sunxi_resume(struct device *dev)
 	printk("ahci_sunxi: ahci_sunxi_resume\n"); //danielwang
 
 	ahci_sunxi_start(dev, hpriv->mmio);
-
-#ifdef AHCI_SUNXI_DBUG
-	ahci_sunxi_dump_reg(dev);
-#endif
+//	ahci_sunxi_dump_reg(dev);
 
 	ahci_hardware_recover_for_controller_resume(host);
 

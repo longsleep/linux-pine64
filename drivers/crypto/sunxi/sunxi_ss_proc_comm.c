@@ -125,9 +125,7 @@ void ss_hash_padding_sg_prepare(struct scatterlist *last, int total)
 
 int ss_hash_padding(ss_hash_ctx_t *ctx, int type)
 {
-	int blk_size = ss_hash_blk_size(type);
-	int len_threshold = blk_size == SHA512_BLOCK_SIZE ? 112 : 56;
-	int n = ctx->cnt % blk_size;
+	int n = ctx->cnt % ss_hash_blk_size(type);
 	u8 *p = ctx->pad;
 	int len_l = ctx->cnt << 3;  /* total len, in bits. */
 	int len_h = ctx->cnt >> 29;
@@ -137,24 +135,16 @@ int ss_hash_padding(ss_hash_ctx_t *ctx, int type)
 	p[n] = 0x80;
 	n++;
 
-	if (n > len_threshold) { /* The pad data need two blocks. */
-		memset(p+n, 0, blk_size*2 - n);
-		p += blk_size*2 - 8;
+	if (n > (ss_hash_blk_size(type)-8)) {
+		memset(p+n, 0, ss_hash_blk_size(type)*2 - n);
+		p += ss_hash_blk_size(type)*2-8;
 	}
 	else {
-		memset(p+n, 0, blk_size - n);
-		p += blk_size - 8;
+		memset(p+n, 0, ss_hash_blk_size(type)-8-n);
+		p += ss_hash_blk_size(type)-8;
 	}
 
 	if (big_endian == 1) {
-#if 0
-		/* The length should use bit64 in SHA384/512 case.
-		   The OpenSSL package is always small than 8K, so we use still bit32. */
-		if (blk_size == SHA512_BLOCK_SIZE) {
-			int len_hh = ctx->cnt >> 61;
-			*(int *)(p-4) = swab32(len_hh);
-		}
-#endif
 		*(int *)p = swab32(len_h);
 		*(int *)(p+4) = swab32(len_l);
 	}

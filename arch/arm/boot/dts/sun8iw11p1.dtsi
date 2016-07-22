@@ -50,7 +50,6 @@
 		disp = &disp;
 		lcd0 = &lcd0;
 		pwm = &pwm;
-		tvd = &tvd;
 		boot_disp = &boot_disp;
 	};
 
@@ -969,7 +968,7 @@
 				<GIC_SPI 89 0x0104>;/* for dsi */
 			clocks = <&clk_de>,<&clk_tcon_top>,
 						<&clk_tcon0>,<&clk_tcon1>,
-						<&clk_tcon_tv0>,<&clk_tcon_tv1>,<&clk_lvds>,<&clk_mipidsi>;
+						<&clk_tcon_tv0>,<&clk_tcon_tv1>,<&clk_mipidsi>;
 			status = "okay";
 		};
 
@@ -986,79 +985,6 @@
 			status = "okay";
 		};
 
-		tv: tv@01c08000 {
-			compatible = "allwinner,sunxi-tv";
-			reg = <0x0 0x01c08000 0x0 0x100>,
-				<0x0 0x01c09000 0x0 0x3fc>,
-				<0x0 0x01c0a000 0x0 0x3fc>;
-			clocks = <&clk_tve_top>,<&clk_tve0>,<&clk_tve1>;
-			tv-number = <2>;
-			tvs = <&tv0>, <&tv1>;
-			status = "disabled";
-		};
-
-		tv0: tv0@01c09000 {
-			compatible = "allwinner,sunxi-tv0";
-			tv_used = <1>;
-			status = "disabled";
-		};
-
-		tv1: tv1@01c0a000 {
-			compatible = "allwinner,sunxi-tv1";
-			tv_used = <1>;
-			status = "disabled";
-		};
-
-		tvd: tvd@01c30000 {
-			compatible = "allwinner,sunxi-tvd";
-			reg = <0x0 0x01c30000 0x0 0x00010000>;/*tvd_top*/
-			clocks = <&clk_tvd_top>;
-			interrupts = <GIC_SPI 61 0x0104>;
-			tvd-number = <4>;
-			tvds = <&tvd0>, <&tvd1>, <&tvd2>, <&tvd3>;
-			status = "okay";
-		};
-
-		tvd0: tvd0@01c31000 {
-			compatible = "allwinner,sunxi-tvd0";
-			reg = <0x0 0x01c31000 0x0 0x00010000>;
-			interrupts = <GIC_SPI 97 0x0104>;
-			clocks = <&clk_tvd0>;
-			tvd_used = <1>;
-			tvd_if = <0>;
-			status = "okay";
-		};
-
-		tvd1: tvd1@01c32000 {
-			compatible = "allwinner,sunxi-tvd1";
-			reg = <0x0 0x01c32000 0x0 0x00010000>;
-			interrupts = <GIC_SPI 98 0x0104>;
-			clocks = <&clk_tvd1>;
-			tvd_used = <1>;
-			tvd_if = <0>;
-			status = "okay";
-		};
-
-		tvd2: tvd2@01c33000 {
-			compatible = "allwinner,sunxi-tvd2";
-			reg = <0x0 0x01c33000 0x0 0x00010000>;
-			interrupts = <GIC_SPI 99 0x0104>;
-			clocks = <&clk_tvd2>;
-			tvd_used = <1>;
-			tvd_if = <0>;
-			status = "okay";
-		};
-
-		tvd3: tvd3@01c34000 {
-			compatible = "allwinner,sunxi-tvd3";
-			reg = <0x0 0x01c34000 0x0 0x00010000>;
-			interrupts = <GIC_SPI 100 0x0104>;
-			clocks = <&clk_tvd3>;
-			tvd_used = <1>;
-			tvd_if = <0>;
-			status = "okay";
-		};
-
 		soc_tr: tr@01000000 {
 			compatible = "allwinner,sun8iw11-tr";
 			reg = <0x0 0x01000000 0x0 0x000200bc>;
@@ -1067,198 +993,11 @@
 			status = "okay";
 		};
 
-		g2d: g2d@01e80000 {
-			compatible = "allwinner,sunxi-g2d";
-			reg = <0x0 0x01e80000 0x0 0x800>;
-			interrupts = <GIC_SPI 46 0x0104>;
-			clocks = <&clk_de_mp>;
-			status = "disabled";
-		};
-
 		pwm: pwm@01c23400 {
-			compatible = "allwinner,sunxi-pwm";
-			reg = <0x0 0x01c23400 0x0 0x154>;
-			pwm-number = <1>;
-			pwm-base = <0x0>;
-			pwms = <&pwm0>, <&pwm1>;
-		};
-
-		pwm0: pwm0@01c23400 {
 			compatible = "allwinner,sunxi-pwm0";
+			reg = <0x0 0x01c23400 0x0 0x3c>;
+			pwm-number = <1>;
 			pinctrl-names = "active", "sleep";
-			reg_base = <0x01c23400>;
-			reg_peci_offset = <0x00>;
-			reg_peci_shift = <0x00>;
-			reg_peci_width = <0x01>;
-
-			reg_pis_offset = <0x04>;
-			reg_pis_shift = <0x00>;
-			reg_pis_width = <0x01>;
-
-			reg_crie_offset = <0x10>;
-			reg_crie_shift = <0x00>;
-			reg_crie_width = <0x01>;
-
-			reg_cfie_offset = <0x10>;
-			reg_cfie_shift = <0x01>;
-			reg_cfie_width = <0x01>;
-
-			reg_cris_offset = <0x14>;
-			reg_cris_shift = <0x00>;
-			reg_cris_width = <0x01>;
-
-			reg_cfis_offset = <0x14>;
-			reg_cfis_shift = <0x01>;
-			reg_cfis_width = <0x01>;
-
-			reg_clk_src_offset = <0x20>;
-			reg_clk_src_shift = <0x07>;
-			reg_clk_src_width = <0x02>;
-
-			reg_bypass_offset = <0x20>;
-			reg_bypass_shift = <0x05>;
-			reg_bypass_width = <0x01>;
-
-			reg_clk_gating_offset = <0x20>;
-			reg_clk_gating_shift = <0x04>;
-			reg_clk_gating_width = <0x01>;
-
-			reg_clk_div_m_offset = <0x20>;
-			reg_clk_div_m_shift = <0x00>;
-			reg_clk_div_m_width = <0x04>;
-
-			reg_pdzintv_offset = <0x30>;
-			reg_pdzintv_shift = <0x08>;
-			reg_pdzintv_width = <0x08>;
-
-			reg_dz_en_offset = <0x30>;
-			reg_dz_en_shift = <0x00>;
-			reg_dz_en_width = <0x01>;
-
-			reg_enable_offset = <0x40>;
-			reg_enable_shift = <0x00>;
-			reg_enable_width = <0x01>;
-
-			reg_cap_en_offset = <0x44>;
-			reg_cap_en_shift = <0x00>;
-			reg_cap_en_width = <0x01>;
-
-			reg_period_rdy_offset = <0x60>;
-			reg_period_rdy_shift = <0x0b>;
-			reg_period_rdy_width = <0x01>;
-
-			reg_pul_start_offset = <0x60>;
-			reg_pul_start_shift = <0x0a>;
-			reg_pul_start_width = <0x01>;
-
-			reg_mode_offset = <0x60>;
-			reg_mode_shift = <0x09>;
-			reg_mode_width = <0x01>;
-
-			reg_act_sta_offset = <0x60>;
-			reg_act_sta_shift = <0x08>;
-			reg_act_sta_width = <0x01>;
-
-			reg_prescal_offset = <0x60>;
-			reg_prescal_shift = <0x00>;
-			reg_prescal_width = <0x08>;
-
-			reg_entire_offset = <0x64>;
-			reg_entire_shift = <0x10>;
-			reg_entire_width = <0x10>;
-
-			reg_active_offset = <0x64>;
-			reg_active_shift = <0x00>;
-			reg_active_width = <0x10>;
-		};
-
-		pwm1: pwm1@01c23400 {
-			compatible = "allwinner,sunxi-pwm1";
-			pinctrl-names = "active", "sleep";
-			reg_base = <0x01c23400>;
-			reg_peci_offset = <0x00>;
-			reg_peci_shift = <0x01>;
-			reg_peci_width = <0x01>;
-
-			reg_pis_offset = <0x04>;
-			reg_pis_shift = <0x01>;
-			reg_pis_width = <0x01>;
-
-			reg_crie_offset = <0x10>;
-			reg_crie_shift = <0x00>;
-			reg_crie_width = <0x01>;
-
-			reg_cfie_offset = <0x10>;
-			reg_cfie_shift = <0x01>;
-			reg_cfie_width = <0x01>;
-
-			reg_cris_offset = <0x14>;
-			reg_cris_shift = <0x01>;
-			reg_cris_width = <0x01>;
-
-			reg_cfis_offset = <0x14>;
-			reg_cfis_shift = <0x01>;
-			reg_cfis_width = <0x01>;
-
-			reg_clk_src_offset = <0x20>;
-			reg_clk_src_shift = <0x07>;
-			reg_clk_src_width = <0x02>;
-
-			reg_bypass_offset = <0x20>;
-			reg_bypass_shift = <0x06>;
-			reg_bypass_width = <0x01>;
-
-			reg_clk_gating_offset = <0x20>;
-			reg_clk_gating_shift = <0x04>;
-			reg_clk_gating_width = <0x01>;
-
-			reg_clk_div_m_offset = <0x20>;
-			reg_clk_div_m_shift = <0x00>;
-			reg_clk_div_m_width = <0x04>;
-
-			reg_pdzintv_offset = <0x30>;
-			reg_pdzintv_shift = <0x08>;
-			reg_pdzintv_width = <0x08>;
-
-			reg_dz_en_offset = <0x30>;
-			reg_dz_en_shift = <0x00>;
-			reg_dz_en_width = <0x01>;
-
-			reg_enable_offset = <0x40>;
-			reg_enable_shift = <0x01>;
-			reg_enable_width = <0x01>;
-
-			reg_cap_en_offset = <0x44>;
-			reg_cap_en_shift = <0x01>;
-			reg_cap_en_width = <0x01>;
-
-			reg_period_rdy_offset = <0x80>;
-			reg_period_rdy_shift = <0x0b>;
-			reg_period_rdy_width = <0x01>;
-
-			reg_pul_start_offset = <0x80>;
-			reg_pul_start_shift = <0x0a>;
-			reg_pul_start_width = <0x01>;
-
-			reg_mode_offset = <0x80>;
-			reg_mode_shift = <0x09>;
-			reg_mode_width = <0x01>;
-
-			reg_act_sta_offset = <0x80>;
-			reg_act_sta_shift = <0x08>;
-			reg_act_sta_width = <0x01>;
-
-			reg_prescal_offset = <0x80>;
-			reg_prescal_shift = <0x00>;
-			reg_prescal_width = <0x08>;
-
-			reg_entire_offset = <0x84>;
-			reg_entire_shift = <0x10>;
-			reg_entire_width = <0x10>;
-
-			reg_active_offset = <0x84>;
-			reg_active_shift = <0x00>;
-			reg_active_width = <0x10>;
 		};
 
 		boot_disp: boot_disp {
@@ -1274,30 +1013,22 @@
 		csi_res0:csi_res@0x01c09000 {
 			compatible = "allwinner,sunxi-csi";
 			reg = <0x0 0x01c09000 0x0 0x1000>;/*0x01c09000--0x01c0a000*/
-			clocks 				= <&clk_csi_s>, <&clk_csi_m>,
-									<&clk_pll_periph0>,<&clk_hosc>;
-			clocks-index		= <0 1 0xff 2 3 4 0xff>;
 			status = "okay";
 		};
 		csi_res1:csi_res@0X01c1d000 {
 			compatible = "allwinner,sunxi-csi";
 			reg = <0x0 0X01c1d000 0x0 0x1000>;/*0X01c1d000--0x01c0e000*/
-			clocks 				= <&clk_csi_s>, <&clk_csi_misc>,
-									<&clk_pll_periph0>,<&clk_hosc>;
-			clocks-index		= <0 1 0xff 2 3 4 0xff>;
 			status = "disabled";
 		};
 		csi0:vfe@0 {
 			device_type= "csi0";
 			compatible = "allwinner,sunxi-vfe";
 			interrupts = <GIC_SPI 84 4>;/*SUNXI_IRQ_CSI0 (SUNXI_GIC_START + 84 ) = 116*/
+			clocks 				= <&clk_csi_s>, <&clk_csi_m>,
+									<&clk_pll_periph0>,<&clk_hosc>;
 			pinctrl-names 		= "default","sleep";
 			pinctrl-0 			= <&csi0_pins_a>;
 			pinctrl-1 			= <&csi0_pins_b>;
-			cci_sel			= <0>;
-			csi_sel			= <0>;
-			mipi_sel			= <0>;
-			isp_sel			= <0>;
 			csi0_sensor_list	= <0>;
 			csi0_mck 			= <&pio PE 1 1 0 1 0>; /*PE1 .mul_sel = 1, .pull = 0, .drv_level = 1, .data = 0*/
 			status = "okay";
@@ -1364,13 +1095,11 @@
 			device_type= "csi1";
 			compatible = "allwinner,sunxi-vfe";
 			interrupts = <GIC_SPI 84 4>;/*SUNXI_IRQ_CSI1 (SUNXI_GIC_START + 85 ) = 117*/
+			clocks 				= <&clk_csi_s>, <&clk_csi_misc>,
+									<&clk_pll_periph0>,<&clk_hosc>;
 			pinctrl-names 		= "default","sleep";
 			pinctrl-0 			= <&csi1_pins_a>;
 			pinctrl-1 			= <&csi1_pins_b>;
-			cci_sel			= <0>;
-			csi_sel			= <1>;
-			mipi_sel			= <0>;
-			isp_sel			= <0>;
 			csi1_sensor_list	= <0>;
 			csi1_mck 			= <&pio PG 1 1 0 1 0>; /*PG1 .mul_sel = 1, .pull = 0, .drv_level = 1, .data = 0*/
 			status = "disabled";
@@ -1482,15 +1211,38 @@
 			nmi_irq_mask = <0x50>;
 			status = "okay";
 		};
-
-		pmu0:pmu@0{
+		pmu0:pmu0@0{
 			compatible = "allwinner,pmu0";
+			device_type = "pmu0";
+			pmu_batdeten               = <1>;
+			pmu_init_chgend_rate       = <20>;
+			pmu_init_chg_enabled       = <1>;
+			pmu_init_adc_freq          = <800>;
+			pmu_init_adcts_freq        = <800>;
+			pmu_init_chg_pretime       = <70>;
+			pmu_init_chg_csttime       = <720>;
+			pmu_batt_cap_correct       = <1>;
+			pmu_chg_end_on_en          = <0>;
+
+			pmu_pwroff_vol             = <3300>;
+			pmu_pwron_vol              = <2600>;
+			pmu_powkey_off_delay_time  = <0>;
+			pmu_pwrok_time             = <64>;
+			pmu_reset_shutdown_en      = <1>;
+			pmu_restvol_adjust_time    = <60>;
+			pmu_ocv_cou_adjust_time    = <60>;
+			pmu_vbusen_func            = <1>;
+			pmu_reset                  = <0>;
+			pmu_IRQ_wakeup             = <0>;
+			pmu_hot_shutdowm           = <1>;
+			pmu_inshort                = <0>;
+			pmu_bat_shutdown_ltf       = <3200>; /* add by superm for debug */
+			pmu_bat_shutdown_htf       = <237>;  /* add by superm for debug */
 			status = "okay";
 		};
-
 		pmu0_regu:regu@0{
 			compatible = "allwinner,pmu0_regu";
-			regulator_count = <7>;
+			regulator_count = <23>;
 			status = "okay";
 		};
 
@@ -1519,18 +1271,18 @@
 
 		sunxi_thermal_sensor:thermal_sensor{
 			compatible = "allwinner,thermal_sensor";
-			reg = <0x0 0x01c25000 0x0 0x80>;
-			interrupts = <GIC_SPI 36 IRQ_TYPE_NONE>;
+			reg = <0x0 0x01c25000 0x0 0x400>;
+			interrupts = <GIC_SPI 31 IRQ_TYPE_NONE>;
 			clocks = <&clk_hosc>,<&clk_ths>;
-			sensor_num = <1>;
+			sensor_num = <3>;
 			shut_temp= <120>;
 			status = "okay";
 
 			combine0:combine0{
 				#thermal-sensor-cells = <1>;
-				combine_cnt = <1>;
+				combine_cnt = <3>;
 				combine_type = "max";
-				combine_chn = <0>;
+				combine_chn = <0 1 2>;
 			};
 		};
 
@@ -1674,26 +1426,6 @@
 			clocks = <&clk_pll_sata>, <&clk_sata>;
 			sata_power_en;
 			status = "okay";
-		};
-
-		ps20: ps2@01c2a000 {
-			compatible = "allwinner,sun4i-a10-ps2";
-			reg = <0x0 0x01c2a000 0x0 0x400>;
-			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_ps20>;
-			pinctrl-names = "default", "sleep";
-			pinctrl-0 = <&ps20_pins_a>;
-			status = "disabled";
-		};
-
-		ps21: ps2@01c2a400 {
-			compatible = "allwinner,sun4i-a10-ps2";
-			reg = <0x0 0x01c2a400 0x0 0x400>;
-			interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_ps21>;
-			pinctrl-names = "default", "sleep";
-			pinctrl-0 = <&ps21_pins_a>;
-			status = "disabled";
 		};
 	};
 };

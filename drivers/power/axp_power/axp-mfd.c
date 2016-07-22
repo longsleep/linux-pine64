@@ -21,7 +21,6 @@
 static DEFINE_SPINLOCK(axp_list_lock);
 static LIST_HEAD(mfd_list);
 
-#ifdef CONFIG_SUNXI_ARISC
 static irqreturn_t axp_mfd_irq_cb(int irq, void *data)
 {
 	struct axp_dev *dev = data;
@@ -40,7 +39,6 @@ static irqreturn_t axp_mfd_irq_cb(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
-#endif
 
 struct axp_dev *axp_dev_lookup(s32 type)
 {
@@ -64,8 +62,6 @@ static void axp_power_off(void)
 {
 #if defined (CONFIG_AW_AXP81X)
 	axp81x_power_off();
-#elif defined (CONFIG_AW_AXP20)
-	axp20_power_off();
 #endif
 }
 
@@ -150,7 +146,6 @@ s32 axp_register_mfd(struct axp_dev *dev)
 	list_add(&dev->list, &mfd_list);
 	spin_unlock_irqrestore(&axp_list_lock, irqflags);
 
-#ifdef CONFIG_SUNXI_ARISC
 	ret = request_irq(dev->irq_number, axp_mfd_irq_cb,
 		IRQF_SHARED|IRQF_DISABLED|IRQF_NO_SUSPEND, "axp", dev);
 	if (ret) {
@@ -158,7 +153,6 @@ s32 axp_register_mfd(struct axp_dev *dev)
 				dev->irq_number);
 		goto out_free_dev;
 	}
-#endif
 
 	ret = axp_mfd_add_subdevs(dev);
 	if (ret)
@@ -172,10 +166,8 @@ s32 axp_register_mfd(struct axp_dev *dev)
 out_free_subdevs:
 	axp_mfd_remove_subdevs(dev);
 out_free_irq:
-#ifdef CONFIG_SUNXI_ARISC
 	free_irq(dev->irq_number, dev);
 out_free_dev:
-#endif
 	spin_lock_irqsave(&axp_list_lock, irqflags);
 	list_del(&dev->list);
 	spin_unlock_irqrestore(&axp_list_lock, irqflags);
@@ -193,9 +185,7 @@ void axp_unregister_mfd(struct axp_dev *dev)
 		return;
 
 	axp_mfd_remove_subdevs(dev);
-#ifdef CONFIG_SUNXI_ARISC
 	free_irq(dev->irq_number, dev);
-#endif
 	spin_lock_irqsave(&axp_list_lock, irqflags);
 	list_del(&dev->list);
 	spin_unlock_irqrestore(&axp_list_lock, irqflags);

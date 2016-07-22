@@ -27,20 +27,20 @@
 #include "platsmp.h"
 
 extern void sunxi_secondary_startup(void);
+extern void *cpus_boot_entry[NR_CPUS];
 extern void secondary_startup(void);
 
 static DEFINE_SPINLOCK(boot_lock);
 void __iomem *sunxi_cpucfg_base;
 void __iomem *sunxi_rtc_base;
 void __iomem *sunxi_sysctl_base;
-void *cpus_boot_entry[NR_CPUS];
 
 static void sunxi_set_cpus_boot_entry(int cpu, void *entry)
 {
 	if (cpu < NR_CPUS) {
 		cpus_boot_entry[cpu] = (void *)(virt_to_phys(entry));
 		smp_wmb();
-		__cpuc_flush_dcache_area(cpus_boot_entry, sizeof(cpus_boot_entry));
+		__cpuc_flush_dcache_area(cpus_boot_entry, NR_CPUS * 4);
 		outer_clean_range(__pa(&cpus_boot_entry), __pa(&cpus_boot_entry + 1));
 	}
 }
@@ -78,6 +78,12 @@ static void sunxi_smp_init_cpus(void)
 	pr_debug("[%s] done\n", __func__);
 }
 
+static void sunxi_smp_prepare_cpus(unsigned int max_cpus)
+{
+	sunxi_set_secondary_entry((void *)(virt_to_phys(sunxi_secondary_startup)));
+	pr_debug("[%s] done\n", __func__);
+}
+
 /*
  * Boot a secondary CPU, and assign it the specified idle task.
  * This also gives us the initial stack to use for this CPU.
@@ -85,7 +91,6 @@ static void sunxi_smp_init_cpus(void)
 int sunxi_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	spin_lock(&boot_lock);
-	sunxi_set_secondary_entry((void *)(virt_to_phys(sunxi_secondary_startup)));
 	sunxi_set_cpus_boot_entry(cpu, secondary_startup);
 	sunxi_enable_cpu(cpu);
 
@@ -101,6 +106,7 @@ int sunxi_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
 
 struct smp_operations sunxi_smp_ops __initdata = {
 	.smp_init_cpus		= sunxi_smp_init_cpus,
+	.smp_prepare_cpus	= sunxi_smp_prepare_cpus,
 	.smp_boot_secondary	= sunxi_smp_boot_secondary,
 #ifdef CONFIG_HOTPLUG_CPU
 	.cpu_die			= sunxi_cpu_die,

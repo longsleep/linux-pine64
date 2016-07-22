@@ -14,7 +14,7 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DWL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST                            \
 	-DESCAN_RESULT_PATCH -DSUPPORT_PM2_ONLY -DWLTDLS                      \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT -DRXFRAME_THREAD          \
-	-DMIRACAST_AMPDU_SIZE=8                          \
+	-DMIRACAST_AMPDU_SIZE=8                                               \
 	-DSDTEST -DBDC -DDHD_BCMEVENTS -DPROP_TXSTATUS_VSDB                   \
 	-DGET_OTP_MAC_ENABLE -DSET_RANDOM_MAC_SOFTAP                          \
 	-DENABLE_INSMOD_NO_FW_LOAD                                            \
@@ -60,6 +60,7 @@ bcmdhd-objs += $(DHDOFILES)
 #ifeq ($(CONFIG_ARCH_SUNXI),y)
 DHDOFILES += dhd_gpio.o
 DHDCFLAGS += -DCUSTOMER_HW -DDHD_OF_SUPPORT -DCUSTOMER_HW_ALLWINNER
+DHDCFLAGS += -DCONFIG_CUSTOM_MAC_ADDRESS
 DHDCFLAGS += -Iarch/arm/mach-sunxi/include
 #DHDCFLAGS += -DBCMWAPI_WPI -DBCMWAPI_WAI
 #endif

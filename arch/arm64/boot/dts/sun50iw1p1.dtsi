@@ -37,9 +37,7 @@
 		spi1 = &spi1;
 		global_timer0  = &soc_timer0;
 		cci0 = &csi_cci0;
-		mipi0 = &mipi0;
 		csi_res0 = &csi_res0;
-		isp0 = &isp0;
 		vfe0 = &csi0;
 		mmc0 = &sdc0;
 		mmc2 = &sdc2;
@@ -48,9 +46,7 @@
 		lcd0 = &lcd0;
 		hdmi = &hdmi;
 		pwm = &pwm;
-		pwm0 = &pwm0;
-		s_pwm = &s_pwm;
-		spwm0 = &spwm0;
+        ac200 = &ac200;
 		boot_disp = &boot_disp;
 	};
 
@@ -313,15 +309,6 @@
 
 	uboot: uboot {
 	};
-
-	gpu_mali400_0: gpu@0x01c40000 {
-		compatible = "arm,mali-400", "arm,mali-utgard";
-		reg = <0x0 0x01c40000 0x0 0x10000>;
-		interrupts = <GIC_SPI 97 4>, <GIC_SPI 98 4>, <GIC_SPI 99 4>, <GIC_SPI 100 4>, <GIC_SPI 102 4>, <GIC_SPI 103 4>;
-		interrupt-names = "IRQGP", "IRQGPMMU", "IRQPP0", "IRQPPMMU0", "IRQPP1", "IRQPPMMU1";
-		clocks = <&clk_pll_gpu>, <&clk_gpu>;
-	};
-
 	soc: soc@01c00000 {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -416,10 +403,33 @@
 			status = "okay";
 		};
 
+
 		s_jtag0: s_jtag0 {
 			compatible = "allwinner,s_jtag";
 			pinctrl-names = "default";
 			pinctrl-0 = <&s_jtag0_pins_a>;
+			status = "disable";
+		};
+
+		box_start_os: box_start_os0 {
+			compatible = "allwinner,box_start_os";
+			start_type = <0x1>;
+			irkey_used = <0x1>;
+			pmukey_used = <0x0>;
+			pmukey_num = <0x0>;
+			led_power = <0x0>;
+			led_state = <0x0>;
+			status = "disable";
+		};
+
+		box_start_os: box_start_os0 {
+			compatible = "allwinner,box_start_os";
+			start_type = <0x0>;
+			irkey_used = <0x0>;
+			pmukey_used = <0x0>;
+			pmukey_num = <0x0>;
+			led_power = <0x0>;
+			led_state = <0x0>;
 			status = "disable";
 		};
 
@@ -990,6 +1000,11 @@
 			compatible = "allwinner,sunxi-hdmi";
 			reg = <0x0 0x01ee0000 0x0 0x20000>;
 			clocks = <&clk_hdmi>,<&clk_hdmi_slow>;
+			hdmi_power = "vcc-hdmi-33";
+			hdmi_hdcp_enable = <0>;
+			hdmi_cts_compatibility = <0>;
+			hdmi_hpd_mask = <0x100>;
+			status = "okay";
 		};
 
 		soc_tr: tr@01000000 {
@@ -1001,77 +1016,19 @@
 		};
 
 		pwm: pwm@01c21400 {
-			compatible = "allwinner,sunxi-pwm";
+			compatible = "allwinner,sunxi-pwm0";
 			reg = <0x0 0x01c21400 0x0 0x3c>;
 			pwm-number = <1>;
-			pwm-base = <0x0>;
-			pwms = <&pwm0>;
-		};
-
-		pwm0: pwm0@01c21400 {
-			compatible = "allwinner,sunxi-pwm0";
 			pinctrl-names = "active", "sleep";
-			reg_base = <0x01c21400>;
-			reg_busy_offset = <0x00>;
-			reg_busy_shift = <28>;
-			reg_enable_offset = <0x00>;
-			reg_enable_shift = <4>;
-			reg_clk_gating_offset = <0x00>;
-			reg_clk_gating_shift = <6>;
-			reg_bypass_offset = <0x00>;
-			reg_bypass_shift = <9>;
-			reg_pulse_start_offset = <0x00>;
-			reg_pulse_start_shift = <8>;
-			reg_mode_offset = <0x00>;
-			reg_mode_shift = <7>;
-			reg_polarity_offset = <0x00>;
-			reg_polarity_shift = <5>;
-			reg_period_offset = <0x04>;
-			reg_period_shift = <16>;
-			reg_period_width = <16>;
-			reg_active_offset = <0x04>;
-			reg_active_shift = <0>;
-			reg_active_width = <16>;
-			reg_prescal_offset = <0x00>;
-			reg_prescal_shift = <0>;
-			reg_prescal_width = <4>;
 		};
 
-		s_pwm: s_pwm@1f03800 {
-			compatible = "allwinner,sunxi-s_pwm";
+		s_pwm0: s_pwm@1f03800 {
+			compatible = "allwinner,sunxi-s_pwm0";
 			reg = <0x0 0x01f03800 0x0 0x3c>;
 			pwm-number = <1>;
 			pwm-base = <0x10>;
-			pwms = <&spwm0>;
-		};
-
-		spwm0: spwm0@0x01f03800 {
-			compatible = "allwinner,sunxi-pwm16";
 			pinctrl-names = "active", "sleep";
-			reg_base = <0x01f03800>;
-			reg_busy_offset = <0x00>;
-			reg_busy_shift = <28>;
-			reg_enable_offset = <0x00>;
-			reg_enable_shift = <4>;
-			reg_clk_gating_offset = <0x00>;
-			reg_clk_gating_shift = <6>;
-			reg_bypass_offset = <0x00>;
-			reg_bypass_shift = <9>;
-			reg_pulse_start_offset = <0x00>;
-			reg_pulse_start_shift = <8>;
-			reg_mode_offset = <0x00>;
-			reg_mode_shift = <7>;
-			reg_polarity_offset = <0x00>;
-			reg_polarity_shift = <5>;
-			reg_period_offset = <0x04>;
-			reg_period_shift = <16>;
-			reg_period_width = <16>;
-			reg_active_offset = <0x04>;
-			reg_active_shift = <0>;
-			reg_active_width = <16>;
-			reg_prescal_offset = <0x00>;
-			reg_prescal_shift = <0>;
-			reg_prescal_width = <4>;
+			status = "disabled";
 		};
 
 		boot_disp: boot_disp {
@@ -1092,33 +1049,17 @@
 		csi_res0:csi_res@0x01cb0000 {
 			compatible = "allwinner,sunxi-csi";
 			reg = <0x0 0x01cb0000 0x0 0x1000>;/*0x01cb0000--0x01cb1000*/
-			clocks 			= <&clk_csi_s>, <&clk_csi_m>,<&clk_csi_misc>,
-								<&clk_pll_periph0>,<&clk_hosc>,<&clk_pll_periph1>;
-			clocks-index		= <0 1 2 3 4 5>;
-			status = "okay";
-		};
-		mipi0:mipi@0x01cb1000 {
-			compatible = "allwinner,sunxi-mipi";
-			reg = <0x0 0x01cb1000 0x0 0x1000>;/*0x01cb1000--0x01cb2000*/
-			clocks-index		= <0xff 0xff 0xff 0xff>;/*0xff represent noclk*/
-			status = "disabled";
-		};
-		isp0:isp@0x01cb8000 {
-			compatible = "allwinner,sunxi-isp";
-			reg = <0x0 0x01cb8000 0x0 0x1000>;/*0x01cb8000--0x01cb9000*/
 			status = "okay";
 		};
 		csi0:vfe@0 {
 			device_type= "csi0";
 			compatible = "allwinner,sunxi-vfe";
 			interrupts = <GIC_SPI 84 4>;/*SUNXI_IRQ_CSI0 (SUNXI_GIC_START + 84 ) = 116*/
+			clocks 				= <&clk_csi_s>, <&clk_csi_m>,<&clk_csi_misc>,
+									<&clk_pll_periph0>,<&clk_hosc>,<&clk_pll_periph1>;
 			pinctrl-names 		= "default","sleep";
 			pinctrl-0 			= <&csi0_pins_a>;
 			pinctrl-1 			= <&csi0_pins_b>;
-			cci_sel			= <0>;
-			csi_sel			= <0>;
-			mipi_sel			= <0>;
-			isp_sel			= <0>;
 			csi0_sensor_list	= <0>;
 			csi0_mck 			= <&pio PE 1 1 0 1 0>; /*PE1 .mul_sel = 1, .pull = 0, .drv_level = 1, .data = 0*/
 			status = "okay";
@@ -1334,10 +1275,11 @@
 			reg = <0x0 0x0 0x0 0x0>;
 			#cooling-cells = <2>;
 			status = "okay";
-			state_cnt = <3>;
+			state_cnt = <4>;
 			state0 = <0>;
-			state1 = <360>;
-			state2 = <144>;
+			state1 = <456>;
+			state2 = <360>;
+			state3 = <144>;
 		};
 
 		thermal-zones{
@@ -1378,7 +1320,12 @@
 						type = "passive";
 						hysteresis = <0>;
 					};
-					crt_trip:t6{
+					gpu_trip2:t6{
+						temperature = <105>;
+						type = "passive";
+						hysteresis = <0>;
+					};
+					crt_trip:t7{
 						temperature = <110>;
 						type = "critical";
 						hysteresis = <0>;
@@ -1415,6 +1362,11 @@
 						contribution = <0>;
 						trip = <&gpu_trip1>;
 						cooling-device = <&gpu_cooling 2 2>;
+					};
+					bind6{
+						contribution = <0>;
+						trip = <&gpu_trip2>;
+						cooling-device = <&gpu_cooling 3 3>;
 					};
 				};
 			};

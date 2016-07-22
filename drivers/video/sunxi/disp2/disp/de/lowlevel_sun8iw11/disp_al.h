@@ -71,11 +71,6 @@ int disp_al_hdmi_cfg(u32 screen_id, struct disp_video_timings *video_info);
 int disp_al_tv_enable(u32 screen_id);
 int disp_al_tv_disable(u32 screen_id);
 int disp_al_tv_cfg(u32 screen_id, struct disp_video_timings *video_info);
-#if defined(SUPPORT_VGA)
-int disp_al_vga_enable(u32 screen_id);
-int disp_al_vga_disable(u32 screen_id);
-int disp_al_vga_cfg(u32 screen_id, struct disp_video_timings *video_info);
-#endif
 int disp_al_vdevice_cfg(u32 screen_id, struct disp_video_timings *video_info, struct disp_vdevice_interface_para *para);
 int disp_al_vdevice_enable(u32 screen_id);
 int disp_al_vdevice_disable(u32 screen_id);
@@ -86,7 +81,6 @@ int disp_al_device_query_irq(u32 screen_id);
 int disp_al_device_enable_irq(u32 screen_id);
 int disp_al_device_disable_irq(u32 screen_id);
 int disp_al_device_get_status(u32 screen_id);
-int disp_al_device_src_select(u32 screen_id, u32 src);
 
 int disp_al_get_fb_info(unsigned int sel, struct disp_layer_info *info);
 int disp_al_get_display_size(unsigned int sel, unsigned int *width, unsigned int *height);

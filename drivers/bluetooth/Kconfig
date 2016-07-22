@@ -71,6 +71,16 @@ config BT_HCIUART_ATH3K
 
 	  Say Y here to compile support for HCI UART ATH3K protocol.
 
+config BT_HCIUART_RTKH5
+	bool "Realtek H5 protocol support"
+	depends on BT_HCIUART
+	help
+	  Realtek H5 is serial protocol for communication
+	  between Realtek Bluetooth device and host. This protocol is required for
+	  Realtek uart h5 bluetooth controller
+
+	  Say Y here to compile support for Realtek HCI H5 protocol.
+
 config BT_HCIUART_LL
 	bool "HCILL protocol support"
 	depends on BT_HCIUART
@@ -194,26 +204,6 @@ config BT_HCIVHCI
 
 	  Say Y here to compile support for virtual HCI devices into the
 	  kernel or say M to compile it as module (hci_vhci).
-
-config BCM_BT_LPM
-	tristate "Broadcom Bluetooth Low Power Manager Support"
-	help
-	  Bluetooth Low Power Manager Driver.
-	  This driver provides the dynamic active power saving mechanism for
-	  bluetooth radio devices special for android4.2.
-
-	  Say Y here to compile support for bt lmp support into the kernel
-	  or say M to compile it as module (btlmp).
-
-config RTL_BT_LPM
-	tristate "Realtek Bluesleep driver support"
-	help
-	  Bluetooth Bluesleep Driver.
-	  This driver provides the dynamic active power saving mechanism for
-	  bluetooth radio devices.
-	  
-	  Say Y here to compile support for bluesleep support into the kernel
-	  or say M to compile it as module (bluesleep).
 
 config BT_MRVL
 	tristate "Marvell Bluetooth driver support"

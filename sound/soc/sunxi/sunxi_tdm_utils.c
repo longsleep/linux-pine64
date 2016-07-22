@@ -228,7 +228,7 @@ int txctrl_tdm(int on,int hub_en,struct sunxi_tdm_info *sunxi_tdm)
 		        reg_val &= ~SUNXI_DAUDIOCTL_TXEN;
 		        writel(reg_val, tdm->regs + SUNXI_DAUDIOCTL);
                 }
-                /* DISBALE dma DRQ mode */
+                /* DISBALE dma DRQ mode*/
 		reg_val = readl(tdm->regs + SUNXI_DAUDIOINT);
 		reg_val &= ~SUNXI_DAUDIOINT_TXDRQEN;
 		writel(reg_val, tdm->regs + SUNXI_DAUDIOINT);
@@ -283,7 +283,7 @@ int  rxctrl_tdm(int on,struct sunxi_tdm_info *sunxi_tdm)
 		writel(0, tdm->regs + SUNXI_DAUDIORXCNT);
 		#ifdef CONFIG_ARCH_SUN50I
 		/*
-		*	while flush RX FIFO, must read RXFIFO DATA three times.
+		*	while flush RX FIFO, must read RXFIFO DATA again.
 		*	or it wouldn't flush RX FIFO clean; and it will let record data channel reverse!
 		*/
 		{

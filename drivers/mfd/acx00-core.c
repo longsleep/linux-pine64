@@ -82,6 +82,44 @@ int acx00_enable(void)
 }
 EXPORT_SYMBOL_GPL(acx00_enable);
 
+
+/* read ac200 system version register to
+ * detect if it is already connected
+ */
+#ifdef CONFIG_MFD_ACX00_VERSION_CHECK
+atomic_t acx00_connected =  ATOMIC_INIT(0);
+int acx00_is_connected(void)
+{
+	return atomic_read(&acx00_connected);
+}
+EXPORT_SYMBOL_GPL(acx00_is_connected);
+
+static int acx00_system_version_check(struct acx00 *acx00)
+{
+	/* AC200 system version register */
+	unsigned short reg = 0x0000;
+	unsigned int version = 0;
+	int timeout = 3;
+	int ret;
+
+	atomic_set(&acx00_connected, 0);
+	do {
+		regmap_write(acx00->regmap, 0xfe, reg>>8);
+		ret = regmap_read(acx00->regmap, reg&0xff, &version);
+	} while (ret < 0 && timeout--);
+
+	if (ret < 0) {
+		dev_err(acx00->dev, "acx00 system version check failed!\n");
+		return ret;
+	}
+
+	atomic_set(&acx00_connected, 1);
+	dev_err(acx00->dev, "system version (0x%08x)\n", version);
+	return 0;
+}
+
+#endif
+
 static void acx00_init_work(struct work_struct *work)
 {
 	struct acx00 *acx00 = container_of(work, struct acx00, init_work);
@@ -236,6 +274,14 @@ static int acx00_i2c_probe(struct i2c_client *i2c,
 			ret);
 		return ret;
 	}
+
+#ifdef CONFIG_MFD_ACX00_VERSION_CHECK
+	if (acx00_system_version_check(acx00) != 0) {
+		dev_err(acx00->dev, "acx00 check error, skip probe\n");
+		return -ENODEV;
+	}
+#endif
+
 	ret = sysfs_create_group(&i2c->dev.kobj, &audio_debug_attr_group);
 	if (ret) {
 		pr_err("failed to create attr group\n");

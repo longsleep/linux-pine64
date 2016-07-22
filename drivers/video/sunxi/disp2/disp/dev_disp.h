@@ -73,7 +73,7 @@ typedef struct
 
 	disp_init_para          disp_init;
 	struct disp_manager     *mgr[DISP_SCREEN_NUM];
-	struct disp_eink_manager *eink_manager[1];
+
 	struct proc_list        sync_proc_list;
 	struct proc_list        sync_finish_proc_list;
 	struct ioctl_list       ioctl_extend_list;
@@ -208,7 +208,6 @@ extern int sunxi_disp_get_source_ops(struct sunxi_disp_source_ops *src_ops);
 extern s32 disp_lcd_open(u32 sel);
 extern s32 disp_lcd_close(u32 sel);
 extern s32 fb_init(struct platform_device *pdev);
-extern unsigned long fb_get_address_info(u32 fb_id, u32 phy_virt_flag);
 extern s32 fb_exit(void);
 extern int lcd_init(void);
 

@@ -45,29 +45,33 @@ long sunxi_ion_ioctl(struct ion_client *client, unsigned int cmd, unsigned long 
 {
 	long ret = 0;
 	struct ion_handle *ion_handle_get_by_id(struct ion_client *client,int id);
-
+	
 	switch(cmd) {
 	case ION_IOC_SUNXI_PHYS_ADDR:
 	{
 		sunxi_phys_data data;
 		struct ion_handle *handle;
 		if (copy_from_user(&data, (void __user *)arg,
-			sizeof(sunxi_phys_data)))
+					sizeof(sunxi_phys_data)))
 			return -EFAULT;
-
-		handle = ion_handle_get_by_id(client, data.handle);
+			
+		handle = ion_handle_get_by_id(client, data.handle);		
 		if (IS_ERR(handle))
+		{
 			return PTR_ERR(handle);
+		}
 
 		data.size = 0;
+
 		ret = ion_phys(client, handle,
 			(ion_phys_addr_t *)&data.phys_addr,
 			(size_t *)&data.size);
 		ion_handle_put(handle);
-		if (ret)
+		if(ret)
+		{
 			return -EINVAL;
-
-		if (copy_to_user((void __user *)arg, &data, sizeof(data)))
+		}
+		if(copy_to_user((void __user *)arg, &data, sizeof(data)))
 			return -EFAULT;
 		break;
 	}
@@ -95,11 +99,13 @@ long sunxi_ion_ioctl(struct ion_client *client, unsigned int cmd, unsigned long 
 			return -EFAULT;
 		break;
 	}
+	case ION_IOC_SUNXI_FLUSH_RANGE:
+		break;
 	default:
-		pr_err("%s(%d) err: cmd not support!\n", __func__, __LINE__);
+               pr_err("%s(%d) err: cmd not support!\n", __func__, __LINE__);
 		return -ENOTTY;
 	}
-
+	
 	return ret;
 }
 

@@ -41,6 +41,7 @@ int get_scheduler_policy(struct task_struct *p);
 
 #include <wlioctl.h>
 #include <wlfc_proto.h>
+#include <hnd_pktq.h>
 
 #if defined(BCMWDF)
 #include <wdf.h>

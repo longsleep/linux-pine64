@@ -22,10 +22,7 @@
 *.lst
 *.symtypes
 *.order
-*.map
 modules.builtin
-Module.symvers
-Module.markers
 *.elf
 *.bin
 *.gz
@@ -35,15 +32,6 @@ Module.markers
 *.lzo
 *.patch
 *.gcno
-standby.code
-resume1.code
-
-#
-# Gcov files
-#
-*.gcda
-*.gcno
-*.gcov
 
 #
 # Top-level generic files
@@ -72,7 +60,6 @@ resume1.code
 # Generated include files
 #
 include/config
-include/linux/version.h
 include/generated
 arch/*/include/generated
 

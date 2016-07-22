@@ -31,3 +31,10 @@ obj-$(CONFIG_INTEGRITY)			+= integrity/built-in.o
 
 # optee
 obj-$(CONFIG_TEE_SUPPORT)		+= optee/
+
+# File integrity check module
+obj-y						 +=fivm.o
+ifeq ($(CONFIG_FILE_INTEGRITY),m)
+subdir-$(CONFIG_FILE_INTEGRITY) += fivm 
+endif
+

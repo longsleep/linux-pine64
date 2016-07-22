@@ -777,8 +777,8 @@ static int geth_restore(struct device *dev)
 }
 
 static const struct dev_pm_ops geth_pm_ops = {
-	.complete = geth_resume, 
-	.prepare = geth_suspend, 
+	.prepare = geth_suspend,
+	.complete = geth_resume,
 	.suspend = NULL, //geth_suspend,
 	.resume = NULL, //geth_resume,
 	.freeze = geth_freeze,
@@ -793,7 +793,7 @@ static const struct dev_pm_ops geth_pm_ops;
  *
  *
  ****************************************************************************/
-#define sunxi_get_soc_chipid(x) {}
+extern int sunxi_get_soc_chipid(uint8_t *chipid);
 static void geth_chip_hwaddr(u8 *addr)
 {
 #define MD5_SIZE	16

@@ -15,7 +15,6 @@
 #define SUPPORT_SMBL
 #define SUPPORT_HDMI
 #define DSI_VERSION_40
-#define SUPPORT_LVDS
 //#define SUPPORT_TV
 //#define LVDS_REVERT
 

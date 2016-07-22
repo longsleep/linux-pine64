@@ -290,7 +290,7 @@ struct regulator_dev {
 
 	/* lists we own */
 	struct list_head consumer_list; /* consumers we supply */
-#if defined(CONFIG_AW_AXP) ||defined(CONFIG_AW_AXP_NEW)
+#ifdef CONFIG_AW_AXP
 	/* lists we enable */
 	struct list_head enabler_list; /* supply we enable */
 #endif

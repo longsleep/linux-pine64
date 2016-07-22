@@ -91,11 +91,11 @@ static void clktest_reg_dump(void)
 			else
 				sprintf(dumpline,"[Reg %08x] %08x ",i
 							,*((unsigned int*)((char*)sunxi_clk_base +i)));
-			printk("%s\n",dumpline);					
+			printk("%s\n",dumpline);
 			i = i+16;
 		}
 	}
-	printk("\n");	
+	printk("\n");
 }
 static void clktest_process(void)
 {
@@ -155,7 +155,7 @@ static void clktest_process(void)
 						j+=strlen(cur_clk->parent_names[i]);
 						testclk_priv.info[j] = ' ';
 						j++;
-					}	
+					}
 					testclk_priv.info[j]=0;
 					break;
 				}
@@ -167,7 +167,7 @@ static void clktest_process(void)
 					{
 						printk("Error Found parent of %s\n",cur_clk->name);
 						strcpy(testclk_priv.info,"Error");
-					}	
+					}
 						else
 						 strcpy(testclk_priv.info,parent_clk->name);
 					break;
@@ -210,7 +210,7 @@ static void clktest_process(void)
 					{
 							clk_set_rate(cur_clk,rate);
 							sprintf(testclk_priv.info,"%d",(unsigned int)rate);
-					}	
+					}
 					else
 						strcpy(testclk_priv.info,"Error");
 					break;
@@ -222,7 +222,7 @@ static void clktest_process(void)
 					else
 							enabled = cur_clk->ops->is_enabled(cur_clk->hw);
 					if(enabled)
-							strcpy(testclk_priv.info,"enabled");																											
+							strcpy(testclk_priv.info,"enabled");
 					else
 							strcpy(testclk_priv.info,"disabled");
 						break;
@@ -264,7 +264,7 @@ static void clktest_process(void)
 					break;
 			}
 			if(cur_clk)
-				clk_put(cur_clk);	
+				clk_put(cur_clk);
 		}
 		else if( command == 9)
 		{
@@ -283,7 +283,7 @@ static int ccudbg_command_release(struct inode * inode, struct file * file)
 	return 0;
 }
 static ssize_t ccudbg_command_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
-{  
+{
 	int len	= strlen(testclk_priv.command);
 	strcpy(testclk_priv.tmpbuf,testclk_priv.command);
 	testclk_priv.tmpbuf[len]=0x0A;
@@ -307,7 +307,7 @@ static ssize_t ccudbg_command_read(struct file *file, char __user *buf, size_t c
 }
 
 static ssize_t ccudbg_command_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
-{       
+{
 	if( count >= sizeof(testclk_priv.command) )
 		return 0;
 	if(copy_from_user(testclk_priv.command, buf, count))
@@ -328,7 +328,7 @@ static int ccudbg_name_release(struct inode * inode, struct file * file)
 	return 0;
 }
 static ssize_t ccudbg_name_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
-{    
+{
 	int len	= strlen(testclk_priv.name);
 	strcpy(testclk_priv.tmpbuf,testclk_priv.name);
 	testclk_priv.tmpbuf[len]=0x0A;
@@ -352,7 +352,7 @@ static ssize_t ccudbg_name_read(struct file *file, char __user *buf, size_t coun
 }
 
 static ssize_t ccudbg_name_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
-{       
+{
 	if( count >= sizeof(testclk_priv.name) )
 		return 0;
 	if(copy_from_user(testclk_priv.name, buf, count))
@@ -373,7 +373,7 @@ static int ccudbg_start_release(struct inode * inode, struct file * file)
 	return 0;
 }
 static ssize_t ccudbg_start_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
-{    
+{
 	int len = strlen(testclk_priv.start);
 	strcpy(testclk_priv.tmpbuf,testclk_priv.start);
 	testclk_priv.tmpbuf[len]=0x0A;
@@ -396,7 +396,7 @@ static ssize_t ccudbg_start_read(struct file *file, char __user *buf, size_t cou
 	return count;
 }
 static ssize_t ccudbg_start_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
-{     
+{
 	if( count >= sizeof(testclk_priv.start) )
 		return 0;
 	if(copy_from_user(testclk_priv.start, buf, count))
@@ -418,7 +418,7 @@ static int ccudbg_param_release(struct inode * inode, struct file * file)
 	return 0;
 }
 static ssize_t ccudbg_param_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
-{    
+{
 	int len = strlen(testclk_priv.param);
 	strcpy(testclk_priv.tmpbuf,testclk_priv.param);
 	testclk_priv.tmpbuf[len]=0x0A;
@@ -441,7 +441,7 @@ static ssize_t ccudbg_param_read(struct file *file, char __user *buf, size_t cou
 	return count;
 }
 static ssize_t ccudbg_param_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
-{       
+{
 	if( count >= sizeof(testclk_priv.param) )
 		return 0;
 	if(copy_from_user(testclk_priv.param, buf, count))
@@ -462,7 +462,7 @@ static int ccudbg_info_release(struct inode * inode, struct file * file)
 	return 0;
 }
 static ssize_t ccudbg_info_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
-{    
+{
 	int len	= strlen(testclk_priv.info);
 	strcpy(testclk_priv.tmpbuf,testclk_priv.info);
 	testclk_priv.tmpbuf[len]=0x0A;
@@ -485,7 +485,7 @@ static ssize_t ccudbg_info_read(struct file *file, char __user *buf, size_t coun
 	return count;
 }
 static ssize_t ccudbg_info_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
-{       
+{
 	if( count >= sizeof(testclk_priv.info) )
 		return 0;
 	if(copy_from_user(testclk_priv.info, buf, count))
@@ -534,11 +534,11 @@ static int __init debugfs_test_init(void)
 	if(!debugfs_create_file("name", 0644, my_ccudbg_root, NULL,&name_ops))
 		goto Fail;
 	if(!debugfs_create_file("start", 0644, my_ccudbg_root, NULL,&start_ops))
-		goto Fail;	
+		goto Fail;
 	if(!debugfs_create_file("param", 0644, my_ccudbg_root, NULL,&param_ops))
-		goto Fail;	
+		goto Fail;
 	if(!debugfs_create_file("info", 0644, my_ccudbg_root, NULL,&info_ops))
-		goto Fail;	
+		goto Fail;
 	return 0;
 
 	Fail:

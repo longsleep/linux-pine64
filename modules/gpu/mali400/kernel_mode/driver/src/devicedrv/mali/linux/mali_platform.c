@@ -19,13 +19,12 @@ extern unsigned long totalram_pages;
 
 struct __fb_addr_para
 {
-	unsigned int fb_paddr;
-	unsigned int fb_size;
+	uintptr_t fb_paddr;
+	int fb_size;
 };
-
 extern void sunxi_get_fb_addr_para(struct __fb_addr_para *fb_addr_para);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL)
+extern struct  __fb_addr_para g_fb_addr;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)) && defined (CONFIG_SUNXI_THERMAL)
 extern int ths_read_data(int value);
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL) */
 
@@ -37,6 +36,7 @@ extern int sunxi_get_sensor_temp(u32 sensor_num, long *temperature);
 extern int gpu_thermal_cool_unregister(void);
 #endif /* CONFIG_SUNXI_GPU_COOLING */
 
+static struct mali_gpu_device_data mali_gpu_data;
 static struct mali_gpu_device_data mali_gpu_data;
 
 #ifndef CONFIG_MALI_DT
@@ -61,7 +61,7 @@ static struct platform_device mali_gpu_device =
 static long get_temperature(void)
 {
 	long temperature = 0;
-	#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL)
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)) && defined (CONFIG_SUNXI_THERMAL)
 		temperature = ths_read_data(private_data.sensor_num);
 	#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)) && defined (CONFIG_SUNXI_THERMAL) */
 	#ifdef CONFIG_SUN50IW1P1_THERMAL
@@ -143,14 +143,11 @@ static bool set_clk_freq(int freq /* MHz */)
 */
 static void set_gpu_freq(int freq /* MHz */)
 {
-	if (&private_data.lock)
-	{
-		mutex_lock(&private_data.lock);
-		mali_dev_pause();
-		(void)set_clk_freq(freq);
-		mali_dev_resume();
-		mutex_unlock(&private_data.lock);
-	}
+	mutex_lock(&private_data.lock);
+	mali_dev_pause();
+	(void)set_clk_freq(freq);
+	mali_dev_resume();
+	mutex_unlock(&private_data.lock);
 }
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(3,10,0))
@@ -497,14 +494,11 @@ static ssize_t change_voltage_store(struct device *dev, struct device_attribute 
 
 	if(vol <= 1300)
 	{
-		if (&private_data.lock)
-		{
-			mutex_lock(&private_data.lock);
-			mali_dev_pause();
-			set_voltage(vol);
-			mali_dev_resume();
-			mutex_unlock(&private_data.lock);
-		}
+		mutex_lock(&private_data.lock);
+		mali_dev_pause();
+		set_voltage(vol);
+		mali_dev_resume();
+		mutex_unlock(&private_data.lock);
 	}
 	else
 	{
@@ -515,11 +509,11 @@ out:
 	return count;
 }
 
-static DEVICE_ATTR(manual, S_IRUGO|S_IWUGO, dvfs_manual_show, dvfs_manual_store);
-static DEVICE_ATTR(android, S_IRUGO|S_IWUGO, dvfs_android_show, dvfs_android_store);
-static DEVICE_ATTR(tempctrl, S_IRUGO|S_IWUGO, status_tempctrl_show, status_tempctrl_store);
-static DEVICE_ATTR(scenectrl, S_IRUGO|S_IWUGO, status_scenectrl_show, status_scenectrl_store);
-static DEVICE_ATTR(voltage, S_IRUGO|S_IWUGO, change_voltage_show, change_voltage_store);
+static DEVICE_ATTR(manual, 0644, dvfs_manual_show, dvfs_manual_store);
+static DEVICE_ATTR(android, 0644, dvfs_android_show, dvfs_android_store);
+static DEVICE_ATTR(tempctrl, 0644, status_tempctrl_show, status_tempctrl_store);
+static DEVICE_ATTR(scenectrl, 0644, status_scenectrl_show, status_scenectrl_store);
+static DEVICE_ATTR(voltage, 0644, change_voltage_show, change_voltage_store);
 
 static struct attribute *gpu_attributes[] =
 {
@@ -738,7 +732,7 @@ int aw_mali_platform_device_register(void)
 {
 	int err=0;
 	struct platform_device *pdev;
-	struct __fb_addr_para fb_addr_para = {0};
+	//struct __fb_addr_para fb_addr_para = {0};
 
 #ifdef CONFIG_MALI_DT
 	pdev = device;
@@ -757,10 +751,9 @@ int aw_mali_platform_device_register(void)
 		return err;
 	}
 #endif
-
-	sunxi_get_fb_addr_para(&fb_addr_para);
-	mali_gpu_data.fb_start = fb_addr_para.fb_paddr;
-	mali_gpu_data.fb_size = fb_addr_para.fb_size;
+	//sunxi_get_fb_addr_para(&fb_addr_para);
+	mali_gpu_data.fb_start = g_fb_addr.fb_paddr;
+	mali_gpu_data.fb_size = g_fb_addr.fb_size;
 	mali_gpu_data.shared_mem_size = totalram_pages * PAGE_SIZE; /* B */
 
 	err = platform_device_add_data(pdev, &mali_gpu_data, sizeof(mali_gpu_data));
@@ -787,11 +780,7 @@ int aw_mali_platform_device_register(void)
 
 #if defined(CONFIG_PM_RUNTIME)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
-#ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
 	pm_runtime_set_autosuspend_delay(&(pdev->dev), 1000);
-#else
-	pm_runtime_set_autosuspend_delay(&(pdev->dev), 2);
-#endif
 	pm_runtime_use_autosuspend(&(pdev->dev));
 #endif
 	pm_runtime_enable(&(pdev->dev));

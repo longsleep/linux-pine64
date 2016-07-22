@@ -101,6 +101,7 @@ struct sunxi_ir_data{
 	int irq_num;
 	u32 ir_addr_cnt;
 	u32 ir_addr[MAX_ADDR_NUM];
+	u32 ir_powerkey[MAX_ADDR_NUM];
 };
 
 int init_rc_map_sunxi(u32 *addr, u32 addr_num);

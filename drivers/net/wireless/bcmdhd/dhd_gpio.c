@@ -12,7 +12,7 @@
 #define	sdmmc_channel	s3c_device_hsmmc0
 #endif
 
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 #include <linux/gpio.h>
 
 extern void sunxi_mmc_rescan_card(unsigned ids);
@@ -20,6 +20,9 @@ extern void sunxi_wlan_set_power(int on);
 extern int sunxi_wlan_get_bus_index(void);
 extern int sunxi_wlan_get_oob_irq(void);
 extern int sunxi_wlan_get_oob_irq_flags(void);
+#ifdef CONFIG_CUSTOM_MAC_ADDRESS
+extern void sunxi_wlan_custom_mac_address(u8 *mac);
+#endif
 #endif
 
 struct wifi_platform_data dhd_wlan_control = {0};
@@ -34,7 +37,7 @@ uint bcm_wlan_get_oob_irq(void)
 	host_oob_irq = gpio_to_irq(EXYNOS4_GPX0(7));
 	gpio_direction_input(EXYNOS4_GPX0(7));
 #endif
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 	host_oob_irq = sunxi_wlan_get_oob_irq();
 #endif
 	printk("host_oob_irq: %d \r\n", host_oob_irq);
@@ -47,9 +50,13 @@ uint bcm_wlan_get_oob_irq_flags(void)
 	uint host_oob_irq_flags = 0;
 
 #ifdef CONFIG_MACH_ODROID_4210
-	host_oob_irq_flags = (IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE) & IRQF_TRIGGER_MASK;
+#ifdef HW_OOB
+	host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE;
+#else
+	host_oob_irq_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE | IORESOURCE_IRQ_SHAREABLE;
 #endif
-#ifdef CUSTOMER_HW_ALLWINNER
+#endif
+#ifdef CONFIG_ARCH_SUNXI
 	host_oob_irq_flags = sunxi_wlan_get_oob_irq_flags();
 #endif
 	printk("host_oob_irq_flags=%d\n", host_oob_irq_flags);
@@ -67,7 +74,7 @@ int bcm_wlan_set_power(bool on)
 #ifdef CONFIG_MACH_ODROID_4210
 		err = gpio_set_value(EXYNOS4_GPK1(0), 1);
 #endif
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 		sunxi_wlan_set_power(1);
 #endif
 		/* Lets customer power to get stable */
@@ -77,7 +84,7 @@ int bcm_wlan_set_power(bool on)
 #ifdef CONFIG_MACH_ODROID_4210
 		err = gpio_set_value(EXYNOS4_GPK1(0), 0);
 #endif
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 		sunxi_wlan_set_power(0);
 #endif
 	}
@@ -88,7 +95,7 @@ int bcm_wlan_set_power(bool on)
 int bcm_wlan_set_carddetect(bool present)
 {
 	int err = 0;
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 	int wlan_bus_index = sunxi_wlan_get_bus_index();
 	if(wlan_bus_index < 0)
 		return wlan_bus_index;
@@ -98,7 +105,7 @@ int bcm_wlan_set_carddetect(bool present)
 #ifdef CONFIG_MACH_ODROID_4210
 		err = sdhci_s3c_force_presence_change(&sdmmc_channel, 1);
 #endif
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 		sunxi_mmc_rescan_card(wlan_bus_index);
 #endif
 	} else {
@@ -106,7 +113,7 @@ int bcm_wlan_set_carddetect(bool present)
 #ifdef CONFIG_MACH_ODROID_4210
 		err = sdhci_s3c_force_presence_change(&sdmmc_channel, 0);
 #endif
-#ifdef CUSTOMER_HW_ALLWINNER
+#ifdef CONFIG_ARCH_SUNXI
 		sunxi_mmc_rescan_card(wlan_bus_index);
 #endif
 	}
@@ -117,6 +124,8 @@ int bcm_wlan_set_carddetect(bool present)
 int bcm_wlan_get_mac_address(unsigned char *buf)
 {
 	int err = 0;
+	u8 mac[ETH_ALEN] = {0};
+	struct ether_addr mac_addr;
 	
 	printk("======== %s ========\n", __FUNCTION__);
 #ifdef EXAMPLE_GET_MAC
@@ -127,6 +136,16 @@ int bcm_wlan_get_mac_address(unsigned char *buf)
 	}
 #endif /* EXAMPLE_GET_MAC */
 
+#ifdef CONFIG_ARCH_SUNXI
+#ifdef CONFIG_CUSTOM_MAC_ADDRESS
+	sunxi_wlan_custom_mac_address(mac);
+	if(is_valid_ether_addr(mac)) {
+		memcpy(mac_addr.octet, mac, ETHER_ADDR_LEN);
+		bcopy((char *)&mac_addr, buf, sizeof(struct ether_addr));
+	}
+
+#endif
+#endif
 	return err;
 }
 

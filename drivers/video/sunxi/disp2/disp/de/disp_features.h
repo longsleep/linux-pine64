@@ -11,8 +11,6 @@
 #include "lowlevel_sun8iw8/de_feat.h"
 #elif defined(CONFIG_ARCH_SUN8IW9)
 #include "lowlevel_sun8iw9/de_feat.h"
-#elif defined(CONFIG_ARCH_SUN8IW10)
-#include "./lowlevel_sun8iw10/de_feat.h"
 #elif defined(CONFIG_ARCH_SUN8IW11)
 #include "lowlevel_sun8iw11/de_feat.h"
 #elif defined(CONFIG_ARCH_SUN50I)
