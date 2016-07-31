@@ -90,7 +90,6 @@ static int mali_mem_ump_map(mali_mem_backend *mem_backend)
 
 		offset += _MALI_OSK_MALI_PAGE_SIZE;
 	}
-	session->mali_mem_array[mem_backend->type] += mem_backend->size;
 	mali_session_memory_unlock(session);
 	_mali_osk_free(ump_blocks);
 	return 0;
@@ -105,12 +104,10 @@ static void mali_mem_ump_unmap(mali_mem_allocation *alloc)
 	mali_session_memory_lock(session);
 	mali_mem_mali_map_free(session, alloc->psize, alloc->mali_vma_node.vm_node.start,
 			       alloc->flags);
-
-	session->mali_mem_array[alloc->type] -= alloc->psize;
 	mali_session_memory_unlock(session);
 }
 
-int mali_memory_bind_ump_buf(mali_mem_allocation *alloc, mali_mem_backend *mem_backend, u32  secure_id, u32 flags)
+int mali_mem_bind_ump_buf(mali_mem_allocation *alloc, mali_mem_backend *mem_backend, u32  secure_id, u32 flags)
 {
 	ump_dd_handle ump_mem;
 	int ret;
@@ -140,7 +137,7 @@ int mali_memory_bind_ump_buf(mali_mem_allocation *alloc, mali_mem_backend *mem_b
 	return _MALI_OSK_ERR_OK;
 }
 
-void mali_mem_ump_release(mali_mem_backend *mem_backend)
+void mali_mem_unbind_ump_buf(mali_mem_backend *mem_backend)
 {
 	ump_dd_handle ump_mem;
 	mali_mem_allocation *alloc;
@@ -153,12 +150,5 @@ void mali_mem_ump_release(mali_mem_backend *mem_backend)
 	MALI_DEBUG_ASSERT_POINTER(alloc);
 	mali_mem_ump_unmap(alloc);
 	ump_dd_reference_release(ump_mem);
-}
-
-int mali_memory_unbind_ump_buf(mali_mem_backend *mem_backend)
-{
-	MALI_DEBUG_ASSERT_POINTER(mem_backend);
-	mali_mem_ump_release(mem_backend);
-	return _MALI_OSK_ERR_OK;
 }
 

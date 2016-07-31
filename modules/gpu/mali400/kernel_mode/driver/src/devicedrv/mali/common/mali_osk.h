@@ -1323,6 +1323,58 @@ void _mali_osk_pm_dev_barrier(void);
 
 /** @} */ /* end group  _mali_osk_miscellaneous */
 
+/** @defgroup _mali_osk_bitmap OSK Bitmap
+ * @{ */
+
+/** @brief Allocate a unique number from the bitmap object.
+ *
+ * @param bitmap Initialized bitmap object.
+ * @return An unique existence in the bitmap object.
+ */
+u32 _mali_osk_bitmap_alloc(struct _mali_osk_bitmap *bitmap);
+
+/** @brief Free a interger to the bitmap object.
+ *
+ * @param bitmap Initialized bitmap object.
+ * @param obj An number allocated from bitmap object.
+ */
+void _mali_osk_bitmap_free(struct _mali_osk_bitmap *bitmap, u32 obj);
+
+/** @brief Allocate continuous number from the bitmap object.
+ *
+ * @param bitmap Initialized bitmap object.
+ * @return start number of the continuous number block.
+ */
+u32 _mali_osk_bitmap_alloc_range(struct _mali_osk_bitmap *bitmap, int cnt);
+
+/** @brief Free a block of continuous number block to the bitmap object.
+ *
+ * @param bitmap Initialized bitmap object.
+ * @param obj Start number.
+ * @param cnt The size of the continuous number block.
+ */
+void _mali_osk_bitmap_free_range(struct _mali_osk_bitmap *bitmap, u32 obj, int cnt);
+
+/** @brief Available count could be used to allocate in the given bitmap object.
+ *
+ */
+u32 _mali_osk_bitmap_avail(struct _mali_osk_bitmap *bitmap);
+
+/** @brief Initialize an bitmap object..
+ *
+ * @param bitmap An poiter of uninitialized bitmap object.
+ * @param num Size of thei bitmap object and decide the memory size allocated.
+ * @param reserve start number used to allocate.
+ */
+int _mali_osk_bitmap_init(struct _mali_osk_bitmap *bitmap, u32 num, u32 reserve);
+
+/** @brief Free the given bitmap object.
+ *
+ * @param bitmap Initialized bitmap object.
+ */
+void _mali_osk_bitmap_term(struct _mali_osk_bitmap *bitmap);
+/** @} */ /* end group  _mali_osk_bitmap */
+
 /** @} */ /* end group osuapi */
 
 /** @} */ /* end group uddapi */

@@ -104,6 +104,7 @@ _mali_osk_errcode_t _mali_internal_profiling_start(u32 *limit)
 	new_profile_entries = _mali_osk_valloc(*limit * sizeof(mali_profiling_entry));
 
 	if (NULL == new_profile_entries) {
+		_mali_osk_mutex_signal(lock);
 		_mali_osk_vfree(new_profile_entries);
 		return _MALI_OSK_ERR_NOMEM;
 	}

@@ -44,7 +44,6 @@ static inline void _mali_vma_offset_add_rb(struct mali_allocation_manager *mgr,
 		else if (node->vm_node.start > iter_node->vm_node.start)
 			iter = &(*iter)->rb_right;
 		else
-			/* Not support yet */
 			MALI_DEBUG_ASSERT(0);
 	}
 

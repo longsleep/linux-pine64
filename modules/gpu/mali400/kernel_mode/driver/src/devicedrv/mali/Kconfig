@@ -15,6 +15,12 @@ config MALI450
 	---help---
 	  This enables support for Mali-450 specific features.
 
+config MALI470
+	bool "Enable Mali-470 support"
+	depends on MALI400
+	---help---
+	  This enables support for Mali-470 specific features.
+
 config MALI400_DEBUG
 	bool "Enable debug in Mali driver"
 	depends on MALI400

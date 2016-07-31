@@ -19,9 +19,8 @@ extern "C" {
 #include "mali_osk.h"
 #include "mali_memory.h"
 
-int mali_memory_bind_ump_buf(mali_mem_allocation *alloc, mali_mem_backend *mem_backend, u32  secure_id, u32 flags);
-int mali_memory_unbind_ump_buf(mali_mem_backend *mem_backend);
-void mali_mem_ump_release(mali_mem_backend *mem_backend);
+int mali_mem_bind_ump_buf(mali_mem_allocation *alloc, mali_mem_backend *mem_backend, u32  secure_id, u32 flags);
+void mali_mem_unbind_ump_buf(mali_mem_backend *mem_backend);
 
 #ifdef __cplusplus
 }
