@@ -148,6 +148,7 @@ static int sunxi_chipid_probe(struct platform_device *pdev)
 		break;
 	}
 	pr_info("%s,%d: soc bin:%d\n", __func__, __LINE__, sunxi_soc_bin);
+	pr_info("chipid-sunxi serial %pm\n", sunxi_serial);
 
 	return 0;
 }
