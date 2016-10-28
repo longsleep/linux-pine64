@@ -778,9 +778,11 @@ static void geth_check_addr(struct net_device *ndev, unsigned char *mac)
 		for (i=0; i<ETH_ALEN; i++, p++)
 			ndev->dev_addr[i] = simple_strtoul(p, &p, 16);
 
+#if 0
 		if (!is_valid_ether_addr(ndev->dev_addr)) {
 			geth_chip_hwaddr(ndev->dev_addr);
 		}
+#endif
 
 		if (!is_valid_ether_addr(ndev->dev_addr)) {
 			random_ether_addr(ndev->dev_addr);
@@ -1583,8 +1585,8 @@ static int geth_script_parse(struct platform_device *pdev)
 	}
 #endif
 	priv->phy_interface = of_get_phy_mode(np);
-	if (priv->phy_interface != PHY_INTERFACE_MODE_MII 
-			&& priv->phy_interface != PHY_INTERFACE_MODE_RGMII 
+	if (priv->phy_interface != PHY_INTERFACE_MODE_MII
+			&& priv->phy_interface != PHY_INTERFACE_MODE_RGMII
 			&& priv->phy_interface != PHY_INTERFACE_MODE_RMII) {
 		dev_err(&pdev->dev, "Not support phy type!\n");
 		priv->phy_interface = PHY_INTERFACE_MODE_MII;
