@@ -65,7 +65,7 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 
 	nr_pages = buf->size >> PAGE_SHIFT;
 
-	pages = kzalloc(sizeof(struct page) * nr_pages,
+	pages = kzalloc(sizeof(struct page*) * nr_pages,
 				GFP_KERNEL);
 	if (!pages) {
 		DRM_ERROR("failed to allocate pages.\n");
