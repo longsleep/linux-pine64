@@ -1454,6 +1454,11 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
             GTP_INFO("gt9xx:index = %d\n",index);
 			
 			}
+			if (!strcmp(config_info.name,"gt911_DB2")){
+            index = 4;
+            GTP_INFO("gt9xx:index = %d\n",index);
+			
+			}
 		}
 #endif
 
