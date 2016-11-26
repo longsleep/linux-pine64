@@ -34,6 +34,19 @@ AS		+= -EL
 LD		+= -EL
 endif
 
+ifeq ($(CONFIG_ARM64_MODULE_CMODEL_LARGE), y)
+KBUILD_CFLAGS_MODULE	+= -mcmodel=large
+endif
+
+ifeq ($(CONFIG_ARM64_ERRATUM_843419),y)
+ld-843419-workaround := $(call ld-option, --fix-cortex-a53-843419)
+ifeq ($(ld-843419-workaround),)
+$(warning ld does not support --fix-cortex-a53-843419; kernel may be susceptible to erratum)
+else
+LDFLAGS_vmlinux        += --fix-cortex-a53-843419
+endif
+endif
+
 comma = ,
 
 CHECKFLAGS	+= -D__aarch64__
