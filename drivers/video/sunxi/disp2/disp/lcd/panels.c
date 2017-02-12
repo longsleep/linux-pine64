@@ -11,6 +11,7 @@ extern __lcd_panel_t tft720x1280_panel;
 extern __lcd_panel_t S6D7AA0X01_panel;
 extern __lcd_panel_t inet_dsi_panel;
 extern __lcd_panel_t mb709_mipi_panel;
+extern __lcd_panel_t anx9804_panel;
 
 __lcd_panel_t* panel_array[] = {
 	&default_panel,
@@ -23,6 +24,7 @@ __lcd_panel_t* panel_array[] = {
 	&inet_dsi_panel,
 	/* add new panel below */
 	&mb709_mipi_panel,
+	&anx9804_panel,
 
 	NULL,
 };
