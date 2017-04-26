@@ -951,7 +951,8 @@ static s32 disp_lcd_pwm_enable(struct disp_device *lcd)
 	}
 
 	if (disp_lcd_is_used(lcd) && lcdp->pwm_info.dev) {
-		return disp_sys_pwm_enable(lcdp->pwm_info.dev);
+	    disp_sys_pwm_set_polarity(lcdp->pwm_info.dev, lcdp->pwm_info.polarity);
+	    return disp_sys_pwm_enable(lcdp->pwm_info.dev);
 	}
 	DE_WRN("pwm device hdl is NULL\n");
 
