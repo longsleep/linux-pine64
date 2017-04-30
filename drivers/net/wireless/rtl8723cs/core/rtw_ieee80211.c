@@ -23,7 +23,7 @@
 #include <linux/fs.h>
 #endif 
 #include <drv_types.h>
-
+#include <linux/sunxi-sid.h>
 
 u8 RTW_WPA_OUI_TYPE[] = { 0x00, 0x50, 0xf2, 1 };
 u16 RTW_WPA_VERSION = 1;
@@ -1517,21 +1517,11 @@ void rtw_macaddr_cfg(u8 *out, const u8 *hw_mac_addr)
 
 err_chk:
 	if (rtw_check_invalid_mac_address(mac, _TRUE) == _TRUE) {
-		#if DEFAULT_RANDOM_MACADDR
-		DBG_871X_LEVEL(_drv_err_, "invalid mac addr:"MAC_FMT", assign random MAC\n", MAC_ARG(mac));
-		*((u32 *)(&mac[2])) = rtw_random32();
+		DBG_871X_LEVEL(_drv_err_, "invalid mac addr:"MAC_FMT", assign chipid MAC\n", MAC_ARG(mac));
+		sunxi_get_chipid_mac_addr(mac);
 		mac[0] = 0x00;
 		mac[1] = 0xe0;
 		mac[2] = 0x4c;
-		#else
-		DBG_871X_LEVEL(_drv_err_, "invalid mac addr:"MAC_FMT", assign default one\n", MAC_ARG(mac));
-		mac[0] = 0x00;
-		mac[1] = 0xe0;
-		mac[2] = 0x4c;
-		mac[3] = 0x87;
-		mac[4] = 0x00;
-		mac[5] = 0x00;
-		#endif
 	}
 
 	_rtw_memcpy(out, mac, ETH_ALEN);

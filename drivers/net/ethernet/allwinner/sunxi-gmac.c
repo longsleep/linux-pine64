@@ -26,6 +26,7 @@
 #include <linux/crypto.h>
 #include <linux/err.h>
 #include <linux/scatterlist.h>
+#include <linux/sunxi-sid.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_net.h>
 #include <linux/io.h>
@@ -721,63 +722,6 @@ static const struct dev_pm_ops geth_pm_ops;
  *
  *
  ****************************************************************************/
-#define sunxi_get_soc_chipid(x) {}
-static void geth_chip_hwaddr(u8 *addr)
-{
-#define MD5_SIZE	16
-#define CHIP_SIZE	16
-
-	struct crypto_hash *tfm;
-	struct hash_desc desc;
-	struct scatterlist sg;
-	u8 result[MD5_SIZE];
-	u8 chipid[CHIP_SIZE];
-	int i = 0;
-	int ret = -1;
-
-	memset(chipid, 0, sizeof(chipid));
-	memset(result, 0, sizeof(result));
-
-	sunxi_get_soc_chipid((u8 *)chipid);
-
-	tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
-	if (IS_ERR(tfm)) {
-		pr_err("Failed to alloc md5\n");
-		return;
-	}
-	desc.tfm = tfm;
-	desc.flags = 0;
-
-	ret = crypto_hash_init(&desc);
-	if (ret < 0) {
-		pr_err("crypto_hash_init() failed\n");
-		goto out;
-	}
-
-	sg_init_one(&sg, chipid, sizeof(chipid) - 1);
-	ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
-	if (ret < 0) {
-		pr_err("crypto_hash_update() failed for id\n");
-		goto out;
-	}
-
-	crypto_hash_final(&desc, result);
-	if (ret < 0) {
-		pr_err("crypto_hash_final() failed for result\n");
-		goto out;
-	}
-
-	/* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
-	for (i = 0; i < ETH_ALEN; i++) {
-		addr[i] = result[2*i];
-	}
-	addr[0] &= 0xfe;     /* clear multicast bit */
-	addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
-
-out:
-	crypto_free_hash(tfm);
-}
-
 static void geth_check_addr(struct net_device *ndev, unsigned char *mac)
 {
 	int i;
@@ -787,11 +731,9 @@ static void geth_check_addr(struct net_device *ndev, unsigned char *mac)
 		for (i=0; i<ETH_ALEN; i++, p++)
 			ndev->dev_addr[i] = simple_strtoul(p, &p, 16);
 
-#if 0
 		if (!is_valid_ether_addr(ndev->dev_addr)) {
-			geth_chip_hwaddr(ndev->dev_addr);
+			sunxi_get_chipid_mac_addr(ndev->dev_addr);
 		}
-#endif
 
 		if (!is_valid_ether_addr(ndev->dev_addr)) {
 			random_ether_addr(ndev->dev_addr);

@@ -21,6 +21,8 @@
 #include <linux/of_address.h>
 #include <linux/err.h>
 #include <linux/sunxi-smc.h>
+#include <linux/crypto.h>
+#include <linux/scatterlist.h>
 
 #include <linux/sunxi-sid.h>
 #include "sunxi-sid-efuse.h"
@@ -570,3 +572,54 @@ s32 sunxi_efuse_readn(void *key_name, void *buf, u32 n)
 }
 EXPORT_SYMBOL(sunxi_efuse_readn);
 
+int sunxi_get_chipid_mac_addr(u8 *addr)
+{
+#define MD5_SIZE	16
+
+	struct crypto_hash *tfm;
+	struct hash_desc desc;
+	struct scatterlist sg;
+	u8 result[MD5_SIZE];
+	int i = 0;
+	int ret = -1;
+
+	sid_chipid_init();
+	
+	tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(tfm)) {
+		pr_err("Failed to alloc md5\n");
+		return;
+	}
+	desc.tfm = tfm;
+	desc.flags = 0;
+
+	ret = crypto_hash_init(&desc);
+	if (ret < 0) {
+		pr_err("crypto_hash_init() failed\n");
+		goto out;
+	}
+
+	sg_init_one(&sg, sunxi_soc_chipid, sizeof(sunxi_soc_chipid) - 1);
+	ret = crypto_hash_update(&desc, &sg, sizeof(sunxi_soc_chipid) - 1);
+	if (ret < 0) {
+		pr_err("crypto_hash_update() failed for id\n");
+		goto out;
+	}
+
+	crypto_hash_final(&desc, result);
+	if (ret < 0) {
+		pr_err("crypto_hash_final() failed for result\n");
+		goto out;
+	}
+
+	/* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
+	for (i = 0; i < 6; i++) {
+		addr[i] = result[2*i];
+	}
+	addr[0] &= 0xfe;     /* clear multicast bit */
+	addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
+
+out:
+	crypto_free_hash(tfm);
+}
+EXPORT_SYMBOL(sunxi_get_chipid_mac_addr);
