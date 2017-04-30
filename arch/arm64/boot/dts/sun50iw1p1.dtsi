@@ -250,9 +250,9 @@
 	};
 
 	chipid: sunxi-chipid@1c14200 {
-		compatible = "sunxi,sun50i-chipid";
+		compatible = "allwinner,sunxi-chipid";
 		device_type = "chipid";
-		reg = <0x0 0x01c14200 0 0x0400>; /* chipid */
+		reg = <0x0 0x01c14200 0 0x0200>; /* chipid */
 	};
 
 	timer {

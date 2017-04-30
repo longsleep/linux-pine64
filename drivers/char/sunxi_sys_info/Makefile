@@ -2,16 +2,13 @@
 # Makefile for sunxi system information driver
 #
 
-PWD=$(shell pwd)
+obj-$(CONFIG_SUNXI_SYS_INFO) += sysinfo.o
 
-obj-$(CONFIG_SUNXI_SYS_INFO) += sunxi_sys_info.o chipid-sunxi.o
+sysinfo-y += sunxi-sysinfo.o
 
-install: build
-	cp sunxi_sys_info.ko $(LICHEE_MOD_DIR)/
+ifdef CONFIG_SUNXI_SMC
+sysinfo-y += sunxi-smc.o smc_call.o
+endif
 
-build:
-	@echo $(LICHEE_KDIR)
-	$(MAKE) -C $(LICHEE_KDIR) M=$(PWD)
+ #ccflags-y += -DDEBUG
 
-#clean:
-#	@rm -rf *.o *.ko .*.cmd *.mod.c *.order *.symvers .tmp_versions *~

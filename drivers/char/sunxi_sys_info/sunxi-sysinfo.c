@@ -1,5 +1,5 @@
 /*
- * Based on drivers/char/sunxi_sys_info/sunxi_sys_info.c
+ * Based on drivers/char/sunxi-sysinfo/sunxi-sysinfo.c
  *
  * Copyright (C) 2015 Allwinnertech Ltd.
  *
@@ -20,27 +20,18 @@
 #include <linux/printk.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
-#include <linux/sunxi-chip.h>
+#include <linux/sunxi-sid.h>
 
-static unsigned int sunxi_get_platform(char *buf)
-{
-#if (defined CONFIG_ARCH_SUN50IW1P1)
-	return sprintf(buf, "%s", "Sun50iw1p1");
-#else
-	return sprintf(buf, "%s", "unknow platform!");
-#endif
-}
-
-static ssize_t sys_info_show(struct class *class, \
-                             struct class_attribute *attr, char *buf)
+static ssize_t sys_info_show(struct class *class,
+			     struct class_attribute *attr, char *buf)
 {
 	int i;
-	int databuf[4];
-	char tmpbuf[129];
+	int databuf[4] = {0};
+	char tmpbuf[129] = {0};
 	size_t size = 0;
 
 	/* platform */
-	sunxi_get_platform(tmpbuf);
+	sunxi_get_platform(tmpbuf, 129);
 	size += sprintf(buf + size, "sunxi_platform    : %s\n", tmpbuf);
 
 	/* secure */
@@ -62,8 +53,8 @@ static ssize_t sys_info_show(struct class *class, \
 	size += sprintf(buf + size, "sunxi_chiptype    : %s\n", tmpbuf);
 
 	/* socbatch number */
-	size += sprintf(buf + size, "sunxi_batchno     : %x\n", \
-	                sunxi_get_soc_ver()&0x0ffff);
+	size += sprintf(buf + size, "sunxi_batchno     : %#x\n",
+			sunxi_get_soc_ver()&0x0ffff);
 
 	return size;
 }
@@ -79,8 +70,6 @@ static struct class info_class = {
 	.class_attrs    = info_class_attrs,
 };
 
-extern void __init sunxi_chip_id_init(void);
-
 static int __init sunxi_sys_info_init(void)
 {
 	pr_debug("sunxi get sys info driver init\n");
@@ -95,6 +84,6 @@ static void __exit sunxi_sys_info_exit(void)
 
 module_init(sunxi_sys_info_init);
 module_exit(sunxi_sys_info_exit);
-MODULE_LICENSE     ("GPL v2");
-MODULE_AUTHOR      ("xiafeng<xiafeng@allwinnertech.com>");
-MODULE_DESCRIPTION ("sunxi sys info.");
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("xiafeng<xiafeng@allwinnertech.com>");
+MODULE_DESCRIPTION("sunxi sys info.");
