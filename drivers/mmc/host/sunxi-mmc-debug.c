@@ -325,7 +325,7 @@ static ssize_t dump_clk_dly_show(struct device *dev, struct device_attribute *at
 	return p-buf;
 }
 
-
+/*
 
 int mmc_create_sys_fs(struct sunxi_mmc_host* host,struct platform_device *pdev)
 {
@@ -388,5 +388,5 @@ void mmc_remove_sys_fs(struct sunxi_mmc_host* host,struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &host->dump_clk_dly);
 }
 
-
+*/
 

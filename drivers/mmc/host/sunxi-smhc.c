@@ -1537,11 +1537,11 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	if (ret)
 		goto error_free_dma;
 
-	ret = mmc_create_sys_fs(host,pdev);
+/*	ret = mmc_create_sys_fs(host,pdev);
 	if(ret){
 		dev_err(&pdev->dev, "create sys fs failed\n");
 		goto error_free_dma;
-	}
+	} */
 	
 	dev_info(&pdev->dev, "base:0x%p irq:%u\n", host->reg_base, host->irq);
 	platform_set_drvdata(pdev, mmc);
@@ -1563,7 +1563,7 @@ static int sunxi_mmc_remove(struct platform_device *pdev)
 	disable_irq(host->irq);
 //	sunxi_mmc_reset_host(host);
 
-	mmc_remove_sys_fs(host,pdev);
+/*	mmc_remove_sys_fs(host,pdev); */
 
 	if (!IS_ERR(mmc->supply.vdmmc))
 			regulator_disable(mmc->supply.vdmmc);
