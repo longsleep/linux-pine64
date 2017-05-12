@@ -199,6 +199,12 @@ config EVB_PLATFORM
        help
          Support for Allwinner's EVB board
 endchoice
+
+config SUNXI_SOC_NAME
+	string "The name of SUNXI SoC"
+	default ""
+	help
+	  Used for /sysfs/.../sysinfo.
 endmenu
 
 menu "Bus support"

@@ -16,6 +16,7 @@ config FB_CONSOLE_SUNXI
 config DISP2_SUNXI
   tristate "DISP Driver Support(sunxi-disp2)"
   depends on (ARCH_SUN50I)
+  select FB_BACKLIGHT
   default n
   ---help---
 

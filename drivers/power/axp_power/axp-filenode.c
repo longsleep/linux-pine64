@@ -83,7 +83,7 @@ static ssize_t vbuslimit_show(struct class *class,
 }
 
 static ssize_t out_factory_mode_show(struct class *class,
-    struct class_attribute *attr, char *buf)
+	struct class_attribute *attr, char *buf)
 {
 	u8 addr = AXP_BUFFERC;
 	u8 data;
@@ -92,7 +92,7 @@ static ssize_t out_factory_mode_show(struct class *class,
 }
 
 static ssize_t out_factory_mode_store(struct class *class,
-        struct class_attribute *attr, const char *buf, size_t count)
+		struct class_attribute *attr, const char *buf, size_t count)
 {
 	u8 addr = AXP_BUFFERC;
 	u8 data;
@@ -109,11 +109,123 @@ static ssize_t out_factory_mode_store(struct class *class,
 	return count;
 }
 
+static ssize_t axp_rdc_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	u8 temp_val[2];
+	axp_reads(axp_charger->master, 0xba, 2, temp_val);
+	return sprintf(buf, "%d\n", (((temp_val[0] & 0x1f) <<8) + temp_val[1])*10742/10000);
+}
+
+static ssize_t axp_batt_max_cap_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	u8 temp_val[2];
+	axp_reads(axp_charger->master, 0xe0, 2, temp_val);
+	return sprintf(buf, "%d\n", (((temp_val[0] & 0x7f) <<8) + temp_val[1])*1456/1000);
+}
+
+static ssize_t axp_coulumb_counter_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	u8 temp_val[2];
+	axp_reads(axp_charger->master, 0xe2, 2, temp_val);
+	return sprintf(buf, "%d\n", (((temp_val[0] & 0x7f) <<8) + temp_val[1])*1456/1000);
+}
+
+static ssize_t axp_power_sply_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	u64 power_sply = axp_charger->disvbat * axp_charger->disibat;
+	return sprintf(buf, "%lld\n", power_sply);
+}
+
+static ssize_t axp_ic_temp_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->ic_temp);
+}
+
+static ssize_t axp_bat_temp_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->bat_temp);
+}
+
+static ssize_t axp_vbat_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->vbat);
+}
+
+static ssize_t axp_ibat_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->ibat);
+}
+
+static ssize_t axp_ocv_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->ocv);
+}
+
+static ssize_t axp_disvbat_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->disvbat);
+}
+
+static ssize_t axp_disibat_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->disibat);
+}
+
+static ssize_t axp_is_on_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->is_on);
+}
+
+static ssize_t axp_bat_current_direction_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->bat_current_direction);
+}
+
+static ssize_t axp_charge_on_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->charge_on);
+}
+
+static ssize_t axp_ext_valid_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", axp_charger->ext_valid);
+}
+
 static struct class_attribute axppower_class_attrs[] = {
 	__ATTR(vbuslimit,S_IRUGO|S_IWUSR,vbuslimit_show,vbuslimit_store),
 	__ATTR(axpdebug,S_IRUGO|S_IWUSR,axpdebug_show,axpdebug_store),
 	__ATTR(regdebug,S_IRUGO|S_IWUSR,axp_regdebug_show,axp_regdebug_store),
 	__ATTR(out_factory_mode,S_IRUGO|S_IWUSR,out_factory_mode_show,out_factory_mode_store),
+	__ATTR(rdc_show,S_IRUGO,axp_rdc_show,NULL),
+	__ATTR(batt_max_cap,S_IRUGO,axp_batt_max_cap_show,NULL),
+	__ATTR(coulumb_counter,S_IRUGO,axp_coulumb_counter_show,NULL),
+	__ATTR(power_sply,S_IRUGO,axp_power_sply_show,NULL),
+	__ATTR(ic_temp,S_IRUGO,axp_ic_temp_show,NULL),
+	__ATTR(bat_temp,S_IRUGO,axp_bat_temp_show,NULL),
+	__ATTR(vbat,S_IRUGO,axp_vbat_show,NULL),
+	__ATTR(ibat,S_IRUGO,axp_ibat_show,NULL),
+	__ATTR(ocv,S_IRUGO,axp_ocv_show,NULL),
+	__ATTR(disvbat,S_IRUGO,axp_disvbat_show,NULL),
+	__ATTR(disibat,S_IRUGO,axp_disibat_show,NULL),
+	__ATTR(is_on,S_IRUGO,axp_is_on_show,NULL),
+	__ATTR(bat_current_direction,S_IRUGO,axp_bat_current_direction_show,NULL),
+	__ATTR(charge_on,S_IRUGO,axp_charge_on_show,NULL),
+	__ATTR(ext_valid,S_IRUGO,axp_ext_valid_show,NULL),
 	__ATTR_NULL
 };
 
@@ -121,4 +233,3 @@ struct class axppower_class = {
 	.name = "axppower",
 	.class_attrs = axppower_class_attrs,
 };
-

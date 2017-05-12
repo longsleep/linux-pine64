@@ -653,4 +653,29 @@ config INPUT_XEN_KBDDEV_FRONTEND
 	  To compile this driver as a module, choose M here: the
 	  module will be called xen-kbdfront.
 
+config INPUT_HALL_GPIO
+	tristate "Hall device with one GPIO support"
+	depends on GPIOLIB
+	default n
+	help
+	  Say Y here to get support for GPIO base hall with one GPIO.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called hall.
+
+choice
+	depends on INPUT_HALL_GPIO
+	prompt "Hall device with one GPIO report mode"
+	default INPUT_HALL_GPIO_REPORT_SW
+
+config INPUT_HALL_GPIO_REPORT_SW
+	bool "Hall reports as switch"
+
+config INPUT_HALL_GPIO_REPORT_KEY
+	bool "Hall reports as key"
+
+endchoice
+
 endif
