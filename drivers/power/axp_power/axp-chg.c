@@ -52,6 +52,12 @@ s32 axp_usb_det(void)
 }
 EXPORT_SYMBOL_GPL(axp_usb_det);
 
+s32 axp_usb_vbus_output(int high)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(axp_usb_vbus_output);
+
 static void axp_usb_ac_check_status(struct axp_charger *charger)
 {
 	if (!axp_config->pmu_init_bc_en) {
@@ -278,4 +284,3 @@ void axp_chg_exit(struct axp_charger *charger)
 	}
 	return;
 }
-

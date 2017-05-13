@@ -8,6 +8,7 @@
 s32 axp_usbcur(aw_charge_type type){ return 0; };
 s32 axp_usbvol(aw_charge_type type){ return 0; };
 s32 axp_usb_det(void){ return 0; };
+s32 axp_usb_vbus_output(int high){ return 0; };
 s32 axp_powerkey_get(void){ return 0; };
 void axp_powerkey_set(int value){};
 u64 axp_read_power_sply(void){ return 0; };

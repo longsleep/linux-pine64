@@ -40,11 +40,22 @@ static const char ohci_name[] = SUNXI_OHCI_NAME;
 #define  SUNXI_OHCI0_OF_MATCH	"null"
 #endif
 
-
 #if defined CONFIG_USB_SUNXI_OHCI1 && !defined SUNXI_USB_FPGA
 #define  SUNXI_OHCI1_OF_MATCH	"allwinner,sunxi-ohci1"
 #else
 #define  SUNXI_OHCI1_OF_MATCH	"null"
+#endif
+
+#if defined CONFIG_USB_SUNXI_OHCI2 && !defined SUNXI_USB_FPGA
+#define  SUNXI_OHCI2_OF_MATCH	"allwinner,sunxi-ohci2"
+#else
+#define  SUNXI_OHCI2_OF_MATCH	"null"
+#endif
+
+#if defined CONFIG_USB_SUNXI_OHCI3 && !defined SUNXI_USB_FPGA
+#define  SUNXI_OHCI3_OF_MATCH	"allwinner,sunxi-ohci3"
+#else
+#define  SUNXI_OHCI3_OF_MATCH	"null"
 #endif
 
 static struct sunxi_hci_hcd *g_sunxi_ohci[4];
@@ -359,11 +370,10 @@ static int sunxi_ohci_hcd_probe(struct platform_device *pdev)
 	ret = init_sunxi_hci(pdev, SUNXI_USB_OHCI);
 	if(ret != 0){
 		dev_err(&pdev->dev, "init_sunxi_hci is fail\n");
-		return 0;
+		return -1;
 	}
 
 	sunxi_insmod_ohci(pdev);
-
 
 	sunxi_ohci = pdev->dev.platform_data;
 	if(sunxi_ohci == NULL){
@@ -406,16 +416,16 @@ static void sunxi_ohci_hcd_shutdown(struct platform_device* pdev)
 
 	sunxi_ohci = pdev->dev.platform_data;
 	if(sunxi_ohci == NULL){
-		DMSG_PANIC("ERR: sunxi_ohci is null\n");
+		DMSG_PANIC("ERR: %s sunxi_ohci is null\n", __func__);
 		return ;
 	}
 
 	if(sunxi_ohci->probe == 0){
-		DMSG_PANIC("ERR: %s, %s is disable, need not shutdown\n",  __func__, sunxi_ohci->hci_name);
+		DMSG_INFO("%s, %s is disable, need not shutdown\n",  __func__, sunxi_ohci->hci_name);
 		return ;
 	}
 
-	DMSG_INFO("[%s]: ohci shutdown start\n", sunxi_ohci->hci_name);
+	pr_debug("[%s]: ohci shutdown start\n", sunxi_ohci->hci_name);
 
 #ifdef	CONFIG_PM
 	if(sunxi_ohci->wakeup_suspend){
@@ -423,9 +433,15 @@ static void sunxi_ohci_hcd_shutdown(struct platform_device* pdev)
 	}
 #endif
 	usb_hcd_platform_shutdown(pdev);
-	sunxi_stop_ohci(sunxi_ohci);
 
-	DMSG_INFO("[%s]: ohci shutdown end\n", sunxi_ohci->hci_name);
+	/* disable usb otg INTUSBE, To solve usb0 device mode catch audio udev on reboot system is fail*/
+	if (sunxi_ohci->usbc_no == 0)
+		if (sunxi_ohci->otg_vbase) {
+			writel(0, (sunxi_ohci->otg_vbase
+						+ SUNXI_USBC_REG_INTUSBE));
+		}
+
+	pr_debug("[%s]: ohci shutdown end\n", sunxi_ohci->hci_name);
 
 	return;
 }
@@ -457,7 +473,8 @@ static int sunxi_ohci_hcd_suspend(struct device *dev)
 	}
 
 	if(sunxi_ohci->probe == 0){
-		DMSG_PANIC("[%s]: is disable, can not suspend\n", sunxi_ohci->hci_name);
+		DMSG_INFO("[%s]: is disable, can not suspend\n",
+			sunxi_ohci->hci_name);
 		return 0;
 	}
 
@@ -480,6 +497,11 @@ static int sunxi_ohci_hcd_suspend(struct device *dev)
 		val |= OHCI_INTR_RD;
 		val |= OHCI_INTR_MIE;
 		ohci_writel(ohci, val, &ohci->regs->intrenable);
+
+		if(sunxi_ohci->clk_usbohci12m && sunxi_ohci->clk_losc){
+			clk_set_parent(sunxi_ohci->clk_usbohci12m, sunxi_ohci->clk_losc);
+		}
+
 	}else{
 		DMSG_INFO("[%s]: sunxi_ohci_hcd_suspend\n", sunxi_ohci->hci_name);
 
@@ -522,12 +544,17 @@ static int sunxi_ohci_hcd_resume(struct device *dev)
 	}
 
 	if(sunxi_ohci->probe == 0){
-		DMSG_PANIC("[%s]: is disable, can not resume\n", sunxi_ohci->hci_name);
+		DMSG_INFO("[%s]: is disable, can not resume\n",
+			sunxi_ohci->hci_name);
 		return 0;
 	}
 
 	if(sunxi_ohci->wakeup_suspend){
 		DMSG_INFO("[%s]: controller not suspend, need not resume\n", sunxi_ohci->hci_name);
+
+		if(sunxi_ohci->clk_usbohci12m && sunxi_ohci->clk_hoscx2){
+			clk_set_parent(sunxi_ohci->clk_usbohci12m, sunxi_ohci->clk_hoscx2);
+		}
 
 		scene_unlock(&ohci_standby_lock[sunxi_ohci->usbc_no]);
 		disable_wakeup_src(CPUS_USBMOUSE_SRC, 0);
@@ -563,6 +590,8 @@ static const struct dev_pm_ops sunxi_ohci_pmops = {
 static const struct of_device_id sunxi_ohci_match[] = {
 	{.compatible = SUNXI_OHCI0_OF_MATCH, },
 	{.compatible = SUNXI_OHCI1_OF_MATCH, },
+	{.compatible = SUNXI_OHCI2_OF_MATCH, },
+	{.compatible = SUNXI_OHCI3_OF_MATCH, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, sunxi_ohci_match);
@@ -629,4 +658,3 @@ int sunxi_usb_enable_ohci(__u32 usbc_no)
 	return 0;
 }
 EXPORT_SYMBOL(sunxi_usb_enable_ohci);
-
