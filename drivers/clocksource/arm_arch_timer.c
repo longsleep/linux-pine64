@@ -192,6 +192,22 @@ static __always_inline void timer_set_mode(const int access, int mode,
 	}
 }
 
+u32 __fsl_a008585_read_cntp_tval_el0(void)
+{
+	return __fsl_a008585_read_reg(cntp_tval_el0);
+}
+
+u32 __fsl_a008585_read_cntv_tval_el0(void)
+{
+	return __fsl_a008585_read_reg(cntv_tval_el0);
+}
+
+u64 __fsl_a008585_read_cntvct_el0(void)
+{
+	return __fsl_a008585_read_reg(cntvct_el0);
+}
+EXPORT_SYMBOL(__fsl_a008585_read_cntvct_el0);
+
 static void arch_timer_set_mode_virt(enum clock_event_mode mode,
 				     struct clock_event_device *clk)
 {
@@ -215,49 +231,23 @@ static void arch_timer_set_mode_phys_mem(enum clock_event_mode mode,
 {
 	timer_set_mode(ARCH_TIMER_MEM_PHYS_ACCESS, mode, clk);
 }
-#ifdef  CONFIG_ARCH_SUN50I
-#define ARCH_TVAL_TRY_MAX_TIME (8)
-static __always_inline void set_next_event(const int access, unsigned long evt,
-				  struct clock_event_device *clk)
-{
-	unsigned int  retry = 0;
-	unsigned long ctrl;
-	unsigned long tval;
 
-	ctrl = arch_timer_reg_read(access, ARCH_TIMER_REG_CTRL, clk);
-	ctrl |= ARCH_TIMER_CTRL_ENABLE;
-	ctrl &= ~ARCH_TIMER_CTRL_IT_MASK;
-
-	/* sun50i timer maybe imprecise,
-	 * we should try to fix this.
-	 */
-	while (retry < ARCH_VCNT_TRY_MAX_TIME) {
-		arch_timer_reg_write(access, ARCH_TIMER_REG_TVAL, evt, clk);
-		tval = arch_timer_reg_read(access, ARCH_TIMER_REG_TVAL, clk);
-		if (tval <= evt) {
-			/* set tval succeeded, let timer running */
-			arch_timer_reg_write(access, ARCH_TIMER_REG_CTRL, ctrl, clk);
-			return;
-		}
-		/* tval set value error, try again */
-		retry++;
-	}
-	/* set tval fail, just let timer running */
-	printk("notice: set tval failed.\n");
-	arch_timer_reg_write(access, ARCH_TIMER_REG_CTRL, ctrl, clk);
-}
-#else
 static __always_inline void set_next_event(const int access, unsigned long evt,
 				  struct clock_event_device *clk)
 {
 	unsigned long ctrl;
+	u64 cval = evt + arch_counter_get_cntvct();
 	ctrl = arch_timer_reg_read(access, ARCH_TIMER_REG_CTRL, clk);
 	ctrl |= ARCH_TIMER_CTRL_ENABLE;
 	ctrl &= ~ARCH_TIMER_CTRL_IT_MASK;
-	arch_timer_reg_write(access, ARCH_TIMER_REG_TVAL, evt, clk);
+
+	if (access == ARCH_TIMER_PHYS_ACCESS)
+		write_sysreg(cval, cntp_cval_el0);
+	else if (access == ARCH_TIMER_VIRT_ACCESS)
+		write_sysreg(cval, cntv_cval_el0);
+
 	arch_timer_reg_write(access, ARCH_TIMER_REG_CTRL, ctrl, clk);
 }
-#endif /* CONFIG_ARCH_SUN50I */
 
 static int arch_timer_set_next_event_virt(unsigned long evt,
 					  struct clock_event_device *clk)
@@ -432,7 +422,7 @@ static cycle_t arch_counter_read_cc(const struct cyclecounter *cc)
 }
 
 static struct clocksource clocksource_counter = {
-	.name	= "arch_sys_counter",
+	.name	= "arch_sys_counter_ool",
 	.rating	= 400,
 	.read	= arch_counter_read,
 	.mask	= CLOCKSOURCE_MASK(56),
