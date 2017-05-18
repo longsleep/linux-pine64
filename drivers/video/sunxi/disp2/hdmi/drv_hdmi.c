@@ -10,24 +10,28 @@ static bool hdmi_io_used[HDMI_IO_NUM]={0};
 static disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
 static u32 io_enable_count = 0;
 
-static struct semaphore *run_sem = NULL;
-static struct task_struct * HDMI_task = NULL;
-static struct task_struct * cec_task = NULL;
+static struct semaphore   *run_sem   = NULL;
+static struct task_struct *HDMI_task = NULL;
+static struct task_struct *cec_task  = NULL;
 static bool hdmi_cec_support = false;
 static char hdmi_power[25];
 static bool hdmi_power_used;
 static bool hdmi_used;
 static bool boot_hdmi = false;
+
 #if defined(CONFIG_COMMON_CLK)
-static struct clk *hdmi_clk = NULL;
-static struct clk *hdmi_ddc_clk = NULL;
+	static struct clk *hdmi_clk = NULL;
+	static struct clk *hdmi_ddc_clk = NULL;
 #endif
+
 static u32 power_enable_count = 0;
 static u32 clk_enable_count = 0;
 static struct mutex mlock;
+
 #if defined(CONFIG_SND_SUNXI_SOC_HDMIAUDIO)
-static bool audio_enable = false;
+	static bool audio_enable = false;
 #endif
+
 static bool b_hdmi_suspend;
 static bool b_hdmi_suspend_pre;
 
@@ -51,6 +55,7 @@ void hdmi_delay_us(unsigned long us)
 unsigned int hdmi_get_soc_version(void)
 {
     unsigned int version = 0;
+	
 #if defined(CONFIG_ARCH_SUN8IW7)
 	unsigned int chip_ver = sunxi_get_soc_ver();
 
@@ -78,12 +83,12 @@ static int hdmi_parse_io_config(void)
 		sprintf(io_name, "hdmi_io_%d", i);
 		ret = disp_sys_script_get_item("hdmi", io_name, (int *)gpio_info, sizeof(disp_gpio_set_t)/sizeof(int));
 		if (ret == 3)
-		  hdmi_io_used[i]= 1;
+			hdmi_io_used[i] = 1;
 		else
 			hdmi_io_used[i] = 0;
 	}
 
-  return 0;
+ 	return 0;
 }
 
 static int hdmi_io_config(u32 bon)
@@ -95,9 +100,11 @@ static int hdmi_io_config(u32 bon)
 			disp_gpio_set_t  gpio_info[1];
 
 			memcpy(gpio_info, &(hdmi_io[i]), sizeof(disp_gpio_set_t));
+			
 			if (!bon) {
 				gpio_info->mul_sel = 7;
 			}
+			
 			hdl = disp_sys_gpio_request(gpio_info, 1);
 			disp_sys_gpio_release(hdl, 2);
 		}
@@ -112,6 +119,7 @@ static int hdmi_clk_enable(void)
 
 	if (hdmi_clk)
 		ret = clk_prepare_enable(hdmi_clk);
+	
 	if (0 != ret)
 		return ret;
 
@@ -128,6 +136,7 @@ static int hdmi_clk_disable(void)
 {
 	if (hdmi_clk)
 		clk_disable(hdmi_clk);
+	
 	if (hdmi_ddc_clk)
 		clk_disable(hdmi_ddc_clk);
 
@@ -156,15 +165,12 @@ static int hdmi_clk_config(u32 vic){}
  */
 int hdmi_clk_enable_prepare(void)
 {
-	int ret = 0;
-
 	pr_warn("%s()L%d\n", __func__, __LINE__);
+	
 	if (hdmi_clk)
-		ret = sunxi_clk_enable_prepare(hdmi_clk);
-	if (0 != ret)
-		return ret;
+		return sunxi_clk_enable_prepare(hdmi_clk);
 
-	return ret;
+	return 0;
 }
 
 /* hdmi_clk_disable_prepare - prepare for hdmi disable
@@ -192,10 +198,10 @@ static int hdmi_power_enable(char *name)
 		goto exit;
 	}
 
-	/* enalbe regulator */
+	/* enable regulator */
 	ret = regulator_enable(regu);
 	if (0 != ret) {
-		pr_err("%s: some error happen, fail to enable regulator %s!\n", __func__, name);
+		pr_err("%s: some error happened, fail to enable regulator %s!\n", __func__, name);
 		goto exit1;
 	} else {
 		__inf("suceess to enable regulator %s!\n", name);
