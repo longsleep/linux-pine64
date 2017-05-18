@@ -163,9 +163,20 @@ static s32 edid_parse_dtd_block(u8 *pbuf)
 			Device_Support_VIC[HDMI1080P_50] = 1;
 		}
 	}
+	else if ((frame_rate == 30)) {
+		if ((sizex == 3840) && (sizey == 2840)) {
+			Device_Support_VIC[HDMI3840_2160P_30] = 1;
+		}
+	}
 	else if ((frame_rate == 23) || (frame_rate == 24)) {
 		if ((sizex== 1920) && (sizey == 1080)) {
 			Device_Support_VIC[HDMI1080P_24] = 1;
+		}
+		if ((sizex == 3840) && (sizey == 2840) && frame_rate == 24) {
+			Device_Support_VIC[HDMI3840_2160P_24] = 1;
+		}
+		if ((sizex == 3840) && (sizey == 2840) && frame_rate == 25) {
+			Device_Support_VIC[HDMI3840_2160P_25] = 1;
 		}
 	}
 	__inf("PCLK=%d\tXsize=%d\tYsize=%d\tFrame_rate=%d\n",
