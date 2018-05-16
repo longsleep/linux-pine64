@@ -4,7 +4,7 @@
  * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
  * yangnaitian, 2011-5-24, create this file
  *
- * Include file for AW1623 HCI Host Controller Driver
+ * Include file for SUNXI HCI Host Controller Driver
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -23,6 +23,10 @@
 #include <linux/irq.h>
 #include <linux/sys_config.h>
 #include <linux/of_gpio.h>
+
+#if defined(CONFIG_AW_AXP)
+extern s32 axp_usb_vbus_output(int high);
+#endif
 
 #define  DMSG_ERR(format,args...)               pr_err("hci: "format,##args)
 #define  DMSG_PRINT(stuff...)		 	printk(stuff)
@@ -85,6 +89,7 @@
 #define SUNXI_OTG_PHY_CTRL                      0x410
 #define SUNXI_OTG_PHY_CFG                       0x420
 #define SUNXI_OTG_PHY_STATUS                    0x424
+#define SUNXI_USBC_REG_INTUSBE                  0x0050
 
 #define EHCI_CAP_OFFSET		(0x00)
 #define EHCI_CAP_LEN		(0x10)
@@ -167,6 +172,12 @@ enum sunxi_usbc_type{
 	SUNXI_USB_OHCI,
 };
 
+enum usb_drv_vbus_type {
+	USB_DRV_VBUS_TYPE_NULL = 0,
+	USB_DRV_VBUS_TYPE_GIPO,
+	USB_DRV_VBUS_TYPE_AXP,
+};
+
 struct sunxi_hci_hcd{
 	__u32 usbc_no;                          /* usb controller number */
 	__u32 irq_no;                           /* interrupt number */
@@ -215,7 +226,12 @@ struct sunxi_hci_hcd{
 	struct clk	*mod_usbphy;            /* PHY0 clock handle */
 	struct clk	*hsic_usbphy;            /* hsic clock handle */
 	struct clk	*pll_hsic;               /* pll_hsic clock handle */
-	struct clk	*clk_usbhsic12m;               /* pll_hsic clock handle */
+	struct clk	*clk_usbhsic12m;          /* pll_hsic clock handle */
+
+	struct clk	*clk_usbohci12m;          /* clk_usbohci12m clock handle */
+	struct clk	*clk_hoscx2;              /* clk_hoscx2 clock handle */
+	struct clk	*clk_hosc;                /* clk_hosc clock handle */
+	struct clk	*clk_losc;	          /* clk_losc clock handle */
 
 	__u32 clk_is_open;                      /* is usb clock open */
 
@@ -225,6 +241,8 @@ struct sunxi_hci_hcd{
 	const char  *used_status;
 	int   regulator_value;
 	struct regulator* regulator_io_hdle;
+	enum usb_drv_vbus_type drv_vbus_type;
+	const char *drv_vbus_name;
 	u32 drv_vbus_gpio_valid;
 	u32 usb_restrict_valid;
 	__u8 power_flag;                        /* flag. power on or not */
@@ -289,4 +307,3 @@ int usb_phyx_tp_write(struct sunxi_hci_hcd *sunxi_hci, int addr, int data, int l
 int usb_phyx_tp_read(struct sunxi_hci_hcd *sunxi_hci, int addr, int len);
 
 #endif   //__SUNXI_HCI_SUNXI_H__
-
